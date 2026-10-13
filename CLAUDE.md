@@ -40,7 +40,13 @@ xUnit. Don't add a framework, database, package or front-end library without say
 
 ## Testing
 
-- Never say tests pass unless they were run in this session and passed. Report failures with their output.
+- Never say tests pass unless they were run in this session and passed. Report failures with their output
+  (`verification-before-completion`).
+- **Test first** (`test-driven-development`) for domain logic, services, controllers and bug fixes: write the test,
+  watch it fail for the right reason, then write the code. Its "delete code written before the test" rule applies
+  only to code written in the current change; never delete committed code without asking. Exempt (its "generated
+  code / configuration" exception): `dotnet new` scaffolding, EF migrations, Razor views, CSS, vendored libraries.
+  Read its `npm test` examples as `dev\ft-dev.ps1 test`, or `dotnet test --filter` for a single test.
 - Run `dev\ft-dev.ps1 check` before every commit.
 - Use xUnit's `Assert` (not FluentAssertions). Use in-memory SQLite for database tests (not EF's in-memory provider).
   No Testcontainers.
@@ -66,5 +72,6 @@ xUnit. Don't add a framework, database, package or front-end library without say
 
 ## Skills
 
-`.claude/skills/` holds `dotnet-patterns`, `csharp-testing`, `accessibility` and `break-ui` (third-party, MIT). **When
-a skill disagrees with this file, this file wins.** The overrides are listed in `docs/skills-and-agents.md`.
+`.claude/skills/` holds `dotnet-patterns`, `csharp-testing`, `accessibility`, `break-ui`, `test-driven-development`
+and `verification-before-completion` (all third-party, MIT, copied unchanged). **When a skill disagrees with this
+file, this file wins.** The overrides are listed in `docs/skills-and-agents.md`.

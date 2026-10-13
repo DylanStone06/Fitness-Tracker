@@ -5,8 +5,10 @@ and reports back, so two agents can never change the same file.
 
 ## Project skills (`.claude/skills/`)
 
-Copied unchanged from `GravelMasterMVC\.claude\skills` on 13 October 2026, each with its licence. They are instructions
-only: no scripts, hooks, `allowed-tools` or network calls.
+All are copied unchanged, each with its licence, and are instructions only: no scripts, hooks, `allowed-tools` or
+network calls. The first four came from `GravelMasterMVC\.claude\skills`. The last two came from
+[obra/superpowers](https://github.com/obra/superpowers) at commit `bb92a777` (10 October 2026), without the plugin
+or its start-of-session hook. All were copied on 13 October 2026.
 
 | Skill | From | Licence | Use it for | Project overrides (CLAUDE.md wins) |
 |---|---|---|---|---|
@@ -14,6 +16,8 @@ only: no scripts, hooks, `allowed-tools` or network calls.
 | `csharp-testing` | Affaan Mustafa, Everything Claude Code | MIT | xUnit structure, naming, builders, integration tests | Use xUnit `Assert`, not FluentAssertions. Use in-memory SQLite, not EF's in-memory provider. No Testcontainers (no Docker). |
 | `accessibility` | Affaan Mustafa, Everything Claude Code | MIT | WCAG 2.2 AA for every screen | Web sections only. |
 | `break-ui` | Emil Kowalski | MIT | Worst-case data for calendar and list screens | Fixtures use made-up people and `example.com`. The worst-case toggle is development-only. |
+| `test-driven-development` | Jesse Vincent, Superpowers | MIT | Red-green-refactor for domain logic, services, controllers and bug fixes; `writing-good-tests.md` for test quality | Examples are TypeScript: use xUnit and `dev\ft-dev.ps1 test`. "Delete code written before the test" applies only to the current change. Exempt: scaffolding, EF migrations, Razor views, CSS, vendored libraries. Its link to `superpowers:writing-skills` points at a skill we don't have. |
+| `verification-before-completion` | Jesse Vincent, Superpowers | MIT | No "done", "fixed" or "passing" without fresh evidence from this turn | None. It matches `CLAUDE.md` (we never push, so its push wording doesn't apply). |
 
 **Not copied:**
 - `gravelmaster`: house rules for the shop. Its useful habits are in `CLAUDE.md` instead.
@@ -45,7 +49,7 @@ These are created once the scheduling rules exist in code, so they describe real
 ## The loop for each change
 
 1. Agree the change and how we'll know it works.
-2. The main session writes the tests and code.
+2. The main session writes a failing test, watches it fail, then writes the code (`test-driven-development`).
 3. Run `dev\ft-dev.ps1 check`.
 4. Review: `/code-review`, plus `scheduling-reviewer`, `break-ui` or `accessibility` where they apply.
 5. Commit locally (one commit per change). The owner pushes from GitHub Desktop.
@@ -63,7 +67,7 @@ Plugins are installed for the user, so they apply to **every** project on this P
 | frontend-design | Anthropic | Instructions only | Later (Phase 5) | UI guidance when the calendar is built |
 | csharp-lsp | Anthropic (official marketplace) | Runs the `csharp-ls` language server locally | Later (decide in Phase 2) | Live C# errors and go-to-definition, but needs `dotnet` and `csharp-ls` on PATH, and Windows problems have been reported. `ft-dev check` gives the same errors at build time. |
 | playwright | Microsoft (partner) | Drives a browser through Node | No | Needs Node. The built-in browser covers manual checks; automated browser tests, if wanted, would use the .NET Playwright package. |
-| Superpowers | Jesse Vincent (partner) | A start-of-session hook in every project | No, for now | Good TDD and debugging skills, but its workflow (subagents editing in worktrees) clashes with ours, and its hook applies to every project |
+| Superpowers | Jesse Vincent (partner) | A bash start-of-session hook in every project, which injects a skill telling Claude to check for skills before every reply | **Plugin: no. Two skills copied** (above) | The hook needs bash, which this PC doesn't have. Its forcefully worded bootstrap would add process to every reply in every project, including GravelMaster (where it conflicts with committing straight to `master`). It also duplicates our plan/review workflow. Its `test-driven-development` and `verification-before-completion` skills are self-contained, so they were copied without the plugin. |
 | commit-commands | Anthropic | Runs git, including push | No | We never push, and we have our own commit message format |
 | code-simplifier | Anthropic | One agent | No | Already included in pr-review-toolkit |
 | Frugal, Wave Planning | Community | Hooks and agents in every session | No | Model-routing plugins: same aim as OmniRoute, within Claude. Model choice is already in the app's model picker. |
