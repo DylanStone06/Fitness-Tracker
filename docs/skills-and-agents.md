@@ -50,6 +50,24 @@ These are created once the scheduling rules exist in code, so they describe real
 4. Review: `/code-review`, plus `scheduling-reviewer`, `break-ui` or `accessibility` where they apply.
 5. Commit locally (one commit per change). The owner pushes from GitHub Desktop.
 
+## Plugins evaluated (13 October 2026)
+
+Plugins are installed for the user, so they apply to **every** project on this PC, including GravelMaster.
+
+| Plugin | Publisher | What it can reach | Verdict | Why |
+|---|---|---|---|---|
+| **OmniRoute** | Community (diegosouzapw). Not a plugin: an AI gateway | Every prompt, file Claude reads and reply goes through a server you run, then on to other model providers (GLM, Kimi, DeepSeek, or Claude via an OAuth route) | **Rejected** | Sends code and conversations to third-party providers with no stated retention policy. If set globally it would also carry GravelMaster sessions. Using a Claude subscription through a proxy may break Anthropic's terms. Weaker models are a poor fit for correctness-critical scheduling code. |
+| **microsoft-docs** | Microsoft (partner) | Remote: sends search queries (not code) to Microsoft Learn; no login | **Recommended** | Current official docs for .NET 10, ASP.NET Core MVC, EF Core and Identity: exactly this stack |
+| **security-guidance** | Anthropic | Hooks on edits, prompts and end of turn: local pattern checks plus an AI review of changes | **Recommended** | Flags injection, XSS and hardcoded secrets as code is written. Matters from Phase 2 (accounts, personal data). Costs some tokens each turn. |
+| context7 | Upstash (partner) | Remote; needs a Context7 login | Later (Phases 3 and 5) | Current docs for NodaTime and FullCalendar. Web fetch covers it until then. |
+| frontend-design | Anthropic | Instructions only | Later (Phase 5) | UI guidance when the calendar is built |
+| csharp-lsp | Anthropic (official marketplace) | Runs the `csharp-ls` language server locally | Later (decide in Phase 2) | Live C# errors and go-to-definition, but needs `dotnet` and `csharp-ls` on PATH, and Windows problems have been reported. `ft-dev check` gives the same errors at build time. |
+| playwright | Microsoft (partner) | Drives a browser through Node | No | Needs Node. The built-in browser covers manual checks; automated browser tests, if wanted, would use the .NET Playwright package. |
+| Superpowers | Jesse Vincent (partner) | A start-of-session hook in every project | No, for now | Good TDD and debugging skills, but its workflow (subagents editing in worktrees) clashes with ours, and its hook applies to every project |
+| commit-commands | Anthropic | Runs git, including push | No | We never push, and we have our own commit message format |
+| code-simplifier | Anthropic | One agent | No | Already included in pr-review-toolkit |
+| Frugal, Wave Planning | Community | Hooks and agents in every session | No | Model-routing plugins: same aim as OmniRoute, within Claude. Model choice is already in the app's model picker. |
+
 ## Adding a skill, agent or plugin later
 
 Before suggesting one, state plainly:
