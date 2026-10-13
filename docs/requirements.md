@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Draft for review** (Phase 1) |
+| Status | **Approved as written**, 13 October 2026 (open questions keep their defaults) |
 | Date | 13 October 2026 |
 | Owner | Dylan Stone |
 | Related | [ADR 0001: technology stack](decisions/0001-stack.md) · [Roadmap](roadmap.md) · [Skills and agents](skills-and-agents.md) |
@@ -317,7 +317,8 @@ apps, and importing from or syncing with other calendars.
 
 ## 12. Open questions
 
-None of these block Phase 2. A default has been chosen for each; change any of them during review.
+The owner approved the requirements with these defaults on 13 October 2026. Any of them can still be revisited in a
+later phase; the change is then recorded here.
 
 | # | Question | Default |
 |---|---|---|
