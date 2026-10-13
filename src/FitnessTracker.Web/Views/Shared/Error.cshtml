@@ -1,0 +1,14 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Something went wrong";
+}
+
+<h1>Something went wrong</h1>
+<p>Your request couldn't be completed. Please try again.</p>
+
+@if (Model.ShowRequestId)
+{
+    <p>
+        If it keeps happening, quote this reference: <code>@Model.RequestId</code>
+    </p>
+}

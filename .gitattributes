@@ -1,0 +1,14 @@
+# Text is stored with LF in the repository and checked out with CRLF on every machine, so the
+# working copy always matches .editorconfig (end_of_line = crlf) and `dotnet format --verify-no-changes`.
+* text=auto eol=crlf
+
+# Scripts run on Linux need LF, or the shebang line breaks.
+*.sh text eol=lf
+
+# Vendored front-end libraries are kept byte-for-byte as shipped, so they can be checked against the originals.
+src/FitnessTracker.Web/wwwroot/lib/** -text
+
+*.ico binary
+*.png binary
+*.jpg binary
+*.woff2 binary
