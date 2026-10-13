@@ -1,0 +1,15 @@
+/* Styles for the layout's own markup only (CSS isolation). Site-wide styles go in wwwroot/css/site.css. */
+
+a.navbar-brand {
+  white-space: normal;
+  text-align: center;
+  word-break: break-all;
+}
+
+.border-bottom {
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.box-shadow {
+  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+}

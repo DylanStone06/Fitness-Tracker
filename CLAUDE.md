@@ -22,7 +22,10 @@ xUnit. Don't add a framework, database, package or front-end library without say
 
 - dotnet: `%LOCALAPPDATA%\GravelMasterDev\dotnet\dotnet.exe` (SDK 10.0.401)
 - git: `%LOCALAPPDATA%\GitHubDesktop\app-*\resources\app\git\cmd\git.exe`
-- `dev\ft-dev.ps1` (arrives in Phase 2) wraps both: `build`, `test`, `run`, `format`, `check`.
+- `dev\ft-dev.ps1` finds dotnet and runs `build`, `test [-Filter text]`, `run`, `format`, `check`. Git is still
+  called by its full path.
+- Defender (an IT-managed rule) blocks newly built `.exe` files, so everything runs through `dotnet.exe`
+  (`UseAppHost=false`). That is also why tests use xUnit v2 with VSTest: xUnit v3 always starts its own `.exe`.
 - No Node, Docker or SQL Server. In Windows PowerShell 5.1, pass commit messages with `git commit -F <file>`.
 
 ## Architecture rules
@@ -46,7 +49,8 @@ xUnit. Don't add a framework, database, package or front-end library without say
   watch it fail for the right reason, then write the code. Its "delete code written before the test" rule applies
   only to code written in the current change; never delete committed code without asking. Exempt (its "generated
   code / configuration" exception): `dotnet new` scaffolding, EF migrations, Razor views, CSS, vendored libraries.
-  Read its `npm test` examples as `dev\ft-dev.ps1 test`, or `dotnet test --filter` for a single test.
+  Read its `npm test` examples as `dev\ft-dev.ps1 test`, or `dev\ft-dev.ps1 test -Filter <name>` for a single test
+  (a filter that matches nothing fails rather than passing).
 - Run `dev\ft-dev.ps1 check` before every commit.
 - Use xUnit's `Assert` (not FluentAssertions). Use in-memory SQLite for database tests (not EF's in-memory provider).
   No Testcontainers.

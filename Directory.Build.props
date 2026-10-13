@@ -1,0 +1,16 @@
+<Project>
+  <!-- Settings shared by every project in the repository. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Known-vulnerable packages (NU1901-NU1904) stay errors. Only "couldn't reach the vulnerability
+         feed" (NU1900, e.g. when offline) stays a warning, so working offline doesn't break the build. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- No per-project .exe launcher; everything runs through dotnet.exe. This PC's Defender policy
+         (ASR rule 01443614: "prevalence, age or trusted list") blocks newly built .exe files. -->
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+</Project>
