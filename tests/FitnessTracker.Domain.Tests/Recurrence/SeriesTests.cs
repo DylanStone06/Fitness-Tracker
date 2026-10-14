@@ -84,6 +84,31 @@ public class SeriesTests
         Assert.Equal(expected, DatesOf(stretch, new(2026, 10, 1), new(2026, 10, 31)));
     }
 
+    // Asking for dates long after a series began gives the same answer as walking from its first date. A
+    // fortnightly series from Tuesday 7 January 2025: Monday 6 January 2025 to Monday 5 October 2026 is
+    // 365 + 272 = 637 days = 91 weeks (odd), so in October 2026 it falls on the 13th and 27th (checked by hand and
+    // with .NET's own date maths). Asked from the 5th, an odd week, so counting weeks from the dates asked for,
+    // instead of from the first date, would wrongly give the 6th and 20th.
+    [Fact]
+    public void Fortnightly_AskedForLongAfterItBegan_KeepsItsWeeks()
+    {
+        var run = new Series(new(2025, 1, 7), SevenAm, FiftyMinutes, London, RecurrenceRule.Weekly([IsoDayOfWeek.Tuesday], everyWeeks: 2));
+
+        LocalDate[] expected = [new(2026, 10, 13), new(2026, 10, 27)];
+        Assert.Equal(expected, DatesOf(run, new(2026, 10, 5), new(2026, 10, 31)));
+    }
+
+    // 1 January 2025 to 1 October 2026 is 365 + 273 = 638 days; 638 = 3 x 212 + 2, so the 2nd (639) is the first
+    // October date, then the 5th and 8th.
+    [Fact]
+    public void EveryFewDays_AskedForLongAfterItBegan_KeepsItsRhythm()
+    {
+        var stretch = new Series(new(2025, 1, 1), SevenAm, FiftyMinutes, London, RecurrenceRule.Daily(everyDays: 3));
+
+        LocalDate[] expected = [new(2026, 10, 2), new(2026, 10, 5), new(2026, 10, 8)];
+        Assert.Equal(expected, DatesOf(stretch, new(2026, 10, 1), new(2026, 10, 10)));
+    }
+
     // Unlike iCalendar, the first date only counts if the rule includes it.
     [Fact]
     public void Weekly_StartingOnADayThatIsNotChosen_BeginsOnTheNextChosenDay()

@@ -85,21 +85,28 @@ public sealed class RecurrenceRule
     }
 
     /// <summary>
-    /// The dates the rule falls on, in order, for a series starting on <paramref name="firstDate"/>, up to and
-    /// including <paramref name="through"/>. Always walks from the first date, so a count is counted from there.
+    /// The dates the rule falls on from <paramref name="from"/> to <paramref name="through"/>, inclusive and in
+    /// order, for a series starting on <paramref name="firstDate"/>. Without a count it starts at
+    /// <paramref name="from"/>, because whether a date matches never depends on the dates before it; with a count it
+    /// walks from the first date, because the count is counted from there.
     /// </summary>
-    public IEnumerable<LocalDate> Dates(LocalDate firstDate, LocalDate through)
+    public IEnumerable<LocalDate> Dates(LocalDate firstDate, LocalDate from, LocalDate through)
     {
         var lastDate = LastDate is { } end && end < through ? end : through;
+        var start = Count is null && from > firstDate ? from : firstDate;
         var found = 0;
-        for (var date = firstDate; date <= lastDate; date = date.PlusDays(1))
+        for (var date = start; date <= lastDate; date = date.PlusDays(1))
         {
-            if (!FallsOn(date, firstDate))
+            if (!Matches(date, firstDate))
             {
                 continue;
             }
 
-            yield return date;
+            if (date >= from)
+            {
+                yield return date;
+            }
+
             if (++found == Count)
             {
                 yield break;
@@ -107,7 +114,11 @@ public sealed class RecurrenceRule
         }
     }
 
-    private bool FallsOn(LocalDate date, LocalDate firstDate) => Frequency switch
+    /// <summary>Whether the rule falls on <paramref name="date"/> for a series starting on <paramref name="firstDate"/>.</summary>
+    public bool FallsOn(LocalDate firstDate, LocalDate date) => Dates(firstDate, from: date, through: date).Any();
+
+    // The repeating pattern alone, without the first date's own limits, the end date or the count.
+    private bool Matches(LocalDate date, LocalDate firstDate) => Frequency switch
     {
         RepeatFrequency.Daily => DaysBetween(firstDate, date) % Every == 0,
         _ => Days.Contains(date.DayOfWeek) && CalendarWeeks.Between(firstDate, date, WeekStart) % Every == 0,

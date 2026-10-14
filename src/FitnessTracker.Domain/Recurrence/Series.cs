@@ -77,8 +77,8 @@ public sealed class Series
     /// </summary>
     public IReadOnlyList<Occurrence> OccurrencesBetween(LocalDate from, LocalDate to)
     {
-        var occurrences = Rule.Dates(FirstDate, through: to)
-            .Where(date => date >= from && !Changes.ContainsKey(date))
+        var occurrences = Rule.Dates(FirstDate, from, through: to)
+            .Where(date => !Changes.ContainsKey(date))
             .Select(date => OccurrenceAt(date, date.At(StartTime), Length))
             .ToList();
 
@@ -151,7 +151,7 @@ public sealed class Series
     private Series WithChanges(FrozenDictionary<LocalDate, OccurrenceChange> changes) =>
         new(FirstDate, StartTime, Length, Zone, Rule, changes);
 
-    private bool FallsOn(LocalDate date) => Rule.Dates(FirstDate, through: date).Contains(date);
+    private bool FallsOn(LocalDate date) => Rule.FallsOn(firstDate: FirstDate, date: date);
 
     private Occurrence OccurrenceAt(LocalDate date, LocalDateTime start, Duration length)
     {
