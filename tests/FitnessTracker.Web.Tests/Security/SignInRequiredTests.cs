@@ -26,6 +26,7 @@ public sealed class SignInRequiredTests(TestAppFactory factory) : IClassFixture<
     [InlineData("/Account/Register")]
     [InlineData("/Home/Error")]
     [InlineData("/css/site.css")]
+    [InlineData("/js/site.js")]
     [InlineData("/lib/bootstrap/dist/css/bootstrap.min.css")]
     public async Task PublicPageOrFile_Opens_WhenSignedOut(string url)
     {
