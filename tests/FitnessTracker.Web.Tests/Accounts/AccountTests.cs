@@ -206,7 +206,7 @@ public sealed partial class AccountTests(TestAppFactory factory) : IClassFixture
         return await scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>().FindByEmailAsync(email);
     }
 
-    /// <summary>The messages listed in the page's error summary (empty when there is none).</summary>
+    /// <summary>The messages listed in the page's error summary, without their links (empty when there is none).</summary>
     private static async Task<List<string>> ErrorsOnAsync(HttpResponseMessage response)
     {
         var html = await response.Content.ReadAsStringAsync();
@@ -217,10 +217,13 @@ public sealed partial class AccountTests(TestAppFactory factory) : IClassFixture
         }
 
         return ListItem().Matches(summary.Groups[1].Value)
-            .Select(item => item.Groups[1].Value.Trim())
+            .Select(item => Tag().Replace(item.Groups[1].Value, "").Trim())
             .Where(message => message.Length > 0)
             .ToList();
     }
+
+    [GeneratedRegex("<[^>]+>")]
+    private static partial Regex Tag();
 
     [GeneratedRegex("""<div[^>]*class="[^"]*validation-summary-errors[^"]*"[^>]*>(.*?)</div>""", RegexOptions.Singleline)]
     private static partial Regex ErrorSummary();
