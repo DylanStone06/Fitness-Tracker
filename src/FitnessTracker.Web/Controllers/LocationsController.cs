@@ -24,6 +24,7 @@ public class LocationsController(AppDbContext db) : Controller
     [HttpPost]
     public async Task<IActionResult> Create(LocationFormViewModel model)
     {
+        await CheckNameIsFreeAsync(model, exceptId: null);
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -50,6 +51,7 @@ public class LocationsController(AppDbContext db) : Controller
             return NotFound();
         }
 
+        await CheckNameIsFreeAsync(model, exceptId: id);
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -81,5 +83,21 @@ public class LocationsController(AppDbContext db) : Controller
         db.Locations.Remove(location);
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
+    }
+
+    // Two locations with the same name couldn't be told apart when choosing one for an activity. Capitals are
+    // ignored, as in the list's order; names only need to differ within one person's locations (the filter).
+    private async Task CheckNameIsFreeAsync(LocationFormViewModel model, Guid? exceptId)
+    {
+        if (!ModelState.IsValid)
+        {
+            return;
+        }
+
+        var otherNames = await db.Locations.Where(location => location.Id != exceptId).Select(location => location.Name).ToListAsync();
+        if (otherNames.Contains(model.Name, StringComparer.InvariantCultureIgnoreCase))
+        {
+            ModelState.AddModelError(nameof(model.Name), $"You already have a location called {model.Name}. Choose a different name.");
+        }
     }
 }

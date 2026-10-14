@@ -70,6 +70,63 @@ public sealed class LocationsTests(TestAppFactory factory) : IClassFixture<TestA
         Assert.NotNull(await StoredData.LocationNamedAsync(factory, name));
     }
 
+    // Two locations with the same name would be impossible to tell apart when choosing one for an activity.
+    [Fact]
+    public async Task Add_ShowsAnError_AndSavesNothing_WhenTheNameIsAlreadyUsed_IgnoringCapitals()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var name = TestBrowser.NewName("Home gym");
+        await AddAsync(browser, name);
+        var countBefore = await StoredData.LocationCountAsync(factory);
+
+        var response = await browser.AddLocationAsync($" {name.ToUpperInvariant()} ");
+
+        await AssertShowsAnErrorAsync(response);
+        Assert.Contains("You already have a location called", await response.Content.ReadAsStringAsync());
+        Assert.Equal(countBefore, await StoredData.LocationCountAsync(factory));
+    }
+
+    // Names only need to be unique for each person.
+    [Fact]
+    public async Task Add_Accepts_ANameSomeoneElseUses()
+    {
+        var name = TestBrowser.NewName("Home gym");
+        await AddAsync(await TestBrowser.OpenSignedInAsync(factory, "alex"), name);
+
+        var response = await (await TestBrowser.OpenSignedInAsync(factory, "sam")).AddLocationAsync(name);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Edit_ShowsAnError_AndKeepsTheOldName_WhenRenamedToAnotherOfTheirLocations()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var gym = TestBrowser.NewName("Home gym");
+        var office = TestBrowser.NewName("Office");
+        await AddAsync(browser, gym);
+        var officeId = await AddAsync(browser, office);
+
+        var response = await browser.SubmitFormAsync($"/Locations/Edit/{officeId}", $"/Locations/Edit/{officeId}", new() { ["Name"] = gym });
+
+        await AssertShowsAnErrorAsync(response);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, office));
+    }
+
+    // Changing only the capitals of a location's own name isn't a clash with itself.
+    [Fact]
+    public async Task Edit_Accepts_ChangingOnlyTheCapitalsOfItsOwnName()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var name = TestBrowser.NewName("home gym");
+        var id = await AddAsync(browser, name);
+
+        var response = await browser.SubmitFormAsync($"/Locations/Edit/{id}", $"/Locations/Edit/{id}", new() { ["Name"] = name.ToUpperInvariant() });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, name.ToUpperInvariant()));
+    }
+
     // Phone keyboards add a space after an autocompleted word.
     [Fact]
     public async Task Add_IgnoresSpacesAroundTheName()
