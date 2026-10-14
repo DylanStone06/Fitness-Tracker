@@ -11,4 +11,7 @@ public class LocationFormViewModel
     [Required(ErrorMessage = "Enter a name for the location.")]
     [StringLength(Location.NameMaxLength, ErrorMessage = "The name must be {1} characters or fewer.")]
     public string Name { get; set => field = value?.Trim() ?? ""; } = "";
+
+    /// <summary>Edit only: the version of the location the form was opened with (requirements §9).</summary>
+    public Guid Version { get; set; }
 }

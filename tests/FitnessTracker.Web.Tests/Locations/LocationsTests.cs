@@ -195,6 +195,72 @@ public sealed class LocationsTests(TestAppFactory factory) : IClassFixture<TestA
         Assert.NotNull(await StoredData.LocationNamedAsync(factory, name));
     }
 
+    // Requirements §9: two tabs editing the same location can't silently overwrite each other. The out-of-date tab
+    // isn't saved; it says the location changed, shows its current name and keeps what was typed.
+    [Fact]
+    public async Task Edit_FromAnOutOfDateTab_IsNotSaved_AndSaysWhatChanged()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var id = await AddAsync(browser, TestBrowser.NewName("Home gym"));
+        var editUrl = $"/Locations/Edit/{id}";
+        var firstTab = await browser.LoadFormAsync(editUrl);
+        var secondTab = await browser.LoadFormAsync(editUrl);
+        var townGym = TestBrowser.NewName("Town gym");
+        var typedInSecondTab = TestBrowser.NewName("Station gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SubmitAsync(firstTab, editUrl, new() { ["Name"] = townGym })).StatusCode);
+
+        var response = await browser.SubmitAsync(secondTab, editUrl, new() { ["Name"] = typedInSecondTab });
+
+        await AssertShowsAnErrorAsync(response);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("changed in another tab", html);
+        Assert.Contains(townGym, html);
+        Assert.Contains($"value=\"{typedInSecondTab}\"", html);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, townGym));
+    }
+
+    // Having been told, saving again from that page is a deliberate choice, so it is saved.
+    [Fact]
+    public async Task Edit_SavedAgainAfterBeingToldItChanged_IsSaved()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var id = await AddAsync(browser, TestBrowser.NewName("Home gym"));
+        var editUrl = $"/Locations/Edit/{id}";
+        var firstTab = await browser.LoadFormAsync(editUrl);
+        var secondTab = await browser.LoadFormAsync(editUrl);
+        await browser.SubmitAsync(firstTab, editUrl, new() { ["Name"] = TestBrowser.NewName("Town gym") });
+        var stationGym = TestBrowser.NewName("Station gym");
+        var told = await browser.SubmitAsync(secondTab, editUrl, new() { ["Name"] = stationGym });
+
+        var response = await browser.SubmitAsync(TestBrowser.FormIn(await told.Content.ReadAsStringAsync()), editUrl, new() { ["Name"] = stationGym });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(id, (await StoredData.LocationNamedAsync(factory, stationGym))?.Id);
+    }
+
+    // A delete page opened before another tab renamed the location asks again, naming it as it is now.
+    [Fact]
+    public async Task Delete_FromAPageOpenedBeforeItChanged_IsNotDone_AndSaysWhatChanged()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var id = await AddAsync(browser, TestBrowser.NewName("Home gym"));
+        var deletePage = await browser.LoadFormAsync($"/Locations/Delete/{id}");
+        var townGym = TestBrowser.NewName("Town gym");
+        await browser.SubmitFormAsync($"/Locations/Edit/{id}", $"/Locations/Edit/{id}", new() { ["Name"] = townGym });
+
+        var response = await browser.SubmitAsync(deletePage, $"/Locations/Delete/{id}", []);
+
+        await AssertShowsAnErrorAsync(response);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("changed in another tab", html);
+        Assert.Contains(townGym, html);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, townGym));
+
+        var confirmedAgain = await browser.SubmitAsync(TestBrowser.FormIn(html), $"/Locations/Delete/{id}", []);
+        Assert.Equal(HttpStatusCode.Redirect, confirmedAgain.StatusCode);
+        Assert.Null(await StoredData.LocationNamedAsync(factory, townGym));
+    }
+
     // Opening the delete page only asks; a link, a prefetch or a crawler must never delete anything.
     [Fact]
     public async Task DeletePage_AsksFirst_AndDeletesNothing()

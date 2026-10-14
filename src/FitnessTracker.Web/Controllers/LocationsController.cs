@@ -39,7 +39,7 @@ public class LocationsController(AppDbContext db) : Controller
     public async Task<IActionResult> Edit(Guid id)
     {
         var location = await db.Locations.FindAsync(id);
-        return location is null ? NotFound() : View(new LocationFormViewModel { Name = location.Name });
+        return location is null ? NotFound() : View(new LocationFormViewModel { Name = location.Name, Version = location.Version });
     }
 
     [HttpPost]
@@ -57,8 +57,18 @@ public class LocationsController(AppDbContext db) : Controller
             return View(model);
         }
 
+        // Saved only if nobody has saved this location since the form was opened (requirements §9).
+        db.Entry(location).Property(saved => saved.Version).OriginalValue = model.Version;
         location.Name = model.Name;
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return await ChangedElsewhereAsync(id, model);
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -70,9 +80,11 @@ public class LocationsController(AppDbContext db) : Controller
         return location is null ? NotFound() : View(location);
     }
 
+    // version: the one the delete page was opened with. If another tab has changed the location since, it isn't
+    // deleted; the page asks again, naming it as it is now (requirements §9).
     [HttpPost]
     [ActionName(nameof(Delete))]
-    public async Task<IActionResult> DeleteConfirmed(Guid id)
+    public async Task<IActionResult> DeleteConfirmed(Guid id, Guid version)
     {
         var location = await db.Locations.FindAsync(id);
         if (location is null)
@@ -80,9 +92,47 @@ public class LocationsController(AppDbContext db) : Controller
             return NotFound();
         }
 
+        db.Entry(location).Property(saved => saved.Version).OriginalValue = version;
         db.Locations.Remove(location);
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            var current = await db.Locations.AsNoTracking().SingleOrDefaultAsync(saved => saved.Id == id);
+            if (current is null)
+            {
+                return NotFound();
+            }
+
+            ModelState.AddModelError(string.Empty,
+                $"This location was changed in another tab or window after you opened this page. It's now called " +
+                $"{current.Name}. Delete it anyway?");
+            return View(nameof(Delete), current);
+        }
+
         return RedirectToAction(nameof(Index));
+    }
+
+    // Another tab saved this location after the form was opened. Read it again through the per-user filter: gone
+    // (deleted in another tab) is "not found", like any missing location. Otherwise say what it is now, keep what
+    // was typed, and give the form the latest version, so saving again is a deliberate choice.
+    private async Task<IActionResult> ChangedElsewhereAsync(Guid id, LocationFormViewModel model)
+    {
+        var current = await db.Locations.AsNoTracking().SingleOrDefaultAsync(location => location.Id == id);
+        if (current is null)
+        {
+            return NotFound();
+        }
+
+        ModelState.AddModelError(string.Empty,
+            $"This location was changed in another tab or window after you opened this page. It's now called " +
+            $"{current.Name}. Check the name below, then save again to replace it.");
+        // The hidden field shows what was posted unless the old value is cleared.
+        ModelState.Remove(nameof(model.Version));
+        model.Version = current.Version;
+        return View(model);
     }
 
     // Two locations with the same name couldn't be told apart when choosing one for an activity. Capitals are

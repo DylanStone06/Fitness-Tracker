@@ -93,7 +93,11 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
