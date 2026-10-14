@@ -1,0 +1,36 @@
+using System.Net;
+using FitnessTracker.Web.Tests.Infrastructure;
+
+namespace FitnessTracker.Web.Tests.Security;
+
+// ACC-2: every page except sign-in and register needs a signed-in user.
+public sealed class SignInRequiredTests(TestAppFactory factory) : IClassFixture<TestAppFactory>
+{
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/Home/Index")]
+    public async Task Page_RedirectsToSignIn_WhenSignedOut(string url)
+    {
+        var browser = TestBrowser.Open(factory);
+
+        var response = await browser.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/Account/Login", response.Headers.Location?.AbsolutePath);
+    }
+
+    [Theory]
+    [InlineData("/Account/Login")]
+    [InlineData("/Account/Register")]
+    [InlineData("/Home/Error")]
+    [InlineData("/css/site.css")]
+    [InlineData("/lib/bootstrap/dist/css/bootstrap.min.css")]
+    public async Task PublicPageOrFile_Opens_WhenSignedOut(string url)
+    {
+        var browser = TestBrowser.Open(factory);
+
+        var response = await browser.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+}
