@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 
 namespace FitnessTracker.Domain.Recurrence;
@@ -63,13 +64,12 @@ public sealed class RecurrenceRule
             throw new ArgumentException("A weekly rule needs at least one day.", nameof(days));
         }
 
-        foreach (var day in daySet.Append(weekStart))
+        foreach (var day in daySet)
         {
-            if (day is < IsoDayOfWeek.Monday or > IsoDayOfWeek.Sunday)
-            {
-                throw new ArgumentOutOfRangeException(nameof(days), day, "Days must be Monday to Sunday.");
-            }
+            CalendarWeeks.RequireDay(day, nameof(days));
         }
+
+        CalendarWeeks.RequireDay(weekStart, nameof(weekStart));
 
         return new(RepeatFrequency.Weekly, everyWeeks, daySet, weekStart, lastDate: null, count: null);
     }
@@ -110,10 +110,8 @@ public sealed class RecurrenceRule
     private bool FallsOn(LocalDate date, LocalDate firstDate) => Frequency switch
     {
         RepeatFrequency.Daily => DaysBetween(firstDate, date) % Every == 0,
-        _ => Days.Contains(date.DayOfWeek) && DaysBetween(StartOfWeek(firstDate), StartOfWeek(date)) / 7 % Every == 0,
+        _ => Days.Contains(date.DayOfWeek) && CalendarWeeks.Between(firstDate, date, WeekStart) % Every == 0,
     };
-
-    private LocalDate StartOfWeek(LocalDate date) => date.With(DateAdjusters.PreviousOrSame(WeekStart));
 
     private static int DaysBetween(LocalDate start, LocalDate end) => Period.Between(start, end, PeriodUnits.Days).Days;
 }
