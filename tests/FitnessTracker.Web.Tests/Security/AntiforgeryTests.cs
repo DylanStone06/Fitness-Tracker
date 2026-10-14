@@ -24,6 +24,25 @@ public sealed class AntiforgeryTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // The id is made up: a forged form is turned away before anything is looked up.
+    [Theory]
+    [InlineData("/Locations/Create")]
+    [InlineData("/Locations/Edit/0199e3a0-0000-7000-8000-000000000000")]
+    [InlineData("/Locations/Delete/0199e3a0-0000-7000-8000-000000000000")]
+    public async Task SignedInPost_IsRejected_WithoutAnAntiforgeryToken(string url)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "sam");
+        var countBefore = await StoredData.LocationCountAsync(factory);
+
+        var response = await browser.Http.PostAsync(url, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Name"] = "Forged",
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(countBefore, await StoredData.LocationCountAsync(factory));
+    }
+
     [Fact]
     public async Task Logout_IsRejected_WithoutAnAntiforgeryToken()
     {

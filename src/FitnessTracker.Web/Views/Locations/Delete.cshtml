@@ -1,0 +1,17 @@
+@model FitnessTracker.Web.Data.Location
+@{
+    ViewData["Title"] = "Delete location";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Delete this location?</h1>
+        <p class="fs-5 text-break">@Model.Name</p>
+        <p>This can't be undone.</p>
+
+        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+            <button type="submit" class="btn btn-danger">Delete location</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

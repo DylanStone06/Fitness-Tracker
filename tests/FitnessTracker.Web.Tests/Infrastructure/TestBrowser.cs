@@ -20,8 +20,20 @@ public sealed partial class TestBrowser
     public static TestBrowser Open(TestAppFactory factory) =>
         new(factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }));
 
+    /// <summary>Opens a browser signed in to a new account.</summary>
+    public static async Task<TestBrowser> OpenSignedInAsync(TestAppFactory factory, string name)
+    {
+        var browser = Open(factory);
+        var registered = await browser.RegisterAsync(NewEmail(name));
+        Assert.Equal(HttpStatusCode.Redirect, registered.StatusCode);
+        return browser;
+    }
+
     /// <summary>A made-up, unique address, so tests sharing a database never collide.</summary>
     public static string NewEmail(string name) => $"{name}-{Guid.NewGuid():N}@example.com";
+
+    /// <summary>A unique name for a record, so a test can find exactly its own row in a shared database.</summary>
+    public static string NewName(string label) => $"{label} {Guid.NewGuid():N}";
 
     public Task<HttpResponseMessage> GetAsync(string url) => Http.GetAsync(url);
 
@@ -57,6 +69,9 @@ public sealed partial class TestBrowser
 
     public Task<HttpResponseMessage> LogoutAsync() =>
         SubmitFormAsync("/", "/Account/Logout", []);
+
+    public Task<HttpResponseMessage> AddLocationAsync(string name) =>
+        SubmitFormAsync("/Locations/Create", "/Locations/Create", new() { ["Name"] = name });
 
     /// <summary>True when the home page opens instead of redirecting to sign-in.</summary>
     public async Task<bool> IsSignedInAsync() =>
