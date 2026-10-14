@@ -1,4 +1,5 @@
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Infrastructure;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -65,6 +66,9 @@ builder.Services.AddDbContext<AppDbContext>((services, options) =>
 });
 
 var app = builder.Build();
+
+// First, so every response gets them, error pages included.
+app.UseSecurityHeaders();
 
 if (app.Environment.IsDevelopment())
 {
