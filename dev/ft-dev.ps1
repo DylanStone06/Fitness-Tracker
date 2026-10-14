@@ -106,9 +106,30 @@ switch ($Command) {
         Invoke-Dotnet @('build', $solution)
     }
     'test' {
-        $testArguments = @('test', $solution)
-        if ($Filter) { $testArguments += @('--filter', $Filter) }
-        Invoke-Dotnet ($testArguments + $noTestsIsAnError)
+        if (-not $Filter) {
+            Invoke-Dotnet (@('test', $solution) + $noTestsIsAnError)
+            break
+        }
+
+        # A filter usually matches tests in only one test project, so "nothing ran" is judged across all of
+        # them: each project writes a results file, and the totals are added up.
+        $results = Join-Path $repoRoot 'TestResults\ft-dev'
+        Remove-Item -Recurse -Force $results -ErrorAction SilentlyContinue
+        Invoke-Dotnet @('build', $solution)
+        foreach ($project in Get-ChildItem (Join-Path $repoRoot 'tests') -Recurse -Filter '*.Tests.csproj') {
+            Invoke-Dotnet @('test', $project.FullName, '--no-build', '--filter', $Filter,
+                '--logger', "trx;LogFileName=$($project.BaseName).trx", '--results-directory', $results)
+        }
+
+        $matched = 0
+        foreach ($file in Get-ChildItem $results -Filter '*.trx' -ErrorAction SilentlyContinue) {
+            $matched += [int]([xml](Get-Content -Raw $file.FullName)).TestRun.ResultSummary.Counters.total
+        }
+        if ($matched -eq 0) {
+            Write-Host "FAILED: no test matched -Filter '$Filter'." -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "$matched test(s) matched -Filter '$Filter', and all passed." -ForegroundColor Green
     }
     'run' {
         Initialize-DevelopmentDatabase
