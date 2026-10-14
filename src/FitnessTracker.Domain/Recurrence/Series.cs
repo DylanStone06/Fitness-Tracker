@@ -100,10 +100,6 @@ public sealed class Series
     public Series MoveOccurrence(LocalDate date, LocalDateTime newStart, Duration newLength) =>
         WithChange(date, new OccurrenceChange.Moved(newStart, newLength));
 
-    /// <summary>
-    /// The whole series with a new first date, clock time, length or rule. One-off changes are kept for every date
-    /// the edited series still falls on (T8); the result says how many were kept and how many were removed.
-    /// </summary>
     /// <summary>The same series with one occurrence's one-off change undone, so it follows the series again.</summary>
     public Series RestoreOccurrence(LocalDate date)
     {
@@ -111,6 +107,10 @@ public sealed class Series
         return WithChanges(_changes.Where(change => change.Key != date).ToFrozenDictionary());
     }
 
+    /// <summary>
+    /// The whole series with a new first date, clock time, length or rule. One-off changes are kept for every date
+    /// the edited series still falls on (T8); the result says how many were kept and how many were removed.
+    /// </summary>
     public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule)
     {
         var edited = new Series(firstDate, startTime, length, Zone, rule);
@@ -128,8 +128,10 @@ public sealed class Series
     {
         RequireOccurrenceOn(date);
 
-        // Moving an occurrence back to its usual time and length is no longer a one-off change.
-        if (change is OccurrenceChange.Moved move && move.Start == date.At(StartTime) && move.Length == Length)
+        // Moving an occurrence back to its usual time and length is no longer a one-off change. Compared as moments,
+        // not clock times: on the night the clocks go forward, a 01:30 series really happens at 02:30.
+        if (change is OccurrenceChange.Moved move && move.Length == Length
+            && ClockTimes.ToInstant(move.Start, Zone) == ClockTimes.ToInstant(date.At(StartTime), Zone))
         {
             return RestoreOccurrence(date);
         }

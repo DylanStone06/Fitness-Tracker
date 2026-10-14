@@ -112,6 +112,29 @@ public class OccurrenceChangeTests
         Assert.Empty(movedBack.Changes);
     }
 
+    // Found by the first scheduling review: on 28 March 2027 a 01:30 series really occurs at 02:30 BST, so a move to
+    // 02:30 is a move to where it already is. "Back to its usual time" compares moments, not clock times.
+    [Fact]
+    public void MovingAnOccurrenceToTheMomentItAlreadyHappens_OnTheNightTheClocksGoForward_LeavesNoChange() // T5
+    {
+        var series = new Series(new(2027, 3, 22), new(1, 30), Duration.FromMinutes(50), London, RecurrenceRule.Daily());
+
+        var moved = series.MoveOccurrence(new(2027, 3, 28), new LocalDateTime(2027, 3, 28, 2, 30), Duration.FromMinutes(50));
+
+        Assert.Empty(moved.Changes);
+    }
+
+    // An occurrence moved earlier, from after the dates asked for into them, still shows.
+    [Fact]
+    public void AnOccurrenceMovedEarlier_IntoTheDatesAskedFor_Shows()
+    {
+        var friday16th = new LocalDate(2026, 10, 16);
+        var changed = Gym.MoveOccurrence(friday16th, new LocalDateTime(2026, 10, 10, 9, 0), Duration.FromMinutes(50));
+
+        LocalDate[] expected = [new(2026, 10, 5), Wednesday7th, Friday9th, friday16th];
+        Assert.Equal(expected, DatesOf(changed, new(2026, 10, 5), new(2026, 10, 11)));
+    }
+
     [Fact]
     public void ChangingAnOccurrenceTheSeriesDoesNotHave_IsRefused()
     {

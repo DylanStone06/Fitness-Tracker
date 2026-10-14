@@ -14,7 +14,7 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 | Rule | Where | Tested by |
 |---|---|---|
 | A clock time becomes an exact moment with NodaTime's **lenient resolver**: a time the clocks skip moves forward by the gap (01:30 becomes 02:30); a time that happens twice means the **first** one. | `ClockTimes.ToInstant` | `ClockTimesTests` |
-| Spans are NodaTime `Interval`s, half-open `[start, end)`. Their length is **elapsed time**: 23:00 to 07:00 is 9 h on 24-25 Oct 2026, 7 h on 27-28 Mar 2027. | `ClockTimes.ToInterval` | `SleepFrom2300To0700_LastsTheTimeThatReallyPassed` |
+| Spans are NodaTime `Interval`s, half-open `[start, end)`. Their length is **elapsed time**: 23:00 to 07:00 is 9 h on 24-25 Oct 2026, 7 h on 27-28 Mar 2027. A span that would **end before it starts** once the clocks change (01:45 to 02:00 on 28 Mar 2027) is refused with an `ArgumentException` that says why. | `ClockTimes.ToInterval` | `SleepFrom2300To0700_LastsTheTimeThatReallyPassed`, `ASpanThatWouldEndBeforeItStarts_*` |
 | An activity **belongs to the day it starts**; its minutes count towards each day for the part on that day. Days run midnight to midnight, so a clock-change day is 23 or 25 hours. Ending exactly at midnight puts nothing on the next day. | `CalendarDays.DayOf`, `CalendarDays.Split` | `CalendarDaysTests` |
 | Weeks start on a chosen day (Monday by default). `IsoDayOfWeek.None` is refused everywhere. | `CalendarWeeks` | via `SeriesTests`, `WeekCycleTests` |
 
@@ -36,7 +36,10 @@ how it will work. When code and this file disagree, the tests decide; then fix t
   its time, so editing the series' time keeps track of them. A moved occurrence shows on the day it now starts.
 - **Editing the series** keeps changes for dates the edited series still falls on, removes the rest, and reports
   both counts (`SeriesEdit`), so the app never loses a change silently (P5). Restoring, or moving an occurrence back
-  to its usual time and length, removes its change.
+  to its usual **moment** and length, removes its change (compared as moments: a 01:30 series happens at 02:30 on
+  the night the clocks go forward).
+- A move is stored as a **clock time**, so a drop in the second 01:00-01:59 on the night the clocks go back resolves
+  to the first one (§8). The Phase 5 calendar must handle that (warn, or store the offset).
 - `Series.InZone` keeps clock times, one-off changes included ("gym at 7am wherever I am").
 
 ## Template cycles (`Domain/Templates`, CAL-9)
@@ -67,6 +70,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 ## Review checklist
 
 1. Clock times (`LocalDateTime`/`LocalTime`) and exact moments (`Instant`) are never mixed; nothing uses `DateTime`.
+   "Is it the same time?" compares moments, because two clock times can be the same moment on a clock-change night.
 2. Intervals are half-open: touching is not overlapping; ending at midnight isn't on the next day.
 3. Durations are elapsed, measured between exact moments; days are measured midnight to midnight, never as 24 h.
 4. One-off changes are keyed by the rule's date; series edits report kept and removed changes.
