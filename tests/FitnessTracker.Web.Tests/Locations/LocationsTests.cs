@@ -48,6 +48,16 @@ public sealed class LocationsTests(TestAppFactory factory) : IClassFixture<TestA
         Assert.Equal(countBefore, await StoredData.LocationCountAsync(factory));
     }
 
+    // A browser's maxlength cuts a pasted longer name short without saying so (GOV.UK advises against it); the
+    // server's check above gives a clear error instead.
+    [Fact]
+    public async Task AddPage_DoesNotSilentlyCutLongNamesShort()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        Assert.DoesNotContain("maxlength", await PageAsync(browser, "/Locations/Create"), StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Add_Accepts_ANameOfExactly100Characters()
     {
