@@ -147,5 +147,7 @@ switch ($Command) {
 
         Invoke-Dotnet (@('dotnet-ef', 'migrations', 'add', $Name, '--project', $webProject,
                 '--output-dir', 'Data\Migrations') + $designTimeDatabase)
+        # Generated code uses block namespaces, which the build's code-style rules reject.
+        Invoke-Dotnet @('format', $solution, '--include', 'src\FitnessTracker.Web\Data\Migrations\')
     }
 }

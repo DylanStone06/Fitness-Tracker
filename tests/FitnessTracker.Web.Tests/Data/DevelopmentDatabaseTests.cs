@@ -1,4 +1,5 @@
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Tests.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -75,7 +76,8 @@ public sealed class DevelopmentDatabaseTests : IDisposable
     }
 
     private AppDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseSqlite($"Data Source={_databasePath}").Options);
+        new(new DbContextOptionsBuilder<AppDbContext>().UseSqlite($"Data Source={_databasePath}").Options,
+            new FixedCurrentUser(userId: null));
 
     private void Execute(string sql)
     {

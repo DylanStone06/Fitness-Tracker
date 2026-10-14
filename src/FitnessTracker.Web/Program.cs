@@ -1,4 +1,5 @@
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -43,6 +44,10 @@ builder.Services
 // ACC-2: every page needs a signed-in user unless it is explicitly marked [AllowAnonymous].
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+// Who is signed in, for AppDbContext's per-user filtering (CLAUDE.md rule 5).
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 // The connection string is read when a database context is first needed, after all configuration
 // (including test overrides) has been applied. In development, dev\ft-dev.ps1 run keeps it in user-secrets.
