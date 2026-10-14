@@ -135,6 +135,27 @@ public sealed class OwnershipTests : IDisposable
         });
     }
 
+    // The protection above only covers types that implement IOwnedByUser. A table of personal data that doesn't
+    // (say, opening hours stored under a Location without their own OwnerId) would have no filter, and anyone
+    // could query it directly. So every table outside Identity's own must be owned, or be listed here on purpose
+    // as shared, non-personal data (such as a starter list of exercises).
+    private static readonly Type[] SharedNonPersonalTables = [];
+
+    [Fact]
+    public void EveryTable_BelongsToAUser_UnlessItIsIdentitysOwnOrListedAsShared()
+    {
+        using var db = ContextFor(userId: null);
+        var unprotected = db.Model.GetEntityTypes()
+            .Select(type => type.ClrType)
+            .Where(type => !typeof(IOwnedByUser).IsAssignableFrom(type))
+            .Where(type => type != typeof(AppUser) && type.Namespace != "Microsoft.AspNetCore.Identity")
+            .Except(SharedNonPersonalTables)
+            .Select(type => type.Name)
+            .ToList();
+
+        Assert.Empty(unprotected);
+    }
+
     public void Dispose() => _connection.Dispose();
 
     private AppDbContext ContextFor(string? userId) =>
