@@ -63,6 +63,18 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Equal("7.5", InputValue(html, "TargetSleepHours"));
     }
 
+    // Hours are stored as whole minutes: 8.08 hours is 485 minutes, shown back as 8.08, not 8.0833333...
+    [Fact]
+    public async Task SleepHours_AreShownBackToTwoDecimalPlaces()
+    {
+        var (browser, email) = await SignedInAsync("alex");
+
+        await SaveAsync(browser, new() { ["TargetSleepHours"] = "8.08" });
+
+        Assert.Equal(485, (await StoredData.PreferencesOfAsync(factory, email))!.TargetSleepMinutes);
+        Assert.Equal("8.08", InputValue(await PageAsync(browser), "TargetSleepHours"));
+    }
+
     [Fact]
     public async Task SavingTwice_KeepsOneSetOfPreferences()
     {
@@ -104,6 +116,28 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
 
         Assert.Contains("<title>Error: ", await response.Content.ReadAsStringAsync());
         Assert.Null(await StoredData.PreferencesOfAsync(factory, email));
+    }
+
+    // GOV.UK error pattern: every problem is listed at once, so fixing one never reveals another. Here a field's own
+    // range check (wind-down) and the checks across the form (sleep minimum, timezone, a mistyped time) all fail.
+    [Fact]
+    public async Task Save_ListsEveryProblemAtOnce()
+    {
+        var (browser, _) = await SignedInAsync("alex");
+
+        var response = await SaveAsync(browser, new()
+        {
+            ["WindDownMinutes"] = "-5",
+            ["TargetSleepHours"] = "7",
+            ["MinimumSleepHours"] = "8",
+            ["TimeZoneId"] = "Mars/Olympus_Mons",
+            ["UsualWakeTime"] = "7 o'clock",
+        });
+
+        var linked = Regex.Matches(await response.Content.ReadAsStringAsync(), """<li><a href="#(\w+)">""")
+            .Select(link => link.Groups[1].Value)
+            .Order(StringComparer.Ordinal);
+        Assert.Equal(["MinimumSleepHours", "TimeZoneId", "UsualWakeTime", "WindDownMinutes"], linked);
     }
 
     // Requirements §9: a form left open in another tab can't silently overwrite a newer save.

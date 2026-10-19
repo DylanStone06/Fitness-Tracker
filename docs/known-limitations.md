@@ -10,6 +10,7 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 | Accounts | The app sends no email, so there is no email confirmation and no emailed password reset (ACC-1). The register page says so. | After the MVP (scope A) |
 | Accounts | The register page ("an account with this email address already exists") and the lockout message can reveal that an address has an account. Sign-in itself gives one message for both. | Reassess before any public hosting (Phase 9) |
 | Locations | The pages store a name only: opening hours, travel legs and the home base can't be entered yet (TRV-1, TRV-2). The rules for them exist in the domain. | Phase 4 |
+| Preferences | Changing the timezone only shows a hint that repeating activities keep their clock times; requirements §8 says the user is told before it happens. There are no stored activities yet to move. | Phase 4, with activities |
 | Travel | Every activity away from home gets its own round trip from home, so two activities back to back at the same place (the office gym straight after work, a work day split at lunch) each get a commute and show as clashing. That is location chaining (SCH-8). | After the MVP, unless the owner brings "staying at the same place" forward |
 | Series | The time and recurrence rules exist only in the domain: series can't be saved or shown yet, and rules aren't yet stored as RRULE text (ADR 0001). | Phases 4-5 |
 | Series | Moving an occurrence into the second 01:00-01:59 on the night the clocks go back lands it on the first one (requirements §8 uses the earlier time). | Phase 5 calendar: warn, or store the offset |
@@ -26,6 +27,7 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 | Not hosted anywhere. Where, and how a hosted database is migrated, are decided with hosting. | Phase 9 |
 | The local HTTPS development certificate isn't trusted on this PC, so `ft-dev run` uses `http://localhost:5137`. Trusting it changes the certificate store, so that is left to the owner. | Owner's choice |
 | Host filtering (`AllowedHosts`) isn't configured for a real domain. | Phase 9 |
+| The app doesn't fix its culture. Number boxes send decimals with a dot ("7.5 hours"), which a server set to a decimal-comma culture (German, French) wouldn't read; this PC and the tests use en-GB, so nothing catches it. Fix with `UseRequestLocalization` set to en-GB. | Phase 9 |
 | EF Core's design-time files reach the build output; they are to be kept out of published builds. | Phase 9 |
 | The accounts commit (`11e433f`) deferred 4 review findings "to hosting (Phase 9) or documented" without listing them individually. `/security-review` couldn't run then (it needs git on PATH) and was done by hand. | Re-run a full security review in Phase 9 |
 

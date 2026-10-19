@@ -22,6 +22,15 @@ public class PreferencesController(AppDbContext db) : Controller
     [HttpPost]
     public async Task<IActionResult> Index(PreferencesFormViewModel model)
     {
+        // Run every time, alongside each field's own checks, so the page lists every problem at once.
+        foreach (var problem in model.ProblemsAcrossTheForm())
+        {
+            foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))
+            {
+                ModelState.AddModelError(field, problem.ErrorMessage ?? "");
+            }
+        }
+
         if (!ModelState.IsValid)
         {
             return View(model);

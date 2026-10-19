@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using FitnessTracker.Web.Data;
 using NodaTime;
 using NodaTime.Text;
@@ -7,7 +7,7 @@ using NodaTime.TimeZones;
 namespace FitnessTracker.Web.Models.Preferences;
 
 /// <summary>The preferences form (ACC-3, ACC-4, ACC-7). Sleep is entered in hours, other lengths in minutes or hours.</summary>
-public class PreferencesFormViewModel : IValidatableObject
+public class PreferencesFormViewModel
 {
     private static readonly LocalTimePattern ClockTime = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
 
@@ -82,7 +82,7 @@ public class PreferencesFormViewModel : IValidatableObject
     [Range(1, 10, ErrorMessage = "Enter between {1} and {2}.")]
     public int MaximumDemandingSessionsPerDay { get; set; } = 1;
 
-    /// <summary>The version of the saved preferences the form was opened with; empty before the first save (requirements §9).</summary>
+    /// <summary>The version of the saved preferences the form was opened with; empty before the first save (requirements Â§9).</summary>
     public Guid Version { get; set; }
 
     public static PreferencesFormViewModel From(UserPreferences preferences) => new()
@@ -92,8 +92,8 @@ public class PreferencesFormViewModel : IValidatableObject
         Use24HourClock = preferences.Use24HourClock,
         DistanceUnit = preferences.DistanceUnit,
         WeightUnit = preferences.WeightUnit,
-        TargetSleepHours = preferences.TargetSleepMinutes / 60m,
-        MinimumSleepHours = preferences.MinimumSleepMinutes / 60m,
+        TargetSleepHours = Hours(preferences.TargetSleepMinutes),
+        MinimumSleepHours = Hours(preferences.MinimumSleepMinutes),
         UsualBedtime = ClockTime.Format(preferences.UsualBedtime),
         UsualWakeTime = ClockTime.Format(preferences.UsualWakeTime),
         WindDownMinutes = preferences.WindDownMinutes,
@@ -127,7 +127,12 @@ public class PreferencesFormViewModel : IValidatableObject
         preferences.MaximumDemandingSessionsPerDay = MaximumDemandingSessionsPerDay;
     }
 
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    /// <summary>
+    /// The checks across the form, and those that need more than an attribute (a real timezone, a time that parses).
+    /// Not IValidatableObject: ASP.NET skips that while any single field has an error, which would hide these problems
+    /// until the others were fixed. The controller runs them every time instead, so every problem is listed at once.
+    /// </summary>
+    public IEnumerable<ValidationResult> ProblemsAcrossTheForm()
     {
         if (TimeZoneId.Length > 0 && DateTimeZoneProviders.Tzdb.GetZoneOrNull(TimeZoneId) is null)
         {
@@ -167,6 +172,9 @@ public class PreferencesFormViewModel : IValidatableObject
                 "The least sleep that's acceptable can't be more than the sleep you aim for.", [nameof(MinimumSleepHours)]);
         }
     }
+
+    // Two decimal places are enough to show any whole number of minutes recognisably (485 min is 8.08 h).
+    private static decimal Hours(int minutes) => Math.Round(minutes / 60m, 2, MidpointRounding.AwayFromZero);
 
     private static int Minutes(decimal hours) => (int)Math.Round(hours * 60, MidpointRounding.AwayFromZero);
 
