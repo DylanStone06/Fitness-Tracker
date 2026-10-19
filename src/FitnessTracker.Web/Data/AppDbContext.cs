@@ -30,6 +30,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
 
+    public DbSet<Activity> Activities => Set<Activity>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -86,6 +88,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             preferences.HasOne<AppUser>().WithMany().HasForeignKey(p => p.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        builder.Entity<Activity>(activity =>
+        {
+            activity.Property(a => a.Title).HasMaxLength(Activity.TitleMaxLength);
+            activity.Property(a => a.Notes).HasMaxLength(Activity.NotesMaxLength);
+            activity.Property(a => a.RepeatRule).HasMaxLength(Activity.RepeatRuleMaxLength);
+            activity.Property(a => a.TimeZoneId).HasMaxLength(64);
+            // Deleting a location keeps its activities, with no location.
+            activity.HasOne<Location>().WithMany().HasForeignKey(a => a.LocationId).OnDelete(DeleteBehavior.SetNull);
+            activity.HasOne<AppUser>().WithMany().HasForeignKey(a => a.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         // Every owned entity type gets the same protection, so a new one can't be forgotten.
         var ownedTypes = builder.Model.GetEntityTypes()
             .Where(type => typeof(IOwnedByUser).IsAssignableFrom(type.ClrType))
@@ -110,6 +123,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.Properties<NodaTime.LocalTime>().HaveConversion<LocalTimeConverter>();
+        configurationBuilder.Properties<NodaTime.LocalDate>().HaveConversion<LocalDateConverter>();
     }
 
     /// <summary>Builds <c>entity => entity.OwnerId == this.CurrentUserId</c> for the given entity type.</summary>

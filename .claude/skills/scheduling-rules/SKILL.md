@@ -51,7 +51,14 @@ how it will work. When code and this file disagree, the tests decide; then fix t
   export would need converting.
 - **A rule can end before its first possible date** (Monday-only from a Tuesday, ending that Sunday; or a year
   typo in UNTIL), giving a series with no occurrences. The text and the rule can't tell, because they don't know the
-  first date. The activity form refuses it (Phase 4, commit 7), so the user is told rather than seeing nothing.
+  first date. The activity form refuses it (`RecurrenceRule.FallsOnAnyDate`), so the user is told rather than
+  seeing nothing.
+- **Stored activities** (`Web/Data/Activity`): start date, start clock time, IANA timezone and elapsed length, plus
+  the rule as RRULE text (null for a one-off). A new activity takes the Preferences timezone; changing that
+  preference moves activities in the old timezone to the new one, keeping clock times (T6, `PreferencesController`).
+  A new weekly rule takes the week-start preference; editing a weekly activity keeps its rule's own week start,
+  while turning a daily one weekly takes the preference. The form only accepts dates in the years 1900-2999, and
+  `RecurrenceRule.Dates` stops on its last date, so nothing steps past 31 December 9999.
 
 ## Template cycles (`Domain/Templates`, CAL-9)
 
@@ -148,7 +155,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T3 | 22:30-00:30: start day; 90/30 split | **Covered** | `CalendarDaysTests.AnActivityCrossingMidnight_*` |
 | T4 | Clocks back: sleep 9 h; 01:30 series once, first 01:30 | **Covered** | `ClockTimesTests.SleepFrom2300To0700_*`, `SeriesTests.ADailySeriesAt0130_OccursOnce_*` |
 | T5 | Clocks forward: 01:30 series at 02:30; sleep 7 h | **Covered** | `ClockTimesTests.SleepFrom2300To0700_*`, `SeriesTests.ADailySeriesAt0130_OccursAt0230_*` |
-| T6 | London to New York: series keep clock times; logged sleep unchanged | **Series half covered**; the sleep half needs the sleep log (Phase 8) | `SeriesTests.InAnotherZone_KeepsTheClockTime`, `OccurrenceChangeTests.InAnotherZone_*` |
+| T6 | London to New York: series keep clock times; logged sleep unchanged | **Series half covered** (domain and stored activities); the sleep half needs the sleep log (Phase 8) | `SeriesTests.InAnotherZone_KeepsTheClockTime`, `OccurrenceChangeTests.InAnotherZone_*`, web `ActivitiesTests.ChangingTheTimezone_*` |
 | T7 | Weekly, fortnightly, end date, count | **Covered** | `SeriesTests` |
 | T8 | Cancel one, move one, edit series: both kept, reports 2 | **Covered** | `OccurrenceChangeTests.EditingTheSeries_KeepsBothOneOffChanges_AndReportsTwo` |
 | T9 | Commute and gym travel counted once each | **Covered** (domain) | `DailyLoadTests.AnOfficeDayAndAnEveningGymSession_*` |
@@ -161,7 +168,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T16 | Reschedule a missed workout | Not built (Phase 6) | |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Domain covered**; the validator must pass `Activity`, not `Whole` (Phase 4, commit 8) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*` |
 | T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
-| T19 | Another user's data is "not found" | **First version** (locations) | `FitnessTracker.Web.Tests` `Security/AccessControlTests` |
+| T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, preferences) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests` |
 | T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
 | T21 | Calendar at 320 px | Not built (Phase 5) | |
 | T22 | Same week planned twice: identical | Not built (Phase 6) | |

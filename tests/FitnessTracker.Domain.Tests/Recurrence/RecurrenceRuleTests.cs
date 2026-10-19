@@ -66,6 +66,57 @@ public class RecurrenceRuleTests
         Assert.Throws<ArgumentOutOfRangeException>(() => RecurrenceRule.Daily().EndingAfter(0));
     }
 
+    // A rule can end before the first date it would fall on: Monday-only from Tuesday 6 October 2026, ending Sunday
+    // the 11th (the next Monday is the 12th), or an end date with the wrong year. The series would never happen, so
+    // the activity form refuses it rather than saving something that never appears.
+    [Theory]
+    [InlineData(2026, 10, 11, false)]
+    [InlineData(2025, 12, 31, false)]
+    [InlineData(2026, 10, 12, true)]
+    public void FallsOnAnyDate_IsFalse_OnlyWhenTheRuleEndsBeforeItsFirstDate(int year, int month, int day, bool expected)
+    {
+        var rule = RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(year, month, day));
+
+        Assert.Equal(expected, rule.FallsOnAnyDate(firstDate: new LocalDate(2026, 10, 6)));
+    }
+
+    // The week start decides which weeks "every 2 weeks" falls in, so it can decide whether the rule ever happens.
+    // Every 2 weeks on Sunday from Tuesday 6 October 2026, ending Saturday the 17th: with weeks from Monday, Sunday
+    // the 11th is in the first week; with weeks from Sunday, the 11th starts the second week, so the first would be
+    // the 18th, after the end.
+    [Theory]
+    [InlineData(IsoDayOfWeek.Monday, true)]
+    [InlineData(IsoDayOfWeek.Sunday, false)]
+    public void FallsOnAnyDate_EveryTwoWeeks_UsesTheRulesOwnWeekStart(IsoDayOfWeek weekStart, bool expected)
+    {
+        var rule = RecurrenceRule.Weekly([IsoDayOfWeek.Sunday], everyWeeks: 2, weekStart).EndingOn(new LocalDate(2026, 10, 17));
+
+        Assert.Equal(expected, rule.FallsOnAnyDate(firstDate: new LocalDate(2026, 10, 6)));
+    }
+
+    // 31 December 9999 is the last date NodaTime has, and a Friday: looking for the next Monday must stop there,
+    // not step past the end of the calendar.
+    [Fact]
+    public void Dates_StopAtTheLastDate_EvenAtTheEndOfTheCalendar()
+    {
+        var lastDay = new LocalDate(9999, 12, 31);
+        var rule = RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(lastDay);
+
+        Assert.False(rule.FallsOnAnyDate(firstDate: lastDay));
+        Assert.Equal([lastDay], RecurrenceRule.Daily().Dates(firstDate: lastDay, from: lastDay, through: lastDay));
+    }
+
+    // Without an end date there is always a date: a count is at least 1, and a weekly rule has at least one day.
+    [Fact]
+    public void FallsOnAnyDate_IsTrue_WithoutAnEndDate()
+    {
+        var firstDate = new LocalDate(2026, 10, 6);
+
+        Assert.True(RecurrenceRule.Weekly([IsoDayOfWeek.Monday], everyWeeks: 4).FallsOnAnyDate(firstDate));
+        Assert.True(RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingAfter(1).FallsOnAnyDate(firstDate));
+        Assert.True(RecurrenceRule.Daily(everyDays: 30).FallsOnAnyDate(firstDate));
+    }
+
     // Every date in the app is in the ordinary (ISO) calendar. Julian 31 December 2026 is ISO 13 January 2027, and
     // would be stored as "UNTIL=20261231", which reads back 13 days early.
     [Fact]

@@ -14,3 +14,11 @@ public sealed class LocalTimeConverter() : ValueConverter<LocalTime, string>(
 {
     private static readonly LocalTimePattern Pattern = LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss");
 }
+
+/// <summary>Stores a NodaTime date (an activity's start date) as text such as "2026-10-19", which sorts correctly.</summary>
+public sealed class LocalDateConverter() : ValueConverter<LocalDate, string>(
+    date => Pattern.Format(date),
+    text => Pattern.Parse(text).Value)
+{
+    private static readonly LocalDatePattern Pattern = LocalDatePattern.Iso;
+}

@@ -54,7 +54,18 @@ public class PreferencesController(AppDbContext db) : Controller
             db.Entry(saved).Property(preferences => preferences.Version).OriginalValue = model.Version;
         }
 
+        // §8, T6: activities in the old timezone move to the new one, keeping their clock times ("gym at 7am wherever
+        // I am"). Saved together with the preferences, so they can't disagree. The page says so before saving.
+        var oldTimeZoneId = saved.TimeZoneId;
         model.ApplyTo(saved);
+        if (saved.TimeZoneId != oldTimeZoneId)
+        {
+            foreach (var activity in await db.Activities.Where(activity => activity.TimeZoneId == oldTimeZoneId).ToListAsync())
+            {
+                activity.TimeZoneId = saved.TimeZoneId;
+            }
+        }
+
         try
         {
             await db.SaveChangesAsync();

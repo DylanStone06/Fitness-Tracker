@@ -114,6 +114,45 @@ public sealed partial class TestBrowser
             ["AlsoAddReturnJourney"] = alsoTheReturnJourney ? "true" : "false",
         });
 
+    /// <summary>
+    /// Adds an activity: a one-off, one-hour gym session at 07:00 on Monday 2 November 2026 unless
+    /// <paramref name="changes"/> says otherwise. Every field is filled, as the page would send them.
+    /// </summary>
+    public Task<HttpResponseMessage> AddActivityAsync(string title, Dictionary<string, string>? changes = null) =>
+        SubmitFormAsync("/Activities/Create", "/Activities/Create", ActivityForm(title, changes));
+
+    /// <summary>Every field of the activity form, filled in as for <see cref="AddActivityAsync"/>, with the given changes.</summary>
+    public static Dictionary<string, string> ActivityForm(string title, Dictionary<string, string>? changes = null)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["Title"] = title,
+            ["Category"] = "Gym",
+            ["LocationId"] = "",
+            ["StartDate"] = "2026-11-02",
+            ["StartTime"] = "07:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+            ["IsFixed"] = "true",
+            ["Priority"] = "Normal",
+            ["IsDemanding"] = "false",
+            ["PreparationMinutes"] = "0",
+            ["ChangingMinutes"] = "0",
+            ["Notes"] = "",
+            ["Repeats"] = "Never",
+            ["RepeatEvery"] = "1",
+            ["Ends"] = "Never",
+            ["EndDate"] = "",
+            ["EndCount"] = "",
+        };
+        foreach (var (name, value) in changes ?? [])
+        {
+            form[name] = value;
+        }
+
+        return form;
+    }
+
     /// <summary>True when the home page opens instead of redirecting to sign-in.</summary>
     public async Task<bool> IsSignedInAsync() =>
         (await Http.GetAsync("/")).StatusCode == HttpStatusCode.OK;

@@ -1,0 +1,68 @@
+using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Time;
+using FitnessTracker.Web.Data;
+using NodaTime;
+using NodaTime.Text;
+
+namespace FitnessTracker.Web.Models.Activities;
+
+/// <summary>How an activity is described on the pages: its category's name, and when it happens in plain English.</summary>
+public static class ActivityDisplay
+{
+    private static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+
+    private static readonly LocalTimePattern Time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
+
+    public static string CategoryName(ActivityCategory category) => category switch
+    {
+        ActivityCategory.OtherExercise => "Other exercise",
+        ActivityCategory.MealPrep => "Meal prep",
+        _ => category.ToString(),
+    };
+
+    /// <summary>
+    /// For example "Fri 20 Nov 2026 at 09:15 for 30 min", or "Every 2 weeks on Mon, Wed at 07:00 for 1 h, from
+    /// Mon 2 Nov 2026, 10 times".
+    /// </summary>
+    public static string When(Activity activity)
+    {
+        var length = Length(activity.LengthMinutes);
+        if (activity.RepeatRule is null)
+        {
+            // When it really starts (§8): 01:30 on the night the clocks go forward is 02:30.
+            var start = activity.StartDate.At(activity.StartTime);
+            if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(activity.TimeZoneId) is { } zone)
+            {
+                start = ClockTimes.ToInstant(start, zone).InZone(zone).LocalDateTime;
+            }
+
+            var skipped = start.TimeOfDay != activity.StartTime
+                ? $" ({Time.Format(activity.StartTime)} doesn't exist that night: the clocks go forward)"
+                : "";
+            return $"{Date.Format(start.Date)} at {Time.Format(start.TimeOfDay)} for {length}{skipped}";
+        }
+
+        var at = $"at {Time.Format(activity.StartTime)} for {length}";
+        var rule = RecurrenceRuleText.Parse(activity.RepeatRule);
+        var pattern = rule.Frequency == RepeatFrequency.Daily
+            ? rule.Every == 1 ? "Every day" : $"Every {rule.Every} days"
+            : $"{(rule.Every == 1 ? "Every week" : $"Every {rule.Every} weeks")} on " +
+              string.Join(", ", ActivityFormViewModel.Week.Where(rule.Days.Contains).Select(day => day.ToString()[..3]));
+        var ending = (rule.LastDate, rule.Count) switch
+        {
+            ({ } lastDate, _) => $", until {Date.Format(lastDate)}",
+            (_, 1) => ", once",
+            (_, { } count) => $", {count} times",
+            _ => "",
+        };
+        return $"{pattern} {at}, from {Date.Format(activity.StartDate)}{ending}";
+    }
+
+    /// <summary>For example "50 min", "8 h" or "1 h 30 min".</summary>
+    public static string Length(int minutes) => (minutes / 60, minutes % 60) switch
+    {
+        (0, var justMinutes) => $"{justMinutes} min",
+        (var hours, 0) => $"{hours} h",
+        (var hours, var andMinutes) => $"{hours} h {andMinutes} min",
+    };
+}

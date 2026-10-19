@@ -29,7 +29,7 @@
                 <div class="mb-3">
                     <label asp-for="TimeZoneId" class="form-label"></label>
                     <div class="form-text mt-0 mb-1" id="timezone-hint">
-                        Repeating activities keep their clock times if you change this: the gym at 07:00 stays at 07:00.
+                        Your activities keep their clock times if you change this: the gym at 07:00 stays at 07:00 in the new timezone.
                     </div>
                     <span asp-validation-for="TimeZoneId" class="d-block text-danger" id="timezone-error"></span>
                     <select asp-for="TimeZoneId" class="form-select" asp-items="@(timeZones.Select(id => new SelectListItem(id, id)))"

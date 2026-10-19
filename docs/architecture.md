@@ -37,7 +37,8 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    `AccessControlTests.AlexAddsARecordForAsync` to create Alex's record of that kind, so the test sends a real id of
    the right type. An endpoint that returns a user's data without an id (preferences; the calendar feed in Phase 5)
    needs its own T19 test.
-5. **A form that refers to another record by id checks it is the user's own** (a travel leg's locations): the filter
+5. **A form that refers to another record by id checks it is the user's own** (a travel leg's locations, an
+   activity's location): the filter
    makes another user's id "not found", which the form reports as "choose from the list".
 
 ### Notes for later phases

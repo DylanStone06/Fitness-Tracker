@@ -104,24 +104,37 @@ public sealed class RecurrenceRule
         var lastDate = LastDate is { } end && end < through ? end : through;
         var start = Count is null && from > firstDate ? from : firstDate;
         var found = 0;
+        // Stops on the last date (below) rather than stepping past it, which at 31 December 9999 would leave the calendar.
         for (var date = start; date <= lastDate; date = date.PlusDays(1))
         {
-            if (!Matches(date, firstDate))
+            if (Matches(date, firstDate))
             {
-                continue;
+                if (date >= from)
+                {
+                    yield return date;
+                }
+
+                if (++found == Count)
+                {
+                    yield break;
+                }
             }
 
-            if (date >= from)
-            {
-                yield return date;
-            }
-
-            if (++found == Count)
+            if (date == lastDate)
             {
                 yield break;
             }
         }
     }
+
+    /// <summary>
+    /// Whether a series starting on <paramref name="firstDate"/> would ever happen: false only when the rule ends
+    /// before the first date it would fall on.
+    /// </summary>
+    public bool FallsOnAnyDate(LocalDate firstDate) =>
+        // Without an end date it always does: a count is at least 1, a daily rule falls on its first date, and a
+        // weekly one has at least one day in every repeating week.
+        LastDate is not { } lastDate || Dates(firstDate, from: firstDate, through: lastDate).Any();
 
     /// <summary>Whether the rule falls on <paramref name="date"/> for a series starting on <paramref name="firstDate"/>.</summary>
     public bool FallsOn(LocalDate firstDate, LocalDate date) => Dates(firstDate, from: date, through: date).Any();

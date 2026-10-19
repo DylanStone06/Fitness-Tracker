@@ -24,6 +24,10 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/TravelLegs/Edit/{id}" },
         { "GET", "/TravelLegs/Delete/{id}" },
         { "POST", "/TravelLegs/Delete/{id}" },
+        { "GET", "/Activities/Edit/{id}" },
+        { "POST", "/Activities/Edit/{id}" },
+        { "GET", "/Activities/Delete/{id}" },
+        { "POST", "/Activities/Delete/{id}" },
     };
 
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
@@ -66,6 +70,22 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         var html = await (await sam.GetAsync("/TravelLegs")).Content.ReadAsStringAsync();
 
         Assert.DoesNotContain("Alex", html);
+    }
+
+    [Fact]
+    public async Task ActivitiesList_ShowsOnlyTheSignedInUsersOwn()
+    {
+        var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var alexsTitle = TestBrowser.NewName("Alex gym");
+        await alex.AddActivityAsync(alexsTitle);
+        var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
+        var samsTitle = TestBrowser.NewName("Sam run");
+        await sam.AddActivityAsync(samsTitle);
+
+        var html = await (await sam.GetAsync("/Activities")).Content.ReadAsStringAsync();
+
+        Assert.Contains(samsTitle, html);
+        Assert.DoesNotContain(alexsTitle, html);
     }
 
     [Fact]
@@ -135,6 +155,14 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
             return (await StoredData.TravelLegAsync(factory, home, gym))!.Id;
         }
 
+        if (path.StartsWith("/Activities/", StringComparison.Ordinal))
+        {
+            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+            var title = TestBrowser.NewName("Alex gym");
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.AddActivityAsync(title)).StatusCode);
+            return (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+        }
+
         throw new ArgumentOutOfRangeException(nameof(path), path, "Add a way to create Alex's record for this controller.");
     }
 
@@ -144,7 +172,7 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
     private static Task<HttpResponseMessage> SendAsync(TestBrowser browser, string method, string url) => method switch
     {
         "GET" => browser.GetAsync(url),
-        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new()
+        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam"))
         {
             ["Name"] = "Changed by Sam",
             ["Minutes"] = "5",
