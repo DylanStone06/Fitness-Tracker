@@ -63,6 +63,22 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - To put a footprint on a day, use `CalendarDays.DayOf(footprint.Activity, zone)`, not `Whole.Start`: an activity at
   00:10 with 25 min travel belongs to the day it starts, not the day before.
 
+## Opening hours (`Domain/Locations`, TRV-1, H4)
+
+- Per weekday; a weekday not listed is **closed**; `OpeningHours.Always` (with `IsAlwaysOpen`) is a location with
+  no hours. Store "no hours entered" as `Always`, never as an empty dictionary, which means closed every day.
+- Closing at or before opening means **after midnight** (18:00-02:00 runs into the next day); the same time means
+  until that time the next day (midnight-midnight is the whole day: 23 or 25 h on clock-change days).
+- Only the footprint's **activity part** must fit (`ProblemWith(footprint.Activity, zone)`, T17), half-open.
+  Openings that touch or overlap are merged first.
+- **Clock-change nights are resolved conservatively, unlike series:** a skipped time is the moment the clocks jump
+  past it (closing 01:30 on 28 Mar 2027 = 02:00 BST); a repeated time is the second one for opening and the first
+  for closing. So an opening is never longer than the clock shows, and H4 is never silently broken.
+- A problem names the day of the opening the activity **started in**, or, if it started while closed, the day it
+  starts. Explanations must show "(next day)" when Closes <= Opens, or "Friday 18:00-02:00" reads as covering
+  Friday 01:00.
+- Pass the **location's** timezone. Locations have none yet, so callers use the owner's timezone preference.
+
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |
@@ -113,7 +129,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T14 | Busy day: largest gap and footprint explained | Not built (Phase 6) | |
 | T15 | "Brighton weekend" template | Not built (Phase 6) | |
 | T16 | Reschedule a missed workout | Not built (Phase 6) | |
-| T17 | Gym opens 06:00, travel 05:35: valid | Not built (Phase 4) | |
+| T17 | Gym opens 06:00, travel 05:35: valid | **Domain covered**; the validator must pass `Activity`, not `Whole` (Phase 4, commit 8) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*` |
 | T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
 | T19 | Another user's data is "not found" | **First version** (locations) | `FitnessTracker.Web.Tests` `Security/AccessControlTests` |
 | T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
