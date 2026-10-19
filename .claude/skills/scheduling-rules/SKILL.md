@@ -31,7 +31,8 @@ how it will work. When code and this file disagree, the tests decide; then fix t
     series to other weeks.
   - A **cancelled occurrence still counts** towards "ends after N".
 - `OccurrencesBetween(from, to)` returns occurrences that **start** on those dates, in time order. One starting the
-  evening before `from` is not included: to work out a day's load, ask for the day before too.
+  evening before `from` is not included. To work out a day's load or clashes, ask for the day before **and the
+  day after** too: footprints add preparation and travel before an activity, which can start before midnight.
 - **One-off changes** (cancelled, or moved/resized) are keyed by the **date the rule put the occurrence on**, never by
   its time, so editing the series' time keeps track of them. A moved occurrence shows on the day it now starts.
 - **Editing the series** keeps changes for dates the edited series still falls on, removes the rest, and reports
@@ -79,11 +80,31 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   Friday 01:00.
 - Pass the **location's** timezone. Locations have none yet, so callers use the owner's timezone preference.
 
+## Conflicts and daily load (`Domain/Scheduling`, H1, TRV-3, §7.3)
+
+- A `Booking` is a label and a footprint. `Conflicts.Between(candidate, others)` and `Conflicts.Among(bookings)`
+  compare **whole footprints** as moments, half-open (back-to-back is fine, T11). Each `Clash` names the parts
+  where the overlap **begins** (T10: changing after Gym vs Dinner), the overlap, and `ActivitiesOverlap` (whether
+  the activities themselves overlap, so an explanation doesn't blame travel or buffers wrongly).
+- Results don't depend on input order (SCH-7): ties go by start, then end, then label. `Among` names each pair
+  once, earlier footprint as the candidate.
+- `Between` doesn't skip the candidate itself: the caller must leave out the booking's own stored version, or an
+  edit clashes with itself.
+- The **commute** is the travel part of the work activity's footprint (work at the office, journeys from home), so
+  it is its own pair of blocks and a gym session from home has its own travel (T9). A remote day is work at base:
+  no commute.
+- Known limitation: every activity away from base gets a **round trip from base**, so two activities back-to-back
+  at the same place (office gym after work, a work day split at lunch) each get a commute and clash. That is
+  location chaining (SCH-8, after the MVP) unless the owner brings "staying at the same place" forward. Pinned by
+  `DailyLoadTests.AnOfficeGymStraightAfterWork_*`.
+- `DailyLoad.Of(footprints, zone)`: footprint time per local day, split at real midnight (23/25-hour days);
+  overlapping footprints each count (§7.3 "total footprint minutes"). Days with no load are left out.
+
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |
 |---|---|---|
-| Commutes as their own blocks; drawing footprints on the calendar | TRV-3, CAL-5 | 4, 5 |
+| Drawing footprints on the calendar | CAL-5 | 5 |
 | The one validator and hard constraints H1-H8 (overlap, sleep minimum, opening hours, rest gaps...) | SCH-1, §7.2 | 6 (some checks in 4) |
 | Scoring, "Plan my week", explanations | §7.3, §7.4, SCH-2 to SCH-7 | 6 |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
@@ -121,9 +142,9 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T6 | London to New York: series keep clock times; logged sleep unchanged | **Series half covered**; the sleep half needs the sleep log (Phase 8) | `SeriesTests.InAnotherZone_KeepsTheClockTime`, `OccurrenceChangeTests.InAnotherZone_*` |
 | T7 | Weekly, fortnightly, end date, count | **Covered** | `SeriesTests` |
 | T8 | Cancel one, move one, edit series: both kept, reports 2 | **Covered** | `OccurrenceChangeTests.EditingTheSeries_KeepsBothOneOffChanges_AndReportsTwo` |
-| T9 | Commute and gym travel counted once each | Not built (Phase 4) | |
-| T10 | Buffer overlapping another activity is a conflict | Not built (Phase 4) | |
-| T11 | Back-to-back: no conflict; 1 min overlap: conflict | Not built (Phase 4) | |
+| T9 | Commute and gym travel counted once each | **Covered** (domain) | `DailyLoadTests.AnOfficeDayAndAnEveningGymSession_*` |
+| T10 | Buffer overlapping another activity is a conflict | **Covered** (domain) | `ConflictsTests.ChangingTimeRunningInto*`, `PreparationTimeOverlapping*` |
+| T11 | Back-to-back: no conflict; 1 min overlap: conflict | **Covered** (domain) | `ConflictsTests.BackToBackActivities_*`, `OverlappingByOneMinute_*` |
 | T12 | Late event below sleep minimum | Not built (Phases 6, 8) | |
 | T13 | Demanding sessions too close | Not built (Phase 6) | |
 | T14 | Busy day: largest gap and footprint explained | Not built (Phase 6) | |
