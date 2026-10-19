@@ -20,6 +20,20 @@ public sealed class ModelStateExtensionsTests
         Assert.Null(modelState.AriaInvalid("NotSubmitted"));
     }
 
+    // A problem with one entry of a list on the form (Monday's opening time) links to that entry's own field, in the
+    // place of the list among the form's fields.
+    [Fact]
+    public void ProblemsInFieldOrder_LinksAProblemInsideAListToThatEntry()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("OpeningDays[0].Opens", "Enter the opening time.");
+        modelState.AddModelError("Name", "Enter a name for the location.");
+        var form = new EmptyModelMetadataProvider().GetMetadataForType(typeof(FitnessTracker.Web.Models.Locations.LocationFormViewModel));
+
+        (string, string)[] expected = [("Name", "Enter a name for the location."), ("OpeningDays[0].Opens", "Enter the opening time.")];
+        Assert.Equal(expected, modelState.ProblemsInFieldOrder(form));
+    }
+
     // A problem with something that isn't a field on the form (here a value from the address) has nothing to link
     // to, so it is listed like a problem with the whole form: no field, before the fields' own problems.
     [Fact]

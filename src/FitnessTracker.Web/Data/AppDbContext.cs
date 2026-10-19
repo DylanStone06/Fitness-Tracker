@@ -24,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<Location> Locations => Set<Location>();
 
+    public DbSet<LocationOpeningTime> LocationOpeningTimes => Set<LocationOpeningTime>();
+
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
 
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
@@ -53,6 +55,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             location.Property(l => l.Name).HasMaxLength(Location.NameMaxLength);
             // Deleting an account deletes its locations (ACC-9).
             location.HasOne<AppUser>().WithMany().HasForeignKey(l => l.OwnerId).OnDelete(DeleteBehavior.Cascade);
+            // Deleting a location deletes its opening times.
+            location.HasMany(l => l.OpeningTimes).WithOne().HasForeignKey(time => time.LocationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LocationOpeningTime>(time =>
+        {
+            // One opening per weekday.
+            time.HasIndex(t => new { t.LocationId, t.Day }).IsUnique();
+            time.HasOne<AppUser>().WithMany().HasForeignKey(t => t.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<UserPreferences>(preferences =>

@@ -16,6 +16,10 @@ public static class StoredData
     public static Task<int> LocationCountAsync(TestAppFactory factory) =>
         ReadAsync(factory, db => db.Locations.IgnoreQueryFilters().CountAsync());
 
+    public static Task<List<LocationOpeningTime>> OpeningTimesOfAsync(TestAppFactory factory, Guid locationId) =>
+        ReadAsync(factory, db => db.LocationOpeningTimes.IgnoreQueryFilters().AsNoTracking()
+            .Where(time => time.LocationId == locationId).ToListAsync());
+
     /// <summary>The preferences saved by the user with this email address, or null if they haven't saved any.</summary>
     public static Task<UserPreferences?> PreferencesOfAsync(TestAppFactory factory, string email) =>
         ReadAsync(factory, db => PreferencesOf(db, email).SingleOrDefaultAsync());

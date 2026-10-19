@@ -87,6 +87,12 @@ namespace FitnessTracker.Web.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("HasOpeningHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsHome")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -106,6 +112,45 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasIndex("OwnerId");
 
                     b.ToTable("Locations");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.LocationOpeningTime", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Closes")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Opens")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("LocationId", "Day")
+                        .IsUnique();
+
+                    b.ToTable("LocationOpeningTimes");
                 });
 
             modelBuilder.Entity("FitnessTracker.Web.Data.UserPreferences", b =>
@@ -320,6 +365,21 @@ namespace FitnessTracker.Web.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.LocationOpeningTime", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Location", null)
+                        .WithMany("OpeningTimes")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FitnessTracker.Web.Data.UserPreferences", b =>
                 {
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
@@ -378,6 +438,11 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.Location", b =>
+                {
+                    b.Navigation("OpeningTimes");
                 });
 #pragma warning restore 612, 618
         }
