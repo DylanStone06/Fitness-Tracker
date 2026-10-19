@@ -75,7 +75,16 @@ public sealed class RecurrenceRule
     }
 
     /// <summary>The same rule, ending on <paramref name="lastDate"/> (inclusive) instead of any other ending.</summary>
-    public RecurrenceRule EndingOn(LocalDate lastDate) => new(Frequency, Every, Days, WeekStart, lastDate, count: null);
+    public RecurrenceRule EndingOn(LocalDate lastDate)
+    {
+        // Stored as a year, month and day (RecurrenceRuleText), which only means one date in one calendar.
+        if (lastDate.Calendar != CalendarSystem.Iso)
+        {
+            throw new ArgumentException("The end date must be in the ISO calendar, like every other date in the app.", nameof(lastDate));
+        }
+
+        return new(Frequency, Every, Days, WeekStart, lastDate, count: null);
+    }
 
     /// <summary>The same rule, ending after <paramref name="count"/> occurrences instead of any other ending.</summary>
     public RecurrenceRule EndingAfter(int count)

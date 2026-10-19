@@ -65,4 +65,12 @@ public class RecurrenceRuleTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => RecurrenceRule.Daily().EndingAfter(0));
     }
+
+    // Every date in the app is in the ordinary (ISO) calendar. Julian 31 December 2026 is ISO 13 January 2027, and
+    // would be stored as "UNTIL=20261231", which reads back 13 days early.
+    [Fact]
+    public void AnEndDateInAnotherCalendar_IsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => RecurrenceRule.Daily().EndingOn(new LocalDate(2026, 12, 31, CalendarSystem.Julian)));
+    }
 }

@@ -57,7 +57,7 @@ suggestions, later AI).
 | **React SPA + API** | Two applications to build, deploy and secure. Overkill for a single-user-first MVP. |
 | **SQL Server LocalDB / PostgreSQL** | Neither is installed, and PostgreSQL would need Docker or an install. SQLite is enough until hosting is decided. |
 | **`DateTime` / `TimeZoneInfo` only** | Easy to mix up clock times and exact moments. Results depend on the operating system's timezone data, so DST tests can differ between machines. |
-| **Ical.Net for recurrence** | Full RFC 5545 support we don't need yet. The MVP needs daily, weekly and every-N-weeks rules, which are small enough to own and test fully. Storing standard RRULE text keeps the door open to adopting it later. |
+| **Ical.Net for recurrence** | Full RFC 5545 support we don't need yet. The MVP needs daily, weekly and every-N-weeks rules, which are small enough to own and test fully. Storing standard RRULE text keeps the door open to adopting it later. (Phase 4 note: the stored text keeps two app meanings that differ from RFC 5545, the first date and UNTIL, so adopting it would mean converting stored rules, not only swapping the code. See `RecurrenceRuleText`.) |
 
 ## Consequences
 

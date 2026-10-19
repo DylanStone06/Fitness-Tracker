@@ -42,6 +42,16 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 - A move is stored as a **clock time**, so a drop in the second 01:00-01:59 on the night the clocks go back resolves
   to the first one (§8). The Phase 5 calendar must handle that (warn, or store the offset).
 - `Series.InZone` keeps clock times, one-off changes included ("gym at 7am wherever I am").
+- **Stored as RRULE text** (ADR 0001) with `RecurrenceRuleText`. `Format` writes one canonical form
+  (`FREQ;INTERVAL;BYDAY;WKST;COUNT|UNTIL`, days in week order) so the same rule is always the same text; `Parse`
+  accepts any order, case, spaces and an `RRULE:` prefix, and refuses anything outside the subset with a
+  `FormatException` naming the part (WKST is checked on daily rules too, though they don't use it). UNTIL is a
+  plain date on the series' own clock (the app's inclusive last date, not UTC), and `EndingOn` refuses a date in
+  any calendar but ISO. This text keeps the app's meanings above, so it is not ready to hand to another calendar:
+  export would need converting.
+- **A rule can end before its first possible date** (Monday-only from a Tuesday, ending that Sunday; or a year
+  typo in UNTIL), giving a series with no occurrences. The text and the rule can't tell, because they don't know the
+  first date. The activity form refuses it (Phase 4, commit 7), so the user is told rather than seeing nothing.
 
 ## Template cycles (`Domain/Templates`, CAL-9)
 
@@ -108,7 +118,6 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | The one validator and hard constraints H1-H8 (overlap, sleep minimum, opening hours, rest gaps...) | SCH-1, §7.2 | 6 (some checks in 4) |
 | Scoring, "Plan my week", explanations | §7.3, §7.4, SCH-2 to SCH-7 | 6 |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
-| Storing rules as RRULE text | ADR 0001 | with storage (4) |
 
 ## Writing tests for this code
 
