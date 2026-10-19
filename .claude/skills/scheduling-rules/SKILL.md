@@ -47,11 +47,27 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 `WeekCycle`: 1-4 weeks; week A is the week of the anchor date (requirements Q3: the week the template is first
 applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keeps its sign).
 
+## Footprints (`Domain/Footprints`, §7.1, H8, TRV-2)
+
+- `Footprint.Around(activity, buffers, journeys)`: preparation, travel out, activity, changing, travel back, in that
+  order, built from the activity's **exact moments** with elapsed lengths, so a footprint is the same length on a
+  clock-change night. Parts of zero length are left out of `Segments`; `Activity` is the activity alone (what opening
+  hours apply to); `Whole` is what conflicts are checked on.
+- H8 (`Footprint.ProblemsWith`): the activity is longer than zero; each buffer and journey is zero or more (each
+  negative one is its own problem, so a form can say which field); the whole is at most **24 hours of elapsed
+  time**. A negative part counts as zero towards the 24 hours. So midnight to midnight on the day the clocks go back
+  (25 h) is refused (pinned by a test; listed in known limitations for the owner).
+- Travel (`TravelTimes.JourneysFor`): **none** when the activity is at base or has no location; otherwise the leg
+  base to activity and the leg back, which can differ. A missing leg gives no journeys and names the missing legs:
+  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6, TRV-4).
+- To put a footprint on a day, use `CalendarDays.DayOf(footprint.Activity, zone)`, not `Whole.Start`: an activity at
+  00:10 with 25 min travel belongs to the day it starts, not the day before.
+
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |
 |---|---|---|
-| Footprints (preparation + travel out + activity + changing + travel back) | §7.1, CAL-5, TRV-2, TRV-3 | 4 |
+| Commutes as their own blocks; drawing footprints on the calendar | TRV-3, CAL-5 | 4, 5 |
 | The one validator and hard constraints H1-H8 (overlap, sleep minimum, opening hours, rest gaps...) | SCH-1, §7.2 | 6 (some checks in 4) |
 | Scoring, "Plan my week", explanations | §7.3, §7.4, SCH-2 to SCH-7 | 6 |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
@@ -81,7 +97,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 
 | # | Scenario | Status | Test |
 |---|---|---|---|
-| T1 | Gym footprint 120 / 130 min | Not built (Phase 4) | |
+| T1 | Gym footprint 120 / 130 min | **Covered** | `FootprintTests.AGymSession_WithTravelBothWays_*`, `AGymSession_WithTenMinutesChanging_*` |
 | T2 | Targets can't fit; shortfall explained | Not built (Phase 6) | |
 | T3 | 22:30-00:30: start day; 90/30 split | **Covered** | `CalendarDaysTests.AnActivityCrossingMidnight_*` |
 | T4 | Clocks back: sleep 9 h; 01:30 series once, first 01:30 | **Covered** | `ClockTimesTests.SleepFrom2300To0700_*`, `SeriesTests.ADailySeriesAt0130_OccursOnce_*` |
