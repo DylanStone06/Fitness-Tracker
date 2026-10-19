@@ -38,12 +38,13 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
 
 ### Notes for later phases
 
-- **Phase 4, optimistic concurrency** (requirements §9). Because `OwnerId` is already a concurrency token, an
-  ownership mismatch and a genuine "changed in another tab" conflict both raise `DbUpdateConcurrencyException`. When
-  handling it, re-read the row through the filter first: if it's gone, answer "not found"; only otherwise say it was
-  changed elsewhere.
-- **Phase 9, deleting an account** (ACC-9). The database is set to delete a user's rows with the account (cascade;
-  not yet covered by a test). Deleting
+- **Optimistic concurrency** (requirements §9, built for locations). Records that implement `IVersioned` get a new
+  `Version` on every save, checked like `OwnerId`, so an out-of-date tab can't overwrite a newer save. An ownership
+  mismatch and a genuine "changed in another tab" conflict both raise `DbUpdateConcurrencyException`. When handling
+  it, re-read the row through the filter first: if it's gone, answer "not found"; only otherwise say it was changed
+  elsewhere (see `LocationsController`).
+- **Phase 9, deleting an account** (ACC-9). The database deletes a user's rows with the account (cascade, tested by
+  `OwnershipTests.DeletingAnAccount_DeletesItsLocations_AndNobodyElses`). Deleting
   owned rows through EF needs that user to be signed in, because `CheckOwnership` refuses otherwise, so delete before
   signing out, or let the cascade do it without loading the rows.
 
