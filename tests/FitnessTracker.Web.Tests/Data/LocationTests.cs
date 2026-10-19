@@ -16,6 +16,23 @@ public sealed class LocationTests
         Assert.True(location.ToOpeningHours().IsAlwaysOpen);
     }
 
+    // TRV-2: stored legs become the domain's travel times, each in its own direction.
+    [Fact]
+    public void TravelLegs_BecomeTheDomainsTravelTimes_InTheirOwnDirection()
+    {
+        var home = Guid.Parse("0199e3a0-0000-7000-8000-000000000001");
+        var gym = Guid.Parse("0199e3a0-0000-7000-8000-000000000002");
+        TravelLeg[] legs =
+        [
+            new() { FromLocationId = home, ToLocationId = gym, Minutes = 25 },
+            new() { FromLocationId = gym, ToLocationId = home, Minutes = 45 },
+        ];
+
+        var lookup = TravelLeg.ToTravelTimes(legs).JourneysFor(activityAt: gym, baseLocation: home);
+
+        Assert.Equal(new FitnessTracker.Domain.Footprints.Journeys(Duration.FromMinutes(25), Duration.FromMinutes(45)), lookup.Journeys);
+    }
+
     [Fact]
     public void ALocationWithOpeningHours_IsOpenOnItsListedDaysOnly()
     {

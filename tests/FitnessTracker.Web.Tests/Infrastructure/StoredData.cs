@@ -16,6 +16,20 @@ public static class StoredData
     public static Task<int> LocationCountAsync(TestAppFactory factory) =>
         ReadAsync(factory, db => db.Locations.IgnoreQueryFilters().CountAsync());
 
+    public static Task<TravelLeg?> TravelLegAsync(TestAppFactory factory, Guid from, Guid to) =>
+        ReadAsync(factory, db => db.TravelLegs.IgnoreQueryFilters().AsNoTracking()
+            .SingleOrDefaultAsync(leg => leg.FromLocationId == from && leg.ToLocationId == to));
+
+    public static Task<int> TravelLegCountAsync(TestAppFactory factory) =>
+        ReadAsync(factory, db => db.TravelLegs.IgnoreQueryFilters().CountAsync());
+
+    /// <summary>The stored version of any record with this id (a location or a travel leg), or null if there is none.
+    /// Every save changes it, so an unchanged version means the record was left alone.</summary>
+    public static Task<Guid?> VersionOfAsync(TestAppFactory factory, Guid id) =>
+        ReadAsync(factory, async db =>
+            await db.Locations.IgnoreQueryFilters().Where(location => location.Id == id).Select(location => (Guid?)location.Version).SingleOrDefaultAsync()
+            ?? await db.TravelLegs.IgnoreQueryFilters().Where(leg => leg.Id == id).Select(leg => (Guid?)leg.Version).SingleOrDefaultAsync());
+
     public static Task<List<LocationOpeningTime>> OpeningTimesOfAsync(TestAppFactory factory, Guid locationId) =>
         ReadAsync(factory, db => db.LocationOpeningTimes.IgnoreQueryFilters().AsNoTracking()
             .Where(time => time.LocationId == locationId).ToListAsync());

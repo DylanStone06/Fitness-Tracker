@@ -20,33 +20,52 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Locations/Edit/{id}" },
         { "GET", "/Locations/Delete/{id}" },
         { "POST", "/Locations/Delete/{id}" },
+        { "GET", "/TravelLegs/Edit/{id}" },
+        { "POST", "/TravelLegs/Edit/{id}" },
+        { "GET", "/TravelLegs/Delete/{id}" },
+        { "POST", "/TravelLegs/Delete/{id}" },
     };
 
+    // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
+    // id sent to a travel-leg page would be "not found" anyway and prove nothing.
     [Theory]
     [MemberData(nameof(ActionsThatTakeAnId))]
-    public async Task AnotherUsersLocation_IsNotFound_AndLeftAlone(string method, string path)
+    public async Task AnotherUsersRecord_IsNotFound_AndLeftAlone(string method, string path)
     {
-        var (alexsGym, name) = await AlexAddsALocationAsync();
+        var alexsRecord = await AlexAddsARecordForAsync(path);
+        var versionBefore = await StoredData.VersionOfAsync(factory, alexsRecord);
         var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
 
-        var response = await SendAsync(sam, method, path.Replace("{id}", alexsGym.ToString()));
+        var response = await SendAsync(sam, method, path.Replace("{id}", alexsRecord.ToString()));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal(alexsGym, (await StoredData.LocationNamedAsync(factory, name))?.Id);
+        Assert.NotNull(versionBefore);
+        Assert.Equal(versionBefore, await StoredData.VersionOfAsync(factory, alexsRecord));
     }
 
     [Theory]
     [MemberData(nameof(ActionsThatTakeAnId))]
-    public async Task AnotherUsersLocation_LooksTheSameAsOneThatDoesNotExist(string method, string path)
+    public async Task AnotherUsersRecord_LooksTheSameAsOneThatDoesNotExist(string method, string path)
     {
-        var (alexsGym, _) = await AlexAddsALocationAsync();
+        var alexsRecord = await AlexAddsARecordForAsync(path);
         var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
 
-        var forAlexsGym = await SendAsync(sam, method, path.Replace("{id}", alexsGym.ToString()));
-        var forNoSuchLocation = await SendAsync(sam, method, path.Replace("{id}", Guid.NewGuid().ToString()));
+        var forAlexsRecord = await SendAsync(sam, method, path.Replace("{id}", alexsRecord.ToString()));
+        var forNoSuchRecord = await SendAsync(sam, method, path.Replace("{id}", Guid.NewGuid().ToString()));
 
-        Assert.Equal(forNoSuchLocation.StatusCode, forAlexsGym.StatusCode);
-        Assert.Equal(await TitleOfAsync(forNoSuchLocation), await TitleOfAsync(forAlexsGym));
+        Assert.Equal(forNoSuchRecord.StatusCode, forAlexsRecord.StatusCode);
+        Assert.Equal(await TitleOfAsync(forNoSuchRecord), await TitleOfAsync(forAlexsRecord));
+    }
+
+    [Fact]
+    public async Task TravelLegsList_ShowsOnlyTheSignedInUsersOwn()
+    {
+        await AlexAddsARecordForAsync("/TravelLegs/Edit/{id}");
+        var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
+
+        var html = await (await sam.GetAsync("/TravelLegs")).Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("Alex", html);
     }
 
     [Fact]
@@ -95,12 +114,42 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         return ((await StoredData.LocationNamedAsync(factory, name))!.Id, name);
     }
 
+    // Alex's record of the kind the action handles, found from the controller in its path.
+    private async Task<Guid> AlexAddsARecordForAsync(string path)
+    {
+        if (path.StartsWith("/Locations/", StringComparison.Ordinal))
+        {
+            return (await AlexAddsALocationAsync()).Id;
+        }
+
+        if (path.StartsWith("/TravelLegs/", StringComparison.Ordinal))
+        {
+            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+            var homeName = TestBrowser.NewName("Alex home");
+            var gymName = TestBrowser.NewName("Alex gym");
+            await alex.AddLocationAsync(homeName);
+            await alex.AddLocationAsync(gymName);
+            var home = (await StoredData.LocationNamedAsync(factory, homeName))!.Id;
+            var gym = (await StoredData.LocationNamedAsync(factory, gymName))!.Id;
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.AddTravelLegAsync(home, gym, minutes: 25)).StatusCode);
+            return (await StoredData.TravelLegAsync(factory, home, gym))!.Id;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(path), path, "Add a way to create Alex's record for this controller.");
+    }
+
     // A POST carries Sam's own valid anti-forgery token (from a page Sam can open), so the request reaches the
-    // ownership check instead of being turned away earlier as a forged form.
+    // ownership check instead of being turned away earlier as a forged form. It fills the fields of every form, so
+    // it would pass validation if it were ever allowed to reach it.
     private static Task<HttpResponseMessage> SendAsync(TestBrowser browser, string method, string url) => method switch
     {
         "GET" => browser.GetAsync(url),
-        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new() { ["Name"] = "Changed by Sam" }),
+        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new()
+        {
+            ["Name"] = "Changed by Sam",
+            ["Minutes"] = "5",
+            ["Mode"] = "Walk",
+        }),
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Only GET and POST are used."),
     };
 

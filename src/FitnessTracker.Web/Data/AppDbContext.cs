@@ -26,6 +26,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<LocationOpeningTime> LocationOpeningTimes => Set<LocationOpeningTime>();
 
+    public DbSet<TravelLeg> TravelLegs => Set<TravelLeg>();
+
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
 
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
@@ -64,6 +66,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // One opening per weekday.
             time.HasIndex(t => new { t.LocationId, t.Day }).IsUnique();
             time.HasOne<AppUser>().WithMany().HasForeignKey(t => t.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<TravelLeg>(leg =>
+        {
+            // One time per direction between two locations.
+            leg.HasIndex(l => new { l.FromLocationId, l.ToLocationId }).IsUnique();
+            // Deleting either location deletes the legs to and from it.
+            leg.HasOne<Location>().WithMany().HasForeignKey(l => l.FromLocationId).OnDelete(DeleteBehavior.Cascade);
+            leg.HasOne<Location>().WithMany().HasForeignKey(l => l.ToLocationId).OnDelete(DeleteBehavior.Cascade);
+            leg.HasOne<AppUser>().WithMany().HasForeignKey(l => l.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<UserPreferences>(preferences =>

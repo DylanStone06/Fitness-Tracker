@@ -153,6 +153,45 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.ToTable("LocationOpeningTimes");
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.TravelLeg", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FromLocationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ToLocationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("ToLocationId");
+
+                    b.HasIndex("FromLocationId", "ToLocationId")
+                        .IsUnique();
+
+                    b.ToTable("TravelLegs");
+                });
+
             modelBuilder.Entity("FitnessTracker.Web.Data.UserPreferences", b =>
                 {
                     b.Property<Guid>("Id")
@@ -376,6 +415,27 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.TravelLeg", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Location", null)
+                        .WithMany()
+                        .HasForeignKey("FromLocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.Location", null)
+                        .WithMany()
+                        .HasForeignKey("ToLocationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

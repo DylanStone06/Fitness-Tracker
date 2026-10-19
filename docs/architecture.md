@@ -33,8 +33,12 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    without checking the filter again, so never load another user's row into a request's context.
    `Database.ExecuteSql` bypasses every layer above; don't use it for personal data.
 4. **Record ids are a route parameter named `id`.** Add every action that takes one to
-   `AccessControlTests.ActionsThatTakeAnId`; a test fails when one is missing. An endpoint that returns a user's data
-   without an id (such as the calendar feed in Phase 5) needs its own T19 test.
+   `AccessControlTests.ActionsThatTakeAnId`; a test fails when one is missing. For a new controller, also teach
+   `AccessControlTests.AlexAddsARecordForAsync` to create Alex's record of that kind, so the test sends a real id of
+   the right type. An endpoint that returns a user's data without an id (preferences; the calendar feed in Phase 5)
+   needs its own T19 test.
+5. **A form that refers to another record by id checks it is the user's own** (a travel leg's locations): the filter
+   makes another user's id "not found", which the form reports as "choose from the list".
 
 ### Notes for later phases
 

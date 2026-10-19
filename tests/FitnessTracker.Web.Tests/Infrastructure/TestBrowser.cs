@@ -104,6 +104,16 @@ public sealed partial class TestBrowser
     public Task<HttpResponseMessage> AddLocationAsync(string name) =>
         SubmitFormAsync("/Locations/Create", "/Locations/Create", new() { ["Name"] = name });
 
+    public Task<HttpResponseMessage> AddTravelLegAsync(Guid from, Guid to, int minutes, bool alsoTheReturnJourney = false, string mode = "Walk") =>
+        SubmitFormAsync("/TravelLegs/Create", "/TravelLegs/Create", new()
+        {
+            ["FromLocationId"] = from.ToString(),
+            ["ToLocationId"] = to.ToString(),
+            ["Minutes"] = minutes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Mode"] = mode,
+            ["AlsoAddReturnJourney"] = alsoTheReturnJourney ? "true" : "false",
+        });
+
     /// <summary>True when the home page opens instead of redirecting to sign-in.</summary>
     public async Task<bool> IsSignedInAsync() =>
         (await Http.GetAsync("/")).StatusCode == HttpStatusCode.OK;
