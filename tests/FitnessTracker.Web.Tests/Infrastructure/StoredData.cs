@@ -11,15 +11,25 @@ namespace FitnessTracker.Web.Tests.Infrastructure;
 public static class StoredData
 {
     public static Task<Location?> LocationNamedAsync(TestAppFactory factory, string name) =>
-        ReadLocationsAsync(factory, locations => locations.SingleOrDefaultAsync(location => location.Name == name));
+        ReadAsync(factory, db => db.Locations.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(location => location.Name == name));
 
     public static Task<int> LocationCountAsync(TestAppFactory factory) =>
-        ReadLocationsAsync(factory, locations => locations.CountAsync());
+        ReadAsync(factory, db => db.Locations.IgnoreQueryFilters().CountAsync());
 
-    private static async Task<T> ReadLocationsAsync<T>(TestAppFactory factory, Func<IQueryable<Location>, Task<T>> read)
+    /// <summary>The preferences saved by the user with this email address, or null if they haven't saved any.</summary>
+    public static Task<UserPreferences?> PreferencesOfAsync(TestAppFactory factory, string email) =>
+        ReadAsync(factory, db => PreferencesOf(db, email).SingleOrDefaultAsync());
+
+    public static Task<int> PreferencesCountOfAsync(TestAppFactory factory, string email) =>
+        ReadAsync(factory, db => PreferencesOf(db, email).CountAsync());
+
+    private static IQueryable<UserPreferences> PreferencesOf(AppDbContext db, string email) =>
+        db.UserPreferences.IgnoreQueryFilters().AsNoTracking()
+            .Where(preferences => db.Users.Any(user => user.Id == preferences.OwnerId && user.Email == email));
+
+    private static async Task<T> ReadAsync<T>(TestAppFactory factory, Func<AppDbContext, Task<T>> read)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await read(db.Locations.IgnoreQueryFilters().AsNoTracking());
+        return await read(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 }

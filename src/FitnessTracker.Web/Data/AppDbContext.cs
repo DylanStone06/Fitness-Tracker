@@ -24,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<Location> Locations => Set<Location>();
 
+    public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -53,6 +55,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             location.HasOne<AppUser>().WithMany().HasForeignKey(l => l.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        builder.Entity<UserPreferences>(preferences =>
+        {
+            // One set per person, even if two tabs save for the first time at once.
+            preferences.HasIndex(p => p.OwnerId).IsUnique();
+            preferences.Property(p => p.TimeZoneId).HasMaxLength(64);
+            preferences.HasOne<AppUser>().WithMany().HasForeignKey(p => p.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         // Every owned entity type gets the same protection, so a new one can't be forgotten.
         var ownedTypes = builder.Model.GetEntityTypes()
             .Where(type => typeof(IOwnedByUser).IsAssignableFrom(type.ClrType))
@@ -72,6 +82,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
         {
             builder.Entity(type.ClrType).Property(nameof(IVersioned.Version)).IsConcurrencyToken();
         }
+    }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<NodaTime.LocalTime>().HaveConversion<LocalTimeConverter>();
     }
 
     /// <summary>Builds <c>entity => entity.OwnerId == this.CurrentUserId</c> for the given entity type.</summary>

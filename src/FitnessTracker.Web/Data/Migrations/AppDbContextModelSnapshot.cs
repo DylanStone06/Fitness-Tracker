@@ -98,6 +98,7 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -105,6 +106,81 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasIndex("OwnerId");
 
                     b.ToTable("Locations");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.UserPreferences", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DistanceUnit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaximumDemandingSessionsPerDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinimumHoursBetweenDemandingSessions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinimumSleepMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PreferredExerciseDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PreferredTimeOfDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RecoveryDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TargetSleepMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Use24HourClock")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UsualBedtime")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UsualWakeTime")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WakeUpRoutineMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("WeekStart")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("WeightUnit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("WindDownMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId")
+                        .IsUnique();
+
+                    b.ToTable("UserPreferences");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -236,6 +312,15 @@ namespace FitnessTracker.Web.Data.Migrations
                 });
 
             modelBuilder.Entity("FitnessTracker.Web.Data.Location", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.UserPreferences", b =>
                 {
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
                         .WithMany()
