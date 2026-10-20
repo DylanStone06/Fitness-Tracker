@@ -31,7 +31,11 @@ public sealed record CheckProblem(CheckAspect Aspect, string Message);
 /// The result of checking an activity. <see cref="Problems"/> stop the save. <see cref="Clashes"/> (H1) can be saved
 /// once the user confirms (requirements §7.2, Q2). <see cref="Checked"/> is the dates looked at.
 /// </summary>
-public sealed record ActivityCheckResult(IReadOnlyList<CheckProblem> Problems, IReadOnlyList<Clash> Clashes, DateInterval Checked);
+public sealed record ActivityCheckResult(IReadOnlyList<CheckProblem> Problems, IReadOnlyList<Clash> Clashes, DateInterval Checked)
+{
+    /// <summary>Other activities that could only be checked in part, in plain English. They don't stop the save.</summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
+}
 
 /// <summary>
 /// SCH-1, first part: the check every new or changed activity goes through before it is saved, whatever made the
@@ -105,15 +109,28 @@ public static class ActivityCheck
         var occurrences = series.OccurrencesBetween(dates.Start, dates.End);
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
+        var notes = new List<string>();
+        var nearby = OthersThatCanClash(series.FirstDate, context.Today);
         var otherBookings = others
             .Where(other => other.Id != candidate.Id)
-            .SelectMany(other => BookingsOf(other, dates.Start.PlusDays(-MarginDays), dates.End.PlusDays(MarginDays), context))
+            .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
             .ToList();
         var clashes = occurrences
             .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys)))
             .SelectMany(booking => Conflicts.Between(booking, otherBookings))
             .ToList();
-        return new ActivityCheckResult(problems, clashes, dates);
+        return new ActivityCheckResult(problems, clashes, dates) { Notes = notes };
+    }
+
+    /// <summary>
+    /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
+    /// one first on <paramref name="firstDate"/>: the clash window and 3 days either side. Lets a caller load only
+    /// those activities.
+    /// </summary>
+    public static DateInterval OthersThatCanClash(LocalDate firstDate, LocalDate today)
+    {
+        var firstChecked = LocalDate.Max(firstDate, today);
+        return new DateInterval(firstChecked.PlusDays(-MarginDays), firstChecked.PlusWeeks(WeeksAhead).PlusDays(MarginDays - 1));
     }
 
     /// <summary>
@@ -192,16 +209,45 @@ public static class ActivityCheck
         return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date)}.{more}");
     }
 
-    // Another activity's occurrences as bookings. Stored activities can't stop this check: travel that can't be worked
-    // out (a travel time deleted since) is left out, and an occurrence whose footprint breaks H8 is skipped.
-    private static IEnumerable<Booking> BookingsOf(PlannedActivity other, LocalDate from, LocalDate through, PlanningContext context)
+    // Another activity's occurrences as bookings. Stored activities can't stop this check, but what can't be worked
+    // out is said in a note, never assumed (P1): travel that can't be worked out (a travel time deleted since) is left
+    // out, and an occurrence whose footprint breaks H8 is skipped.
+    private static List<Booking> BookingsOf(PlannedActivity other, DateInterval dates, PlanningContext context, List<string> notes, DateTimeZone zone)
     {
-        var journeys = other.LocationId is { } at && context.Home is { } home
-            ? context.Travel.JourneysFor(at, home).Journeys ?? Journeys.None
-            : Journeys.None;
-        return other.Series.OccurrencesBetween(from, through)
-            .Where(occurrence => Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys).Count == 0)
-            .Select(occurrence => new Booking(other.Title, Footprint.Around(occurrence.Time, other.Buffers, journeys)));
+        var journeys = Journeys.None;
+        if (other.LocationId is { } at && at != context.Home)
+        {
+            var place = NameOf(at, context);
+            if (context.Home is not { } home)
+            {
+                notes.Add($"{other.Title} was checked without its travel to {place}, because none of your locations is marked as home.");
+            }
+            else if (context.Travel.JourneysFor(at, home) is { Journeys: { } known })
+            {
+                journeys = known;
+            }
+            else
+            {
+                var missing = context.Travel.JourneysFor(at, home).MissingLegs
+                    .Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}");
+                notes.Add($"{other.Title} was checked without its travel, because there's no travel time {string.Join(", or ", missing)}.");
+            }
+        }
+
+        var bookings = new List<Booking>();
+        foreach (var occurrence in other.Series.OccurrencesBetween(dates.Start, dates.End))
+        {
+            if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys).Count > 0)
+            {
+                notes.Add($"{other.Title} on {Date.Format(occurrence.Time.Start.InZone(zone).Date)} wasn't checked: with its preparation, " +
+                          "travel and changing it would take up more than 24 hours.");
+                continue;
+            }
+
+            bookings.Add(new Booking(other.Title, Footprint.Around(occurrence.Time, other.Buffers, journeys)));
+        }
+
+        return bookings;
     }
 
     private static string NameOf(Guid location, PlanningContext context) =>

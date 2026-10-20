@@ -8,6 +8,20 @@
 <p>Everything that takes up your time, once or repeating. Work is an activity too: add it as a weekly activity at your
     office.</p>
 
+@* P1: after a save, other activities that could only be checked in part are named, never silently assumed fine. *@
+@if (ViewData["CheckNotes"] is string[] { Length: > 0 } notes)
+{
+    <div class="alert alert-info" role="status">
+        <p class="mb-1">Saved. Some of your other activities could only be checked in part:</p>
+        <ul class="mb-0">
+            @foreach (var note in notes)
+            {
+                <li>@note</li>
+            }
+        </ul>
+    </div>
+}
+
 <p><a class="btn btn-primary" asp-action="Create">Add an activity</a></p>
 
 @if (Model.Count == 0)

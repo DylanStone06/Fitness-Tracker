@@ -202,6 +202,16 @@
         {
             <p>And @(clashes.Count - shown) more.</p>
         }
+        @if (ViewData["CheckNotes"] is IReadOnlyList<string> { Count: > 0 } notes)
+        {
+            <p class="mb-1">Some of your other activities could only be checked in part:</p>
+            <ul>
+                @foreach (var note in notes)
+                {
+                    <li>@note</li>
+                }
+            </ul>
+        }
         <input type="hidden" asp-for="ShownClashes" />
         <span asp-validation-for="ConfirmClashes" class="d-block text-danger" id="confirm-error"></span>
         <div class="form-check">

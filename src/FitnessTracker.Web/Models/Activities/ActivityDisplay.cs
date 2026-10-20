@@ -43,7 +43,16 @@ public static class ActivityDisplay
         }
 
         var at = $"at {Time.Format(activity.StartTime)} for {length}";
-        var rule = RecurrenceRuleText.Parse(activity.RepeatRule);
+        RecurrenceRule rule;
+        try
+        {
+            rule = RecurrenceRuleText.Parse(activity.RepeatRule);
+        }
+        catch (FormatException)
+        {
+            // A rule edited by hand outside the app: the list still opens, so it can be fixed or deleted.
+            return $"Repeats in a way the app can't read, {at}, from {Date.Format(activity.StartDate)}";
+        }
         var pattern = rule.Frequency == RepeatFrequency.Daily
             ? rule.Every == 1 ? "Every day" : $"Every {rule.Every} days"
             : $"{(rule.Every == 1 ? "Every week" : $"Every {rule.Every} weeks")} on " +

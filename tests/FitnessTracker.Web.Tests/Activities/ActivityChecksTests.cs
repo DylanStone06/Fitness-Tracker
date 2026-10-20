@@ -1,11 +1,13 @@
-using System.Net;
+﻿using System.Net;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FitnessTracker.Web.Tests.Activities;
 
 // SCH-1, first part: saving an activity runs the one check (Domain ActivityCheck). Problems stop the save and show
-// next to the field they are about; a clash with another activity (H1) is saved only after "Save anyway" (§7.2, Q2).
+// next to the field they are about; a clash with another activity (H1) is saved only after "Save anyway" (Â§7.2, Q2).
 // "Today" is Monday 19 October 2026 (FixedClock).
 public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<TestAppFactory>
 {
@@ -40,7 +42,7 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         Assert.NotNull(await StoredData.ActivityTitledAsync(factory, title));
     }
 
-    // §7.2, Q2: "Save anyway" accepts the clashes that were shown, not whatever the posted form clashes with. Ticking
+    // Â§7.2, Q2: "Save anyway" accepts the clashes that were shown, not whatever the posted form clashes with. Ticking
     // it while moving the activity into a different clash (Lunch, never shown) shows that clash and asks again.
     [Fact]
     public async Task Add_WithSaveAnyway_ButADifferentClash_IsNotSaved_AndShowsTheNewClash()
@@ -78,7 +80,7 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
     [Fact]
     public async Task Add_WhoseTravelRunsIntoAnotherActivity_Clashes()
     {
-        var (browser, gym) = await SignedInWithHomeAndGymAsync();
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync();
         await browser.AddActivityAsync("Call", new() { ["StartTime"] = "08:15", ["DurationHours"] = "0", ["DurationMinutes"] = "30" });
         var title = TestBrowser.NewName("Gym");
 
@@ -126,7 +128,7 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
     [InlineData("05:30", false)]
     public async Task Add_AtAGymWithOpeningHours_MustBeInsideThem(string start, bool saved)
     {
-        var (browser, gym) = await SignedInWithHomeAndGymAsync(gymOpens: "06:00", gymCloses: "22:00");
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync(gymOpens: "06:00", gymCloses: "22:00");
         var title = TestBrowser.NewName("Gym");
 
         var response = await browser.AddActivityAsync(title, new() { ["LocationId"] = gym.Id.ToString(), ["StartTime"] = start });
@@ -144,7 +146,7 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         }
     }
 
-    // §7.1, P1: travel is never guessed as zero. Without a home, or a travel time, the problem says what to add.
+    // Â§7.1, P1: travel is never guessed as zero. Without a home, or a travel time, the problem says what to add.
     [Fact]
     public async Task Add_AwayFromHome_WithNoHomeSet_IsNotSaved()
     {
@@ -165,7 +167,7 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
     [Fact]
     public async Task Add_AwayFromHome_WithATravelTimeMissing_IsNotSaved()
     {
-        var (browser, gym) = await SignedInWithHomeAndGymAsync(withTravelBack: false);
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync(withTravelBack: false);
         var title = TestBrowser.NewName("Gym");
 
         var response = await browser.AddActivityAsync(title, new() { ["LocationId"] = gym.Id.ToString() });
@@ -190,8 +192,74 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
     }
 
+    // P1: another activity that can only be checked in part doesn't stop the save, but the user is told. Here the
+    // gym session's travel time back has been deleted, so its walk home can't be counted against dinner.
+    [Fact]
+    public async Task Add_WhenAnotherActivitysTravelIsUnknown_SavesAndSaysSo()
+    {
+        var (browser, gym, home) = await SignedInWithHomeAndGymAsync();
+        await browser.AddActivityAsync("Gym", new() { ["LocationId"] = gym.Id.ToString(), ["StartTime"] = "18:00" });
+        var back = (await StoredData.TravelLegAsync(factory, gym.Id, home.Id))!.Id;
+        await browser.SubmitFormAsync($"/TravelLegs/Delete/{back}", $"/TravelLegs/Delete/{back}", []);
+
+        var response = await browser.AddActivityAsync(TestBrowser.NewName("Dinner"), new() { ["StartTime"] = "19:30" });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var list = await (await browser.GetAsync("/Activities")).Content.ReadAsStringAsync();
+        Assert.Contains("Gym was checked without its travel", list);
+    }
+
+    // One stored activity the app can't read (edited by hand, say) mustn't stop every other save, or the list.
+    [Fact]
+    public async Task Add_WhenAnotherStoredActivityCantBeRead_IsStillChecked_AndSaysSo()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var unreadable = TestBrowser.NewName("Old");
+        await browser.AddActivityAsync(unreadable, new() { ["Repeats"] = "Daily" });
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Activities.IgnoreQueryFilters()
+                .Where(activity => activity.Title == unreadable)
+                .ExecuteUpdateAsync(set => set.SetProperty(activity => activity.RepeatRule, "FREQ=MONTHLY"));
+        }
+
+        var response = await browser.AddActivityAsync(TestBrowser.NewName("Gym"), new() { ["StartTime"] = "12:00" });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var list = await browser.GetAsync("/Activities");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        Assert.Contains($"{unreadable} couldn", await list.Content.ReadAsStringAsync());
+    }
+
+    // Only activities near the dates checked are read, but a repeating one that started long before still counts: a
+    // weekly Monday meeting from 5 October clashes with a gym session on Monday 2 November.
+    [Fact]
+    public async Task Add_ClashingWithARepeatingActivityThatStartedEarlier_Clashes()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Team meeting", new() { ["StartDate"] = "2026-10-05", ["Repeats"] = "Weekly", ["RepeatDays[0]"] = "true" });
+
+        var response = await browser.AddActivityAsync(TestBrowser.NewName("Gym"), new() { ["StartTime"] = "07:30" });
+
+        Assert.Contains("overlaps Team meeting", await AssertShowsAnErrorAsync(response));
+    }
+
+    // T19: the check only ever looks at the signed-in user's own activities: Sam's meeting at the same time doesn't
+    // clash with Alex's gym session.
+    [Fact]
+    public async Task Add_IsNotCheckedAgainstAnotherUsersActivities()
+    {
+        var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
+        await sam.AddActivityAsync(TestBrowser.NewName("Sam meeting"));
+        var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        var response = await alex.AddActivityAsync(TestBrowser.NewName("Gym"), new() { ["StartTime"] = "07:30" });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
     // Home, a gym 25 minutes away (45 minutes back, T1), optionally with opening hours every day.
-    private async Task<(TestBrowser Browser, Location Gym)> SignedInWithHomeAndGymAsync(
+    private async Task<(TestBrowser Browser, Location Gym, Location Home)> SignedInWithHomeAndGymAsync(
         string? gymOpens = null, string? gymCloses = null, bool withTravelBack = true)
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
@@ -207,7 +275,7 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
             await browser.AddTravelLegAsync(gym.Id, home.Id, minutes: 45);
         }
 
-        return (browser, gym);
+        return (browser, gym, home);
     }
 
     private static Dictionary<string, string> EveryDay(string opens, string closes)

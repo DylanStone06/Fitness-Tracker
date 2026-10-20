@@ -17,9 +17,12 @@ namespace FitnessTracker.Web.Controllers;
 // user's own locations. Every save goes through the one check (SCH-1, ActivityChecker).
 public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Controller
 {
+    private const string CheckNotes = "CheckNotes";
+
     [HttpGet]
     public async Task<IActionResult> Index()
     {
+        ViewData[CheckNotes] = TempData[CheckNotes] as string[] ?? [];
         var activities = await db.Activities.AsNoTracking().ToListAsync();
         ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
         return View(activities
@@ -193,6 +196,13 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
             ModelState.AddModelError(FieldFor(problem.Aspect), problem.Message);
         }
 
+        // Other activities that could only be checked in part: shown with the clashes, or on the list once saved.
+        ViewData[CheckNotes] = result.Notes;
+        if (result.Problems.Count == 0 && result.Notes.Count > 0)
+        {
+            TempData[CheckNotes] = result.Notes.ToArray();
+        }
+
         if (result.Problems.Count > 0 || result.Clashes.Count == 0)
         {
             return ModelState.IsValid;
@@ -209,6 +219,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
         }
 
         ViewData["Clashes"] = clashes;
+        TempData.Remove(CheckNotes);
         ModelState.Remove(nameof(model.ShownClashes));
         model.ShownClashes = fingerprint;
         ModelState.Remove(nameof(model.ConfirmClashes));

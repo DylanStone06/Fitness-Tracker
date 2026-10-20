@@ -284,6 +284,46 @@ public class ActivityCheckTests
         Assert.Equal("Swim", Assert.Single(result.Clashes).Other.Label);
     }
 
+    // P1: when another activity can only be checked partly, the user is told, never left to assume it was all checked.
+    // The gym session's walk home (no travel time back) runs into dinner, but without it the clash can't be seen.
+    [Fact]
+    public void AnotherActivityWhoseTravelIsUnknown_IsNamedInANote()
+    {
+        var oneWayOnly = new TravelTimes(new Dictionary<Leg, Duration> { [new Leg(Home, Gym)] = Duration.FromMinutes(25) });
+        var dinner = OneOff("Dinner", new LocalDate(2026, 11, 2), new LocalTime(19, 30), minutes: 60, at: Home);
+
+        var result = ActivityCheck.Check(dinner, [GymSession(new LocalDate(2026, 11, 2))], Context(travel: oneWayOnly));
+
+        var note = Assert.Single(result.Notes);
+        Assert.Contains("Gym", note);
+        Assert.Contains("from Town gym to Home", note);
+    }
+
+    [Fact]
+    public void AnotherActivityOver24Hours_IsNamedInANote()
+    {
+        var tooLong = OneOff("Too long", new LocalDate(2026, 11, 2), new LocalTime(0, 0), minutes: 24 * 60, at: Home, buffers: new Buffers(Duration.FromMinutes(10), Duration.Zero));
+
+        var result = ActivityCheck.Check(GymSession(new LocalDate(2026, 11, 2)), [tooLong], Context());
+
+        Assert.Contains("Too long", Assert.Single(result.Notes));
+    }
+
+    // T9, T10: another activity's own travel is part of its footprint: dinner from 19:30 runs into the gym session's
+    // walk home, which ends at 19:45.
+    [Fact]
+    public void AnotherActivitysJourneyBack_CanClashWithTheCandidate()
+    {
+        var dinner = OneOff("Dinner", new LocalDate(2026, 11, 2), new LocalTime(19, 30), minutes: 60, at: Home);
+
+        var result = ActivityCheck.Check(dinner, [GymSession(new LocalDate(2026, 11, 2))], Context());
+
+        var clash = Assert.Single(result.Clashes);
+        Assert.Equal((FootprintPart.Activity, FootprintPart.TravelBack), (clash.CandidatePart, clash.OtherPart));
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 19, 30), Instant.FromUtc(2026, 11, 2, 19, 45)), clash.Overlap);
+        Assert.Empty(result.Notes);
+    }
+
     // A night shift from Monday runs into an early gym session on Tuesday: the message gives the shift's own date, or
     // "22:00 to 06:00 the next day" would read as Tuesday night.
     [Fact]
