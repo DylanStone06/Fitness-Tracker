@@ -33,14 +33,15 @@ else
     <ul class="list-group">
         @foreach (var activity in Model)
         {
-            <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+            @* CAL-2: the category's colour as a stripe and a label, with its name in the label. *@
+            <li class="list-group-item ft-stripe @ActivityDisplay.CategoryStyle(activity.Category) d-flex flex-wrap align-items-center gap-2">
                 <span class="flex-grow-1 text-break">
-                    @activity.Title
+                    <span class="fw-semibold">@activity.Title</span>
                     <span class="d-block small">@ActivityDisplay.When(activity)</span>
-                    <span class="d-block small text-body-secondary">
-                        @ActivityDisplay.CategoryName(activity.Category)@if (activity.LocationId is { } where && names.TryGetValue(where, out var place))
+                    <span class="d-block small text-body-secondary mt-1">
+                        <span class="ft-chip">@ActivityDisplay.CategoryName(activity.Category)</span>@if (activity.LocationId is { } where && names.TryGetValue(where, out var place))
                         {
-                            <text>, at @place</text>
+                            <text> at @place</text>
                         }@(activity.IsFixed ? ", fixed" : ", movable")@(activity.IsDemanding ? ", demanding" : "")
                     </span>
                 </span>

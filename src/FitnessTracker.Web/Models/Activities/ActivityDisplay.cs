@@ -20,6 +20,26 @@ public static class ActivityDisplay
         _ => category.ToString(),
     };
 
+    /// <summary>CAL-2: each category's colour, as a class in site.css (docs/design.md).</summary>
+    public static readonly IReadOnlyDictionary<ActivityCategory, string> CategoryStyles = new Dictionary<ActivityCategory, string>
+    {
+        [ActivityCategory.Work] = "cat-work",
+        [ActivityCategory.Commute] = "cat-work",
+        [ActivityCategory.Gym] = "cat-exercise",
+        [ActivityCategory.Run] = "cat-exercise",
+        [ActivityCategory.OtherExercise] = "cat-exercise",
+        [ActivityCategory.MealPrep] = "cat-meal",
+        [ActivityCategory.Social] = "cat-social",
+        [ActivityCategory.Appointment] = "cat-social",
+        [ActivityCategory.Other] = "cat-other",
+    };
+
+    /// <summary>
+    /// The class giving a category its colour. It goes with the category's name, never instead of it (WCAG 1.4.1).
+    /// A value no category has is grey.
+    /// </summary>
+    public static string CategoryStyle(ActivityCategory category) => CategoryStyles.GetValueOrDefault(category, "cat-other");
+
     /// <summary>
     /// For example "Fri 20 Nov 2026 at 09:15 for 30 min", or "Every 2 weeks on Mon, Wed at 07:00 for 1 h, from
     /// Mon 2 Nov 2026, 10 times".

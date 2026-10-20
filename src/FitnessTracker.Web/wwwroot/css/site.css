@@ -30,6 +30,21 @@
   --ft-input-border: #868c96;
   --ft-danger-text: #b42318;
   --ft-shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 2px 8px rgba(31, 35, 40, 0.04);
+  --ft-work: #2563eb;
+  --ft-work-bg: #e8effd;
+  --ft-work-text: #1e40af;
+  --ft-exercise: #15803d;
+  --ft-exercise-bg: #e7f5ec;
+  --ft-exercise-text: #166534;
+  --ft-meal: #c2410c;
+  --ft-meal-bg: #fdeee6;
+  --ft-meal-text: #9a3412;
+  --ft-social: #7e22ce;
+  --ft-social-bg: #f3e9fc;
+  --ft-social-text: #6b21a8;
+  --ft-other: #6b7280;
+  --ft-other-bg: #eef0f2;
+  --ft-other-text: #374151;
 }
 
 /* Dark theme: set on <html> by js/theme.js when the device asks for it. */
@@ -53,6 +68,21 @@
   --ft-input-border: #737b87;
   --ft-danger-text: #ff8a80;
   --ft-shadow: none;
+  --ft-work: #6ea8fe;
+  --ft-work-bg: #1f2a44;
+  --ft-work-text: #bcd4ff;
+  --ft-exercise: #4ade80;
+  --ft-exercise-bg: #19362a;
+  --ft-exercise-text: #b7f0cb;
+  --ft-meal: #fb923c;
+  --ft-meal-bg: #3d2618;
+  --ft-meal-text: #ffd2b5;
+  --ft-social: #c084fc;
+  --ft-social-bg: #33224a;
+  --ft-social-text: #e4ccff;
+  --ft-other: #9ca3af;
+  --ft-other-bg: #2c3038;
+  --ft-other-text: #d6dae0;
 }
 
 h1, .h1 {
@@ -158,6 +188,53 @@ h2, .h2, h3, .h3, .h4, .h5 {
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-select:focus, .form-check-input:focus {
   box-shadow: 0 0 0 0.1rem var(--bs-body-bg), 0 0 0 0.25rem #258cfb;
+}
+
+/* Category colours (CAL-2, ActivityDisplay.CategoryStyle): a stripe down the side of an item (3:1 or more against the
+   card) and a label with the category's name (4.5:1 or more), so the colour is never the only signal. */
+.cat-work {
+  --ft-cat: var(--ft-work);
+  --ft-cat-bg: var(--ft-work-bg);
+  --ft-cat-text: var(--ft-work-text);
+}
+
+.cat-exercise {
+  --ft-cat: var(--ft-exercise);
+  --ft-cat-bg: var(--ft-exercise-bg);
+  --ft-cat-text: var(--ft-exercise-text);
+}
+
+.cat-meal {
+  --ft-cat: var(--ft-meal);
+  --ft-cat-bg: var(--ft-meal-bg);
+  --ft-cat-text: var(--ft-meal-text);
+}
+
+.cat-social {
+  --ft-cat: var(--ft-social);
+  --ft-cat-bg: var(--ft-social-bg);
+  --ft-cat-text: var(--ft-social-text);
+}
+
+.cat-other {
+  --ft-cat: var(--ft-other);
+  --ft-cat-bg: var(--ft-other-bg);
+  --ft-cat-text: var(--ft-other-text);
+}
+
+.ft-stripe {
+  box-shadow: inset 4px 0 0 var(--ft-cat, transparent);
+}
+
+.ft-chip {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ft-cat-text);
+  background-color: var(--ft-cat-bg);
 }
 
 /* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it
