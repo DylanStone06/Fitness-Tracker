@@ -496,6 +496,53 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
         Assert.Contains("Every day at 07:00 for 1 h", html);
     }
 
+    // Q8, CLAUDE.md rule 3: moving activities to a new timezone goes through the check too, and what the move breaks is
+    // shown after saving. A daily 01:30 swim at a place open 18:00-02:00 is fine in Tokyo (no clock changes); in London
+    // it would be there after closing on Sunday 28 March 2027, when 01:30 becomes 02:30. A clash that was already there
+    // before the move (and kept with "Save anyway") isn't reported again.
+    [Fact]
+    public async Task ChangingTheTimezone_ShowsWhatTheMoveBreaks_AndOnlyThat()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await SavePreferencesAsync(browser, new() { ["TimeZoneId"] = "Asia/Tokyo" });
+        var poolName = TestBrowser.NewName("Late pool");
+        var hours = new Dictionary<string, string> { ["IsHome"] = "true", ["HasOpeningHours"] = "true" };
+        string[] week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        for (var i = 0; i < week.Length; i++)
+        {
+            hours[$"OpeningDays[{i}].Day"] = week[i];
+            hours[$"OpeningDays[{i}].Closed"] = "false";
+            hours[$"OpeningDays[{i}].Opens"] = "18:00";
+            hours[$"OpeningDays[{i}].Closes"] = "02:00";
+        }
+
+        await browser.AddLocationAsync(poolName, hours);
+        var pool = (await StoredData.LocationNamedAsync(factory, poolName))!;
+        var swim = TestBrowser.NewName("Late swim");
+        await browser.AddActivityAsync(swim, new()
+        {
+            ["LocationId"] = pool.Id.ToString(),
+            ["StartDate"] = "2026-10-20",
+            ["StartTime"] = "01:30",
+            ["DurationHours"] = "0",
+            ["DurationMinutes"] = "20",
+            ["Repeats"] = "Daily",
+        });
+        Assert.NotNull(await StoredData.ActivityTitledAsync(factory, swim));
+        var meeting = TestBrowser.ActivityForm("Team meeting", new() { ["StartDate"] = "2026-11-02", ["StartTime"] = "09:00" });
+        await browser.SubmitFormAsync("/Activities/Create", "/Activities/Create", meeting);
+        var call = TestBrowser.ActivityForm("Call", new() { ["StartDate"] = "2026-11-02", ["StartTime"] = "09:30" });
+        var shown = TestBrowser.FormIn(await (await browser.SubmitFormAsync("/Activities/Create", "/Activities/Create", call)).Content.ReadAsStringAsync());
+        await browser.SubmitAsync(shown, "/Activities/Create", new(call) { ["ConfirmClashes"] = "true" });
+
+        await SavePreferencesAsync(browser, new() { ["TimeZoneId"] = "Europe/London" });
+
+        var page = await (await browser.GetAsync("/Preferences")).Content.ReadAsStringAsync();
+        Assert.Contains($"{swim}:", page);
+        Assert.Contains("28 Mar 2027", page);
+        Assert.DoesNotContain("overlaps Team meeting", page);
+    }
+
     // §8, T5: 01:30 doesn't exist in London on Sunday 28 March 2027 (the clocks go forward at 01:00), so the activity
     // really starts at 02:30, and the list says so rather than showing a time it won't happen at.
     [Fact]

@@ -1,20 +1,26 @@
+using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Preferences;
+using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace FitnessTracker.Web.Controllers;
 
 // ACC-3, ACC-4, ACC-7: the signed-in user's one set of preferences. There is no id in the address: the per-user
 // filter means this only ever reads or changes the signed-in user's own row (T19, PreferencesTests).
-public class PreferencesController(AppDbContext db) : Controller
+public class PreferencesController(AppDbContext db, ActivityChecker checker) : Controller
 {
     private const string Saved = "Saved";
+
+    private const string MoveFindings = "MoveFindings";
 
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         ViewData[Saved] = TempData[Saved];
+        ViewData[MoveFindings] = TempData[MoveFindings] as string[] ?? [];
         var saved = await db.UserPreferences.AsNoTracking().SingleOrDefaultAsync();
         return View(PreferencesFormViewModel.From(saved ?? new UserPreferences()));
     }
@@ -58,12 +64,16 @@ public class PreferencesController(AppDbContext db) : Controller
         // I am"). Saved together with the preferences, so they can't disagree. The page says so before saving.
         var oldTimeZoneId = saved.TimeZoneId;
         model.ApplyTo(saved);
-        if (saved.TimeZoneId != oldTimeZoneId)
+        var moved = saved.TimeZoneId == oldTimeZoneId
+            ? []
+            : await db.Activities.Where(activity => activity.TimeZoneId == oldTimeZoneId).ToListAsync();
+
+        // Q8, CLAUDE.md rule 3: the move goes through the check on save too. What the activities already had before
+        // (clashes kept with "Save anyway") is noted first, so only what the move itself breaks is reported.
+        var before = await FindingsAsync(moved);
+        foreach (var activity in moved)
         {
-            foreach (var activity in await db.Activities.Where(activity => activity.TimeZoneId == oldTimeZoneId).ToListAsync())
-            {
-                activity.TimeZoneId = saved.TimeZoneId;
-            }
+            activity.TimeZoneId = saved.TimeZoneId;
         }
 
         try
@@ -85,7 +95,24 @@ public class PreferencesController(AppDbContext db) : Controller
         }
 
         TempData[Saved] = true;
+        var after = await FindingsAsync(moved);
+        TempData[MoveFindings] = after.Except(before).ToArray();
         return RedirectToAction(nameof(Index));
+    }
+
+    // Each activity's problems and clashes as the check on save sees them now, in plain English, by title.
+    private async Task<List<string>> FindingsAsync(IReadOnlyList<Activity> activities)
+    {
+        var findings = new List<string>();
+        foreach (var activity in activities)
+        {
+            var result = await checker.CheckAsync(activity);
+            var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
+            findings.AddRange(result.Problems.Select(problem => $"{activity.Title}: {problem.Message}"));
+            findings.AddRange(result.Clashes.Select(clash => $"{activity.Title}: {ActivityCheck.Describe(clash, zone)}"));
+        }
+
+        return findings;
     }
 
     // Keep what was typed, give the form the latest version, and ask: saving again is then a deliberate choice.

@@ -19,6 +19,20 @@
             <div class="alert alert-success" role="status">Your preferences are saved.</div>
         }
 
+        @* Q8: what moving activities to the new timezone broke, from the check on save. Nothing is hidden (P1). *@
+        @if (ViewData["MoveFindings"] is string[] { Length: > 0 } findings)
+        {
+            <div class="alert alert-warning" role="status">
+                <p class="mb-1">Your activities moved to the new timezone, keeping their clock times. Some now need a look:</p>
+                <ul class="mb-0">
+                    @foreach (var finding in findings)
+                    {
+                        <li>@finding</li>
+                    }
+                </ul>
+            </div>
+        }
+
         <form asp-action="Index" method="post" novalidate>
             <partial name="_ErrorSummary" />
             <input type="hidden" asp-for="Version" />
@@ -30,6 +44,7 @@
                     <label asp-for="TimeZoneId" class="form-label"></label>
                     <div class="form-text mt-0 mb-1" id="timezone-hint">
                         Your activities keep their clock times if you change this: the gym at 07:00 stays at 07:00 in the new timezone.
+                        They are checked again afterwards, and anything the move breaks is shown here.
                     </div>
                     <span asp-validation-for="TimeZoneId" class="d-block text-danger" id="timezone-error"></span>
                     <select asp-for="TimeZoneId" class="form-select" asp-items="@(timeZones.Select(id => new SelectListItem(id, id)))"
