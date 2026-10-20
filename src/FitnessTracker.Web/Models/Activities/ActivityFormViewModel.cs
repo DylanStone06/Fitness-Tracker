@@ -47,12 +47,6 @@ public class ActivityFormViewModel
 
     private static readonly LocalTimePattern TimeInput = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
 
-    public static IReadOnlyList<IsoDayOfWeek> Week { get; } =
-    [
-        IsoDayOfWeek.Monday, IsoDayOfWeek.Tuesday, IsoDayOfWeek.Wednesday, IsoDayOfWeek.Thursday,
-        IsoDayOfWeek.Friday, IsoDayOfWeek.Saturday, IsoDayOfWeek.Sunday,
-    ];
-
     // Trimmed as it is bound, so the checks see exactly what will be saved.
     [Required(ErrorMessage = "Enter a title for the activity.")]
     [StringLength(Activity.TitleMaxLength, ErrorMessage = "The title must be {1} characters or fewer.")]
@@ -101,7 +95,7 @@ public class ActivityFormViewModel
     public int RepeatEvery { get; set; } = 1;
 
     /// <summary>Weekly only: one entry per weekday, Monday first, true for the days it repeats on.</summary>
-    public List<bool> RepeatDays { get; set; } = Week.Select(_ => false).ToList();
+    public List<bool> RepeatDays { get; set; } = Week.Days.Select(_ => false).ToList();
 
     public RepeatEndChoice Ends { get; set; }
 
@@ -154,7 +148,7 @@ public class ActivityFormViewModel
             var rule = RecurrenceRuleText.Parse(text);
             model.Repeats = rule.Frequency == RepeatFrequency.Daily ? RepeatChoice.Daily : RepeatChoice.Weekly;
             model.RepeatEvery = rule.Every;
-            model.RepeatDays = Week.Select(rule.Days.Contains).ToList();
+            model.RepeatDays = Week.Days.Select(rule.Days.Contains).ToList();
             (model.Ends, model.EndDate, model.EndCount) = (rule.LastDate, rule.Count) switch
             {
                 ({ } lastDate, _) => (RepeatEndChoice.OnDate, DateInput.Format(lastDate), (int?)null),
@@ -240,7 +234,7 @@ public class ActivityFormViewModel
 
         if (Repeats == RepeatChoice.Weekly)
         {
-            if (RepeatDays.Count != Week.Count)
+            if (RepeatDays.Count != Week.Days.Count)
             {
                 problems.Add(new ValidationResult("Choose the days of the week it repeats on.", [$"{nameof(RepeatDays)}[0]"]));
             }
@@ -279,7 +273,7 @@ public class ActivityFormViewModel
         var rule = Repeats switch
         {
             RepeatChoice.Daily => RecurrenceRule.Daily(RepeatEvery),
-            RepeatChoice.Weekly => RecurrenceRule.Weekly(Week.Where((_, i) => RepeatDays[i]), RepeatEvery, weekStart),
+            RepeatChoice.Weekly => RecurrenceRule.Weekly(Week.Days.Where((_, i) => RepeatDays[i]), RepeatEvery, weekStart),
             _ => null,
         };
 

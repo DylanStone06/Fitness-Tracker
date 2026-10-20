@@ -95,6 +95,11 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
     [InlineData("WindDownMinutes", "-5")]
     [InlineData("MinimumHoursBetweenDemandingSessions", "-1")]
     [InlineData("MaximumDemandingSessionsPerDay", "0")]
+    // Choices that aren't on the lists, including numbers, which bind to an enum: the model binder refuses them.
+    [InlineData("WeekStart", "0")]
+    [InlineData("DistanceUnit", "9")]
+    [InlineData("WeightUnit", "Stone")]
+    [InlineData("PreferredTimeOfDay", "7")]
     public async Task Save_ShowsAnError_AndSavesNothing_ForAValueThatCantBeRight(string field, string value)
     {
         var (browser, email) = await SignedInAsync("alex");

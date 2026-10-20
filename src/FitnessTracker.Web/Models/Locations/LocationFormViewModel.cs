@@ -10,12 +10,6 @@ public class LocationFormViewModel
 {
     private static readonly LocalTimePattern ClockTime = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
 
-    public static IReadOnlyList<IsoDayOfWeek> Week { get; } =
-    [
-        IsoDayOfWeek.Monday, IsoDayOfWeek.Tuesday, IsoDayOfWeek.Wednesday, IsoDayOfWeek.Thursday,
-        IsoDayOfWeek.Friday, IsoDayOfWeek.Saturday, IsoDayOfWeek.Sunday,
-    ];
-
     // Trimmed as it is bound, so the checks below see exactly what will be saved
     // (phone keyboards add a space after an autocompleted word).
     [Required(ErrorMessage = "Enter a name for the location.")]
@@ -28,7 +22,7 @@ public class LocationFormViewModel
     public bool HasOpeningHours { get; set; }
 
     /// <summary>One entry per weekday, Monday first. Only used when <see cref="HasOpeningHours"/> is true.</summary>
-    public List<OpeningDayFormViewModel> OpeningDays { get; set; } = Week.Select(day => new OpeningDayFormViewModel { Day = day }).ToList();
+    public List<OpeningDayFormViewModel> OpeningDays { get; set; } = Week.Days.Select(day => new OpeningDayFormViewModel { Day = day }).ToList();
 
     /// <summary>Edit only: the version of the location the form was opened with (requirements §9).</summary>
     public Guid Version { get; set; }
@@ -38,7 +32,7 @@ public class LocationFormViewModel
         Name = location.Name,
         IsHome = location.IsHome,
         HasOpeningHours = location.HasOpeningHours,
-        OpeningDays = Week.Select(day => location.OpeningTimes.FirstOrDefault(time => time.Day == day) is { } time
+        OpeningDays = Week.Days.Select(day => location.OpeningTimes.FirstOrDefault(time => time.Day == day) is { } time
                 ? new OpeningDayFormViewModel { Day = day, Opens = ClockTime.Format(time.Opens), Closes = ClockTime.Format(time.Closes) }
                 : new OpeningDayFormViewModel { Day = day, Closed = location.HasOpeningHours })
             .ToList(),
@@ -56,8 +50,8 @@ public class LocationFormViewModel
             yield break;
         }
 
-        if (OpeningDays.Count != Week.Count || OpeningDays.Select(day => day.Day).Distinct().Count() != Week.Count
-            || OpeningDays.Any(day => !Week.Contains(day.Day)))
+        if (OpeningDays.Count != Week.Days.Count || OpeningDays.Select(day => day.Day).Distinct().Count() != Week.Days.Count
+            || OpeningDays.Any(day => !Week.Days.Contains(day.Day)))
         {
             yield return new ValidationResult("Enter the opening hours for each day of the week.");
             yield break;

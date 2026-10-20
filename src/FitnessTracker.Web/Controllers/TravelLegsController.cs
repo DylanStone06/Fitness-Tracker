@@ -147,14 +147,9 @@ public class TravelLegsController(AppDbContext db) : Controller
             .ToList();
 
     // Two different places, both the signed-in user's own (an id from anywhere else is refused, even if it is a real
-    // location), a defined mode, and no second time for the same direction.
+    // location), and no second time for the same direction. A mode that isn't on the list is refused by the binder.
     private async Task CheckFormAsync(TravelLegFormViewModel model, Guid? exceptId)
     {
-        if (!Enum.IsDefined(model.Mode))
-        {
-            ModelState.AddModelError(nameof(model.Mode), "Choose how you travel from the list.");
-        }
-
         if (model.FromLocationId is not { } from || model.ToLocationId is not { } to)
         {
             return;

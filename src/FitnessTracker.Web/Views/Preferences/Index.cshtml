@@ -1,9 +1,9 @@
-﻿@model FitnessTracker.Web.Models.Preferences.PreferencesFormViewModel
+@model FitnessTracker.Web.Models.Preferences.PreferencesFormViewModel
 @using FitnessTracker.Web.Data
 @using FitnessTracker.Web.Models.Preferences
 @{
     ViewData["Title"] = "Preferences";
-    var days = PreferencesFormViewModel.Weekdays;
+    var days = Week.Days;
     // An alias someone saved earlier (such as "GB") is kept in the list so it shows as chosen.
     var timeZones = PreferencesFormViewModel.TimeZoneIds.Contains(Model.TimeZoneId)
         ? PreferencesFormViewModel.TimeZoneIds

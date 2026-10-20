@@ -56,7 +56,7 @@ public static class ActivityDisplay
         var pattern = rule.Frequency == RepeatFrequency.Daily
             ? rule.Every == 1 ? "Every day" : $"Every {rule.Every} days"
             : $"{(rule.Every == 1 ? "Every week" : $"Every {rule.Every} weeks")} on " +
-              string.Join(", ", ActivityFormViewModel.Week.Where(rule.Days.Contains).Select(day => day.ToString()[..3]));
+              string.Join(", ", Week.Days.Where(rule.Days.Contains).Select(day => day.ToString()[..3]));
         var ending = (rule.LastDate, rule.Count) switch
         {
             ({ } lastDate, _) => $", until {Date.Format(lastDate)}",

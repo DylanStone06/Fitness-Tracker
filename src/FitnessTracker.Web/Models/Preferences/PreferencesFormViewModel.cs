@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using FitnessTracker.Web.Data;
 using NodaTime;
 using NodaTime.Text;
@@ -18,12 +18,6 @@ public class PreferencesFormViewModel
         .Distinct()
         .Order(StringComparer.Ordinal)
         .ToList();
-
-    public static IReadOnlyList<IsoDayOfWeek> Weekdays { get; } =
-    [
-        IsoDayOfWeek.Monday, IsoDayOfWeek.Tuesday, IsoDayOfWeek.Wednesday, IsoDayOfWeek.Thursday,
-        IsoDayOfWeek.Friday, IsoDayOfWeek.Saturday, IsoDayOfWeek.Sunday,
-    ];
 
     [Display(Name = "Timezone")]
     [Required(ErrorMessage = "Choose your timezone.")]
@@ -139,23 +133,19 @@ public class PreferencesFormViewModel
             yield return new ValidationResult("Choose a timezone from the list.", [nameof(TimeZoneId)]);
         }
 
-        // Enums also bind from numbers ("9"), so only the real options are accepted.
-        if (!Weekdays.Contains(WeekStart))
+        // The model binder refuses a value that isn't in an enum, even a number, but IsoDayOfWeek's "None" (0) is in
+        // it, so the days are checked here.
+        if (!Week.Days.Contains(WeekStart))
         {
             yield return new ValidationResult("Choose the day your weeks start on.", [nameof(WeekStart)]);
         }
 
         foreach (var (name, days) in new[] { (nameof(PreferredExerciseDays), PreferredExerciseDays), (nameof(RecoveryDays), RecoveryDays) })
         {
-            if (days.Any(day => !Weekdays.Contains(day)))
+            if (days.Any(day => !Week.Days.Contains(day)))
             {
                 yield return new ValidationResult("Choose days from the list.", [name]);
             }
-        }
-
-        if (!Enum.IsDefined(DistanceUnit) || !Enum.IsDefined(WeightUnit) || !Enum.IsDefined(PreferredTimeOfDay))
-        {
-            yield return new ValidationResult("Choose an option from each list.");
         }
 
         foreach (var (name, value) in new[] { (nameof(UsualBedtime), UsualBedtime), (nameof(UsualWakeTime), UsualWakeTime) })
@@ -179,7 +169,7 @@ public class PreferencesFormViewModel
     private static int Minutes(decimal hours) => (int)Math.Round(hours * 60, MidpointRounding.AwayFromZero);
 
     private static List<IsoDayOfWeek> DaysIn(DaysOfWeek days) =>
-        Weekdays.Where(day => days.HasFlag(FlagFor(day))).ToList();
+        Week.Days.Where(day => days.HasFlag(FlagFor(day))).ToList();
 
     private static DaysOfWeek SetOf(IEnumerable<IsoDayOfWeek> days) =>
         days.Where(day => day != IsoDayOfWeek.None).Aggregate(DaysOfWeek.None, (set, day) => set | FlagFor(day));

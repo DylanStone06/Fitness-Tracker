@@ -146,11 +146,11 @@
         <legend class="fs-6 mb-1">On these days (weekly only)</legend>
         <span asp-validation-for="RepeatDays[0]" class="d-block text-danger" id="days-error"></span>
         <div class="d-flex flex-wrap column-gap-3">
-            @for (var i = 0; i < ActivityFormViewModel.Week.Count; i++)
+            @for (var i = 0; i < Week.Days.Count; i++)
             {
                 <div class="form-check">
                     <input asp-for="RepeatDays[i]" class="form-check-input" />
-                    <label asp-for="RepeatDays[i]" class="form-check-label">@ActivityFormViewModel.Week[i]</label>
+                    <label asp-for="RepeatDays[i]" class="form-check-label">@Week.Days[i]</label>
                 </div>
             }
         </div>

@@ -86,6 +86,20 @@ public sealed class TravelLegsTests(TestAppFactory factory) : IClassFixture<Test
         Assert.Null(await StoredData.TravelLegAsync(factory, home.Id, gym.Id));
     }
 
+    // A mode that isn't on the list, even as a number, is refused (by the model binder).
+    [Theory]
+    [InlineData("Rocket")]
+    [InlineData("9")]
+    public async Task Add_ShowsAnError_ForAModeThatIsNotOnTheList(string mode)
+    {
+        var (browser, home, gym) = await SignedInWithTwoLocationsAsync();
+
+        var response = await browser.AddTravelLegAsync(home.Id, gym.Id, minutes: 25, mode: mode);
+
+        await AssertShowsAnErrorAsync(response);
+        Assert.Null(await StoredData.TravelLegAsync(factory, home.Id, gym.Id));
+    }
+
     // T19 from the other side: a leg can't point at someone else's location, even if its id is known.
     [Fact]
     public async Task Add_ShowsAnError_AndSavesNothing_ForAnotherUsersLocation()
