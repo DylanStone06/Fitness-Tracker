@@ -16,6 +16,8 @@ Each phase gets its own branch (`phase-N-short-name`). The owner merges and push
 | 9 | Dashboard, data rights, hardening | Not started | **MVP release** | Dashboard, export and delete, setup and deployment docs | Full suite; `/security-review`; `claude-security` scan; accessibility; mobile | Release checklist complete |
 | 10+ | After the MVP | — | Meal prep → analytics → notifications → AI | — | T23, T24 | One milestone at a time |
 
+Ideas that aren't agreed scope yet, with where each would fit: [ideas.md](ideas.md).
+
 ## Requirement status
 
 Only requirements with work done are listed. What's missing is in [known limitations](known-limitations.md); how
