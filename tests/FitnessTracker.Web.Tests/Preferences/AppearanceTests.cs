@@ -2,6 +2,10 @@ using System.Net;
 using System.Text.RegularExpressions;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FitnessTracker.Web.Tests.Preferences;
 
@@ -74,6 +78,39 @@ public sealed class AppearanceTests(TestAppFactory factory) : IClassFixture<Test
         var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
 
         Assert.Equal("dark", ThemeOf(await PageAsync(sam, "/")));
+    }
+
+    // The error page doesn't read the preference: it may be showing a database fault. So it is dark even for someone
+    // who chose light.
+    [Fact]
+    public async Task TheErrorPage_DoesNotReadThePreference()
+    {
+        var failing = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services => services.AddTransient<IStartupFilter, FailingPage>()));
+        var browser = TestBrowser.Open(failing);
+        await browser.RegisterAsync(TestBrowser.NewEmail("alex"));
+        await SaveAppearanceAsync(browser, "Light");
+
+        var response = await browser.GetAsync(FailingPage.Path);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Something went wrong", html);
+        Assert.Equal("dark", ThemeOf(html));
+    }
+
+    /// <summary>A page that always fails, added after the app's own pipeline, so inside its error handling.</summary>
+    private sealed class FailingPage : IStartupFilter
+    {
+        public const string Path = "/test-only/fail";
+
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            next(app);
+            app.Use((context, rest) => context.Request.Path == Path
+                ? throw new InvalidOperationException("A page failing, for the test.")
+                : rest(context));
+        };
     }
 
     private static Task<HttpResponseMessage> SaveAppearanceAsync(TestBrowser browser, string appearance) =>

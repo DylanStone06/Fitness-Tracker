@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
@@ -21,7 +22,7 @@ public static class ActivityDisplay
     };
 
     /// <summary>CAL-2: each category's colour, as a class in site.css (docs/design.md).</summary>
-    public static readonly IReadOnlyDictionary<ActivityCategory, string> CategoryStyles = new Dictionary<ActivityCategory, string>
+    public static readonly FrozenDictionary<ActivityCategory, string> CategoryStyles = new Dictionary<ActivityCategory, string>
     {
         [ActivityCategory.Work] = "cat-work",
         [ActivityCategory.Commute] = "cat-work",
@@ -32,7 +33,7 @@ public static class ActivityDisplay
         [ActivityCategory.Social] = "cat-social",
         [ActivityCategory.Appointment] = "cat-social",
         [ActivityCategory.Other] = "cat-other",
-    };
+    }.ToFrozenDictionary();
 
     /// <summary>
     /// The class giving a category its colour. It goes with the category's name, never instead of it (WCAG 1.4.1).

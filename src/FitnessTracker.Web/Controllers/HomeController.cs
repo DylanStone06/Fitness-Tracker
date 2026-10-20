@@ -23,7 +23,10 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
         var loaded = new DateInterval(today.PlusDays(-Agenda.MarginDays), today.PlusDays(HomeViewModel.DaysAhead + Agenda.MarginDays));
         var activities = await planning.ActivitiesOnAsync(loaded, unreadable);
         var agenda = Agenda.Between(activities, user.Context, today, today.PlusDays(HomeViewModel.DaysAhead));
-        var categories = await db.Activities.AsNoTracking().ToDictionaryAsync(activity => activity.Id, activity => activity.Category);
+        // Two columns, not whole rows: every activity's category, for its colour and name (CAL-2).
+        var categories = await db.Activities
+            .Select(activity => new { activity.Id, activity.Category })
+            .ToDictionaryAsync(activity => activity.Id, activity => activity.Category);
         return View(HomeViewModel.From(user, agenda, categories, unreadable));
     }
 

@@ -17,7 +17,7 @@ public sealed partial class TestBrowser
 
     public HttpClient Http { get; }
 
-    public static TestBrowser Open(TestAppFactory factory) =>
+    public static TestBrowser Open(WebApplicationFactory<Program> factory) =>
         new(factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }));
 
     /// <summary>Opens a browser signed in to a new account.</summary>

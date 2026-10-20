@@ -9,7 +9,7 @@
     var comingUp = Enumerable.Range(1, HomeViewModel.DaysAhead).Select(offset => Model.Today.PlusDays(offset)).Where(day => Model.On(day).Any()).ToList();
 
     ActivityCategory? CategoryOf(AgendaItem item) => Model.Categories.TryGetValue(item.Activity.Id, out var category) ? category : null;
-    string StyleOf(AgendaItem item) => CategoryOf(item) is { } category ? ActivityDisplay.CategoryStyle(category) : "cat-other";
+    string StyleOf(AgendaItem item) => ActivityDisplay.CategoryStyle(CategoryOf(item) ?? ActivityCategory.Other);
 
     // One activity: its time, title (opening its edit page), category, place, when to leave, and anything that
     // couldn't be worked out or clashes. Async because the link is a tag helper.

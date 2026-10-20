@@ -27,7 +27,8 @@ public sealed class HomeViewModel
 
     public required LocalDate Today { get; init; }
 
-    public required IReadOnlyList<AgendaItem> Agenda { get; init; }
+    /// <summary>Today's and the next 7 days' occurrences (named Items so it doesn't hide the Agenda class).</summary>
+    public required IReadOnlyList<AgendaItem> Items { get; init; }
 
     /// <summary>The next activity (GOL-2), or null when nothing listed is left.</summary>
     public required NextUp? Next { get; init; }
@@ -48,7 +49,7 @@ public sealed class HomeViewModel
     public bool StillToSetUp => Steps.Any(step => !step.Done);
 
     public IEnumerable<AgendaItem> On(LocalDate date) =>
-        Agenda.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
+        Items.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
 
     /// <summary>"Good morning" from 05:00, "Good afternoon" from 12:00, "Good evening" from 18:00 until 05:00.</summary>
     public static string GreetingAt(LocalTime time) => time.Hour switch
@@ -76,8 +77,7 @@ public sealed class HomeViewModel
 
     public static HomeViewModel From(UserPlanning user, IReadOnlyList<AgendaItem> agenda, IReadOnlyDictionary<Guid, ActivityCategory> categories, IReadOnlyList<string> unreadable)
     {
-        // Qualified: inside this class, "Agenda" is the property.
-        var next = Domain.Scheduling.Agenda.Next(agenda, user.Now.ToInstant());
+        var next = Agenda.Next(agenda, user.Now.ToInstant());
         var home = user.Context.Home;
 
         // Both journeys to and from every place away from home (§7.1): a missing one is never taken as zero.
@@ -99,7 +99,7 @@ public sealed class HomeViewModel
             ],
             Greeting = GreetingAt(user.Now.TimeOfDay),
             Today = user.Context.Today,
-            Agenda = agenda,
+            Items = agenda,
             Next = next,
             NextWhen = next is null ? null : When(next, user.Context.Today),
             Categories = categories,

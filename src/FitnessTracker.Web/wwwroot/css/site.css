@@ -109,7 +109,9 @@ h2, .h2, h3, .h3, .h4, .h5 {
   box-shadow: var(--ft-shadow);
 }
 
-.list-group-flush {
+/* A list inside a card already has the card's shadow. */
+.list-group-flush,
+.card .list-group {
   box-shadow: none;
 }
 
