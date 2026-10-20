@@ -46,9 +46,16 @@ public static class ActivityCheck
 {
     public const int WeeksAhead = 8;
 
-    // Other activities starting this many days either side of the dates checked can still overlap: a footprint is at
-    // most 24 hours (H8), so preparation can start the day before and travel back can end the day after.
-    private const int MarginDays = 2;
+    /// <summary>
+    /// Opening hours (H4) and the 24-hour limit (H8) are checked further ahead than clashes: they can't be overridden,
+    /// they are cheap, and they depend on the weekday and on the clocks changing, which a year covers. A daily rule
+    /// every N days is checked for at least 7 x N days, so every weekday it can fall on is reached.
+    /// </summary>
+    public const int WeeksAheadForHoursAndLength = 53;
+
+    // Other activities starting this many days either side of the dates checked can still overlap. Two footprints of
+    // up to 24 hours each (H8) can reach 48 hours apart, which spans a third date across a 23-hour day.
+    private const int MarginDays = 3;
 
     private static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
 
@@ -70,11 +77,22 @@ public static class ActivityCheck
 
         var problems = new List<CheckProblem>();
         var journeys = JourneysFor(candidate, context, problems);
-        problems.AddRange(Footprint.ProblemsWith(series.Length, candidate.Buffers, journeys ?? Journeys.None)
-            .Select(problem => new CheckProblem(CheckAspect.Length, Footprint.Describe(problem))));
+        var travel = journeys ?? Journeys.None;
 
-        var occurrences = series.OccurrencesBetween(dates.Start, dates.End);
-        if (OpeningHoursProblem(candidate, occurrences, context, series.Zone) is { } outsideOpeningHours)
+        // A length of zero or less can't even be turned into occurrences, so it is the only thing left to say.
+        if (series.Length <= Duration.Zero)
+        {
+            problems.AddRange(LengthProblems([series.Length], candidate.Buffers, travel));
+            return new ActivityCheckResult(problems, [], dates);
+        }
+
+        var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
+        var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
+        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End);
+
+        // H8 on every occurrence, not just the usual length: a moved one can be longer.
+        problems.AddRange(LengthProblems(longerOccurrences.Select(occurrence => occurrence.Time.Duration).Prepend(series.Length), candidate.Buffers, travel));
+        if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, longerDates.End) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
         }
@@ -83,6 +101,8 @@ public static class ActivityCheck
         {
             return new ActivityCheckResult(problems, [], dates);
         }
+
+        var occurrences = series.OccurrencesBetween(dates.Start, dates.End);
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
         var otherBookings = others
@@ -137,8 +157,16 @@ public static class ActivityCheck
         return null;
     }
 
+    // Each H8 problem once, for whichever lengths break it.
+    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<Duration> lengths, Buffers buffers, Journeys journeys) =>
+        lengths.Distinct()
+            .SelectMany(length => Footprint.ProblemsWith(length, buffers, journeys))
+            .Distinct()
+            .Order()
+            .Select(problem => new CheckProblem(CheckAspect.Length, Footprint.Describe(problem)));
+
     // H4 on every date checked, because opening hours depend on the day. Reports the first date and counts the rest.
-    private static CheckProblem? OpeningHoursProblem(PlannedActivity activity, IReadOnlyList<Occurrence> occurrences, PlanningContext context, DateTimeZone zone)
+    private static CheckProblem? OpeningHoursProblem(PlannedActivity activity, IReadOnlyList<Occurrence> occurrences, PlanningContext context, DateTimeZone zone, LocalDate checkedUpTo)
     {
         if (activity.LocationId is not { } at || !context.Places.TryGetValue(at, out var place))
         {
@@ -159,7 +187,7 @@ public static class ActivityCheck
             ? $"{place.Name} is open {Time.Format(hours.Opens)} to {Time.Format(hours.Closes)}{(hours.Closes <= hours.Opens ? " the next day" : "")} on {Date.Format(problem.Date)}"
             : $"{place.Name} is closed on {Date.Format(problem.Date)}";
         var more = outside.Count > 1
-            ? $" The same happens on {outside.Count - 1} more {(outside.Count == 2 ? "date" : "dates")} in the {WeeksAhead} weeks checked."
+            ? $" The same happens on {outside.Count - 1} more {(outside.Count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}."
             : "";
         return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone)}.{more}");
     }

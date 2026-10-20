@@ -125,8 +125,80 @@ public class ActivityCheckTests
 
         var problem = Assert.Single(ActivityCheck.Check(weekend, [], Context(gymHours: new OpeningHours(weekdaysAndSaturday))).Problems);
 
+        // Opening hours are checked for a year (53 weeks to 12 Nov 2027): 53 Sundays, the first and 52 more.
         Assert.Contains("Town gym is closed on Sun 8 Nov 2026", problem.Message);
-        Assert.Contains("7 more", problem.Message);
+        Assert.Contains("52 more", problem.Message);
+    }
+
+    // H4 can't be broken by a date the 8 weeks of clash checking don't reach (scheduling review): every 10 days from
+    // Monday 2 November first lands on a Friday on 1 January 2027, when this gym is closed.
+    [Fact]
+    public void ADailyRuleEveryTenDays_IsCheckedOnEveryWeekdayItFallsOn()
+    {
+        var exceptFriday = new OpeningHours(Enum.GetValues<IsoDayOfWeek>()
+            .Where(day => day is not (IsoDayOfWeek.None or IsoDayOfWeek.Friday))
+            .ToDictionary(day => day, _ => new OpenTimes(new LocalTime(6, 0), new LocalTime(22, 0))));
+        var everyTenDays = new PlannedActivity(Guid.NewGuid(), "Gym",
+            new Series(new LocalDate(2026, 11, 2), new LocalTime(18, 0), Duration.FromMinutes(50), London, RecurrenceRule.Daily(10)),
+            new Buffers(Duration.Zero, Duration.FromMinutes(10)), Gym);
+
+        var problem = Assert.Single(ActivityCheck.Check(everyTenDays, [], Context(gymHours: exceptFriday)).Problems);
+
+        Assert.Contains("Town gym is closed on Fri 1 Jan 2027", problem.Message);
+    }
+
+    // T5 with opening hours: a daily 01:30 swim at a place open 18:00-02:00 is fine until Sunday 28 March 2027, when
+    // 01:30 becomes 02:30 (§8) and the place closes as the clocks reach 02:00.
+    [Fact]
+    public void ALateActivity_PushedPastClosingWhenTheClocksGoForward_IsAProblem()
+    {
+        var late = new PlannedActivity(Guid.NewGuid(), "Late swim",
+            new Series(new LocalDate(2026, 11, 2), new LocalTime(1, 30), Duration.FromMinutes(20), London, RecurrenceRule.Daily()),
+            Buffers.None, Gym);
+
+        var problem = Assert.Single(ActivityCheck.Check(late, [], Context(gymHours: Daily(new OpenTimes(new LocalTime(18, 0), new LocalTime(2, 0))))).Problems);
+
+        Assert.Contains("28 Mar 2027", problem.Message);
+        Assert.Contains("02:30 to 02:50", problem.Message);
+    }
+
+    // H8 on every occurrence, not just the usual length: one moved to 24 hours, with 10 minutes' preparation, takes up
+    // more than 24 hours. Reported, not thrown.
+    [Fact]
+    public void AMovedOccurrenceOver24Hours_IsAProblemWithItsLength_NotAnException()
+    {
+        var series = new Series(new LocalDate(2026, 11, 2), new LocalTime(18, 0), Duration.FromHours(1), London, RecurrenceRule.Daily().EndingAfter(3))
+            .MoveOccurrence(new LocalDate(2026, 11, 3), new LocalDateTime(2026, 11, 3, 6, 0), Duration.FromHours(24));
+        var hike = new PlannedActivity(Guid.NewGuid(), "Hike", series, new Buffers(Duration.FromMinutes(10), Duration.Zero), null);
+
+        var problem = Assert.Single(ActivityCheck.Check(hike, [], Context()).Problems);
+
+        Assert.Equal(CheckAspect.Length, problem.Aspect);
+    }
+
+    [Fact]
+    public void ALengthOfZeroOrLess_IsAProblemWithItsLength_NotAnException()
+    {
+        var never = new PlannedActivity(Guid.NewGuid(), "Nothing",
+            new Series(new LocalDate(2026, 11, 2), new LocalTime(18, 0), Duration.FromMinutes(-30), London, RecurrenceRule.Daily()),
+            Buffers.None, null);
+
+        Assert.Equal(CheckAspect.Length, Assert.Single(ActivityCheck.Check(never, [], Context()).Problems).Aspect);
+    }
+
+    // Two footprints of up to 24 hours can reach across three dates when one of them is the 23-hour day the clocks go
+    // forward (T5): a shift from Friday 26 March 23:30 overlaps the preparation for something at midnight on Monday
+    // 29 March, 20 minutes on Saturday evening (UTC).
+    [Fact]
+    public void AClashThreeDatesBeforeTheFirstDate_AcrossTheShortDay_IsFound()
+    {
+        var ultra = OneOff("Ultra", new LocalDate(2027, 3, 29), new LocalTime(0, 0), minutes: 10, at: null,
+            buffers: new Buffers(Duration.FromMinutes((23 * 60) + 50), Duration.Zero));
+        var longShift = OneOff("Long shift", new LocalDate(2027, 3, 26), new LocalTime(23, 30), minutes: 24 * 60, at: null);
+
+        var clash = Assert.Single(ActivityCheck.Check(ultra, [longShift], Context()).Clashes);
+
+        Assert.Equal(new Interval(Instant.FromUtc(2027, 3, 27, 23, 10), Instant.FromUtc(2027, 3, 27, 23, 30)), clash.Overlap);
     }
 
     // A closing time after midnight reads as the next day.
