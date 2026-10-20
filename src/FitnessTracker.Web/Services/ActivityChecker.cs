@@ -24,7 +24,8 @@ public class ActivityChecker(AppDbContext db, IClock clock)
 
         // Only activities that can fall near the dates checked: repeating ones that start in time, and one-offs on
         // those dates. A year of past one-offs isn't read on every save.
-        var nearby = ActivityCheck.OthersThatCanClash(candidate.StartDate, today);
+        var plannedCandidate = candidate.ToPlannedActivity();
+        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate.Series, today);
         var others = await db.Activities.AsNoTracking()
             .Where(activity => activity.Id != candidate.Id && activity.StartDate <= nearby.End
                 && (activity.RepeatRule != null || activity.StartDate >= nearby.Start))
@@ -51,7 +52,7 @@ public class ActivityChecker(AppDbContext db, IClock clock)
             locations.FirstOrDefault(location => location.IsHome)?.Id,
             TravelLeg.ToTravelTimes(legs),
             locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())));
-        var result = ActivityCheck.Check(candidate.ToPlannedActivity(), planned, context);
+        var result = ActivityCheck.Check(plannedCandidate, planned, context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };
     }
 }

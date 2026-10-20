@@ -244,6 +244,21 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         Assert.Contains("overlaps Team meeting", await AssertShowsAnErrorAsync(response));
     }
 
+    // Today is 19 October 2026: a gym session added for 12 October still needs "Save anyway" to clash with that
+    // day's meeting.
+    [Fact]
+    public async Task Add_InThePast_ClashingWithAnotherActivity_NeedsSaveAnyway()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Team meeting", new() { ["StartDate"] = "2026-10-12" });
+        var title = TestBrowser.NewName("Gym");
+
+        var response = await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-10-12", ["StartTime"] = "07:30" });
+
+        Assert.Contains("overlaps Team meeting", await AssertShowsAnErrorAsync(response));
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+    }
+
     // T19: the check only ever looks at the signed-in user's own activities: Sam's meeting at the same time doesn't
     // clash with Alex's gym session.
     [Fact]

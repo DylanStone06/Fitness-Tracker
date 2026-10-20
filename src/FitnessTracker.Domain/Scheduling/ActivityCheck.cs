@@ -68,7 +68,7 @@ public static class ActivityCheck
     public static ActivityCheckResult Check(PlannedActivity candidate, IEnumerable<PlannedActivity> others, PlanningContext context)
     {
         var series = candidate.Series;
-        var firstChecked = LocalDate.Max(series.FirstDate, context.Today);
+        var firstChecked = FirstCheckedDate(series, context.Today);
         var dates = new DateInterval(firstChecked, firstChecked.PlusWeeks(WeeksAhead).PlusDays(-1));
 
         if (!series.Rule.FallsOnAnyDate(series.FirstDate))
@@ -110,7 +110,7 @@ public static class ActivityCheck
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
         var notes = new List<string>();
-        var nearby = OthersThatCanClash(series.FirstDate, context.Today);
+        var nearby = OthersThatCanClash(series, context.Today);
         var otherBookings = others
             .Where(other => other.Id != candidate.Id)
             .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
@@ -124,13 +124,23 @@ public static class ActivityCheck
 
     /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
-    /// one first on <paramref name="firstDate"/>: the clash window and 3 days either side. Lets a caller load only
-    /// those activities.
+    /// <paramref name="series"/>: the clash window and 3 days either side. Lets a caller load only those activities.
     /// </summary>
-    public static DateInterval OthersThatCanClash(LocalDate firstDate, LocalDate today)
+    public static DateInterval OthersThatCanClash(Series series, LocalDate today)
     {
-        var firstChecked = LocalDate.Max(firstDate, today);
+        var firstChecked = FirstCheckedDate(series, today);
         return new DateInterval(firstChecked.PlusDays(-MarginDays), firstChecked.PlusWeeks(WeeksAhead).PlusDays(MarginDays - 1));
+    }
+
+    // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
+    // today on, within the year H4 and H8 look at (a one-off in the past, a series that has ended), is checked from its
+    // own first date, so nothing is saved unchecked.
+    private static LocalDate FirstCheckedDate(Series series, LocalDate today)
+    {
+        var fromToday = LocalDate.Max(series.FirstDate, today);
+        return fromToday > series.FirstDate && series.OccurrencesBetween(fromToday, fromToday.PlusWeeks(WeeksAheadForHoursAndLength)).Count == 0
+            ? series.FirstDate
+            : fromToday;
     }
 
     /// <summary>

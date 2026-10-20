@@ -88,6 +88,20 @@ public class ActivityCheckTests
         Assert.Equal(Today, result.Checked.Start);
     }
 
+    // An activity entirely in the past (logged afterwards, say) is still checked, on its own dates: the window from
+    // today would have nothing in it, and a clash saved without "Save anyway" would look like an accepted one.
+    [Fact]
+    public void AnActivityEntirelyInThePast_IsCheckedOnItsOwnDates()
+    {
+        var meeting = OneOff("Team meeting", new LocalDate(2026, 10, 12), new LocalTime(7, 0), minutes: 60, at: Home);
+        var gym = OneOff("Gym", new LocalDate(2026, 10, 12), new LocalTime(7, 30), minutes: 50, at: Home);
+
+        var result = ActivityCheck.Check(gym, [meeting], Context());
+
+        Assert.Equal("Team meeting", Assert.Single(result.Clashes).Other.Label);
+        Assert.Equal(new LocalDate(2026, 10, 12), result.Checked.Start);
+    }
+
     // H4: the activity must be inside the opening hours, and the problem says when the place is open.
     [Fact]
     public void AnActivityBeforeOpeningTime_IsAProblemWithItsTime()
