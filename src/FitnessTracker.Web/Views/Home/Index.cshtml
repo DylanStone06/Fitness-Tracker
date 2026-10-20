@@ -1,6 +1,126 @@
+@model FitnessTracker.Web.Models.Home.HomeViewModel
+@using NodaTime
+@using NodaTime.Text
 @{
     ViewData["Title"] = "Home";
+    var dayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
+    var time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
+    string Clock(Instant moment, DateTimeZone zone) => time.Format(moment.InZone(zone).TimeOfDay);
 }
 
 <h1>Fitness Tracker</h1>
 <p>Plan fitness around work, travel, sleep and recovery, and see plainly when a week's goals won't fit.</p>
+
+@if (Model.StillToSetUp)
+{
+    <section class="mb-4" aria-labelledby="setup-heading">
+        <h2 class="h4" id="setup-heading">Getting started</h2>
+        <p>The plan is only as good as what it knows. Still to do:</p>
+        <ul class="list-group">
+            @foreach (var step in Model.Steps)
+            {
+                <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                    @* Done or not is said in words, not by colour alone. *@
+                    <span class="badge @(step.Done ? "text-bg-success" : "text-bg-secondary")">@(step.Done ? "Done" : "To do")</span>
+                    @if (step.Done)
+                    {
+                        <span class="flex-grow-1">@step.Text</span>
+                    }
+                    else
+                    {
+                        <a class="flex-grow-1" asp-controller="@step.Controller" asp-action="@step.Action">@step.Text</a>
+                    }
+                    @if (step.Progress is { } progress)
+                    {
+                        <span class="small text-body-secondary">@progress</span>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@if (Model.Unreadable.Count > 0)
+{
+    <div class="alert alert-warning" role="status">
+        <ul class="mb-0">
+            @foreach (var problem in Model.Unreadable)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+@{
+    var days = Enumerable.Range(0, HomeViewModel.DaysAhead + 1).Select(offset => Model.Today.PlusDays(offset)).ToList();
+    var comingUp = days.Skip(1).Where(day => Model.On(day).Any()).ToList();
+}
+
+@foreach (var day in days.Take(1).Concat(comingUp))
+{
+    var isToday = day == Model.Today;
+    if (day == comingUp.FirstOrDefault())
+    {
+        <h2 class="h4 mt-4">The next @HomeViewModel.DaysAhead days</h2>
+    }
+
+    @* Today is its own section (h2); the days after it sit under "The next 7 days" (h3), for screen reader navigation. *@
+    <section class="mb-3" aria-labelledby="day-@day.ToString("uuuu-MM-dd", null)">
+        @if (isToday)
+        {
+            <h2 class="h4" id="day-@day.ToString("uuuu-MM-dd", null)">Today, @dayPattern.Format(day)</h2>
+        }
+        else
+        {
+            <h3 class="h5" id="day-@day.ToString("uuuu-MM-dd", null)">@dayPattern.Format(day)</h3>
+        }
+        @if (!Model.On(day).Any())
+        {
+            <p>Nothing planned today.</p>
+        }
+        else
+        {
+            <ul class="list-group">
+                @foreach (var item in Model.On(day))
+                {
+                    var zone = item.Activity.Series.Zone;
+                    var activity = item.Activity;
+                    var awayFromHome = activity.LocationId is { } at && at != Model.Home;
+                    <li class="list-group-item">
+                        <span class="fw-bold">@Clock(item.Occurrence.Time.Start, zone)</span>
+                        <span class="text-break">@activity.Title</span>
+                        @if (activity.LocationId is { } place && Model.PlaceNames.TryGetValue(place, out var placeName))
+                        {
+                            <span class="text-break">at @placeName</span>
+                        }
+                        @if (item.TravelUnknown)
+                        {
+                            <span class="d-block small">
+                                Travel time unknown, so it isn't counted: add it on the <a asp-controller="TravelLegs" asp-action="Index">Travel times</a> page.
+                            </span>
+                        }
+                        else if (item.Whole is { } whole && awayFromHome)
+                        {
+                            <span class="d-block small">Leave home @Clock(whole.Start, zone), back @Clock(whole.End, zone)</span>
+                        }
+                        else if (item.Whole is { } footprint && footprint != item.Occurrence.Time)
+                        {
+                            <span class="d-block small">With getting ready and changing: @Clock(footprint.Start, zone) to @Clock(footprint.End, zone)</span>
+                        }
+                        @if (item.ClashesWith.Count > 0)
+                        {
+                            @* CAL-6: an icon and words, not colour alone. *@
+                            <span class="d-block small text-danger"><span aria-hidden="true">&#9888;</span> Clashes with @string.Join(", ", item.ClashesWith)</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+}
+
+@if (comingUp.Count == 0)
+{
+    <p>Nothing planned in the next @HomeViewModel.DaysAhead days. <a asp-controller="Activities" asp-action="Create">Add an activity</a>.</p>
+}

@@ -54,7 +54,8 @@ builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 // "Now", for checks that look ahead from today. Tests replace it with a fixed clock.
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 
-// SCH-1: the one check every save of an activity goes through.
+// The user's planning data, read the same way everywhere; and SCH-1, the one check every save of an activity goes through.
+builder.Services.AddScoped<PlanningData>();
 builder.Services.AddScoped<ActivityChecker>();
 
 // The connection string is read when a database context is first needed, after all configuration
