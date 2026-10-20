@@ -125,7 +125,7 @@ public static class ActivityCheck
         var date = clash.Candidate.Footprint.Activity.Start.InZone(zone).Date;
         var other = clash.Other.Label;
         return $"On {Date.Format(date)}, {CandidatePart(clash.CandidatePart)} overlaps {OtherPart(clash.OtherPart, other)} " +
-               $"({other} is {Span(clash.Other.Footprint.Activity, zone)}).";
+               $"({other} is {Span(clash.Other.Footprint.Activity, zone, onDate: date)}).";
     }
 
     // Null, with a problem added, when travel can't be worked out. None at home or at no particular place (§7.1).
@@ -189,7 +189,7 @@ public static class ActivityCheck
         var more = outside.Count > 1
             ? $" The same happens on {outside.Count - 1} more {(outside.Count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}."
             : "";
-        return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone)}.{more}");
+        return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date)}.{more}");
     }
 
     // Another activity's occurrences as bookings. Stored activities can't stop this check: travel that can't be worked
@@ -207,13 +207,21 @@ public static class ActivityCheck
     private static string NameOf(Guid location, PlanningContext context) =>
         context.Places.TryGetValue(location, out var place) ? place.Name : "that location";
 
-    // "19:30 to 20:30", or "22:00 to 06:00 the next day".
-    private static string Span(Interval time, DateTimeZone zone)
+    // "19:30 to 20:30", or "22:00 to 06:00 the next day". The start's own date is given when it isn't the date the
+    // message is about (an overnight activity from the day before), and a time the clocks repeat says which one it
+    // is ("01:15 BST to 01:15 GMT" on the night they go back).
+    private static string Span(Interval time, DateTimeZone zone, LocalDate onDate)
     {
         var start = time.Start.InZone(zone);
         var end = time.End.InZone(zone);
-        return $"{Time.Format(start.TimeOfDay)} to {Time.Format(end.TimeOfDay)}{(end.Date > start.Date ? " the next day" : "")}";
+        var startDate = start.Date == onDate ? "" : $"on {Date.Format(start.Date)} ";
+        return $"{startDate}{Clock(start)} to {Clock(end)}{(end.Date > start.Date ? " the next day" : "")}";
     }
+
+    private static string Clock(ZonedDateTime moment) =>
+        moment.Zone.MapLocal(moment.LocalDateTime).Count > 1
+            ? $"{Time.Format(moment.TimeOfDay)} {moment.GetZoneInterval().Name}"
+            : Time.Format(moment.TimeOfDay);
 
     private static string CandidatePart(FootprintPart part) => part switch
     {

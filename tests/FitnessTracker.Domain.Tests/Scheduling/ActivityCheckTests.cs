@@ -284,6 +284,47 @@ public class ActivityCheckTests
         Assert.Equal("Swim", Assert.Single(result.Clashes).Other.Label);
     }
 
+    // A night shift from Monday runs into an early gym session on Tuesday: the message gives the shift's own date, or
+    // "22:00 to 06:00 the next day" would read as Tuesday night.
+    [Fact]
+    public void AClashWithAnOvernightActivityFromTheDayBefore_NamesItsDay()
+    {
+        var nightShift = OneOff("Night shift", new LocalDate(2026, 11, 2), new LocalTime(22, 0), minutes: 8 * 60, at: null);
+        var earlyGym = OneOff("Early gym", new LocalDate(2026, 11, 3), new LocalTime(5, 30), minutes: 50, at: null);
+
+        var clash = Assert.Single(ActivityCheck.Check(earlyGym, [nightShift], Context()).Clashes);
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 3, 5, 30), Instant.FromUtc(2026, 11, 3, 6, 0)), clash.Overlap);
+        Assert.Equal(
+            "On Tue 3 Nov 2026, it overlaps Night shift (Night shift is on Mon 2 Nov 2026 22:00 to 06:00 the next day).",
+            ActivityCheck.Describe(clash, London));
+    }
+
+    // T4: 01:15 happens twice on Sunday 25 October 2026, so a time the clocks repeat says which one: a 60-minute swim
+    // from the first 01:15 ends at the second.
+    [Fact]
+    public void AClashOnTheNightTheClocksGoBack_ShowsTimesThatCanBeToldApart()
+    {
+        var swim = OneOff("Night swim", new LocalDate(2026, 10, 25), new LocalTime(1, 15), minutes: 60, at: null);
+        var reading = OneOff("Reading", new LocalDate(2026, 10, 25), new LocalTime(1, 30), minutes: 30, at: null);
+
+        var clash = Assert.Single(ActivityCheck.Check(reading, [swim], Context()).Clashes);
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 10, 25, 0, 30), Instant.FromUtc(2026, 10, 25, 1, 0)), clash.Overlap);
+        Assert.Contains("Night swim is 01:15 BST to 01:15 GMT", ActivityCheck.Describe(clash, London));
+    }
+
+    // An activity after midnight falls in the previous evening's opening; the problem gives both dates.
+    [Fact]
+    public void AnActivityAfterMidnight_OutsideTheHours_SaysItsOwnDate()
+    {
+        var hours = Daily(new OpenTimes(new LocalTime(18, 0), new LocalTime(2, 0)));
+
+        var problem = Assert.Single(ActivityCheck.Check(GymSession(new LocalDate(2026, 11, 3), new LocalTime(1, 30)), [], Context(gymHours: hours)).Problems);
+
+        Assert.Contains("on Mon 2 Nov 2026, but it would be there on Tue 3 Nov 2026 01:30 to 02:20", problem.Message);
+    }
+
     // Gym 18:00-18:50 at Town gym: 25 minutes there, 10 minutes changing, 45 minutes back (T1).
     private static PlannedActivity GymSession(LocalDate date, LocalTime? start = null) =>
         OneOff("Gym", date, start ?? new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
