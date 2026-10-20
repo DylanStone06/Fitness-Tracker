@@ -111,6 +111,13 @@ public class ActivityFormViewModel
     [Display(Name = "Number of times")]
     public int? EndCount { get; set; }
 
+    /// <summary>
+    /// Q2: the user has seen the clashes with other activities and wants to keep them (§7.2: an accepted conflict).
+    /// Asked for each save, so a clash is always a decision made with the clash in view.
+    /// </summary>
+    [Display(Name = "Save anyway, with these clashes")]
+    public bool ConfirmClashes { get; set; }
+
     /// <summary>Edit only: the version of the activity the form was opened with (requirements §9).</summary>
     public Guid Version { get; set; }
 
@@ -157,11 +164,11 @@ public class ActivityFormViewModel
     }
 
     /// <summary>
-    /// Problems the attributes can't see, listed with each field's own so every problem shows at once. The repeat is
-    /// only checked when it repeats. <paramref name="weekStart"/> is the week start a weekly rule would get, which
-    /// decides the weeks "every N weeks" falls in, and so whether it ever happens before its end date.
+    /// Problems with what was typed that the attributes can't see, listed with each field's own so every problem shows
+    /// at once. The repeat is only checked when it repeats. Whether the activity fits (it happens at all, opening
+    /// hours, travel, clashes) is the one check's job (SCH-1, ActivityChecker), run once the form is valid.
     /// </summary>
-    public IEnumerable<ValidationResult> ProblemsAcrossTheForm(IsoDayOfWeek weekStart)
+    public IEnumerable<ValidationResult> ProblemsAcrossTheForm()
     {
         // The choices (category, priority, repeats, ends) need no check here: the model binder refuses a value that
         // isn't one of them, even a number, and leaves the default.
@@ -176,7 +183,6 @@ public class ActivityFormViewModel
         else if (!IsPlannable(startDate.Value))
         {
             yield return new ValidationResult(OutsidePlannableYears, [nameof(StartDate)]);
-            startDate = null;
         }
 
         if (ParseTime(StartTime) is null)
@@ -197,7 +203,7 @@ public class ActivityFormViewModel
             yield break;
         }
 
-        foreach (var problem in RepeatProblems(startDate, weekStart))
+        foreach (var problem in RepeatProblems())
         {
             yield return problem;
         }
@@ -221,7 +227,7 @@ public class ActivityFormViewModel
         activity.RepeatRule = Repeats == RepeatChoice.Never ? null : RecurrenceRuleText.Format(Rule(weekStart)!);
     }
 
-    private IEnumerable<ValidationResult> RepeatProblems(LocalDate? startDate, IsoDayOfWeek weekStart)
+    private List<ValidationResult> RepeatProblems()
     {
         var problems = new List<ValidationResult>();
         if (RepeatEvery is < 1 or > MaxRepeatEvery)
@@ -259,16 +265,6 @@ public class ActivityFormViewModel
         if (Ends == RepeatEndChoice.AfterCount && EndCount is not (>= 1 and <= MaxEndCount))
         {
             problems.Add(new ValidationResult($"Enter how many times it happens as a number from 1 to {MaxEndCount}.", [nameof(EndCount)]));
-        }
-
-        // Only once everything the rule is made from is right: a rule that ends before the first date it would
-        // fall on is saved and never seen (scheduling review of RecurrenceRuleText).
-        if (problems.Count == 0 && startDate is { } firstDate && Ends == RepeatEndChoice.OnDate
-            && !Rule(weekStart)!.FallsOnAnyDate(firstDate))
-        {
-            problems.Add(new ValidationResult(
-                "It would never happen: the last date is before the first day it repeats on. Choose a later last date, or other days.",
-                [nameof(EndDate)]));
         }
 
         return problems;

@@ -469,7 +469,7 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
         await SavePreferencesAsync(browser, new() { ["TimeZoneId"] = "America/New_York" });
         var after = TestBrowser.NewName("Gym");
 
-        await browser.AddActivityAsync(after);
+        await browser.AddActivityAsync(after, new() { ["StartDate"] = "2026-11-03" });
 
         Assert.Equal("America/New_York", (await StoredData.ActivityTitledAsync(factory, after))?.TimeZoneId);
     }
@@ -540,12 +540,18 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
         ["RepeatDays[6]"] = "true",
     };
 
+    // A gym with travel times both ways from home, so an activity there passes the check on save (ActivityChecksTests).
     private async Task<(TestBrowser Browser, Location Gym)> SignedInWithALocationAsync()
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var homeName = TestBrowser.NewName("Home");
         var name = TestBrowser.NewName("Gym");
+        await browser.AddLocationAsync(homeName, new() { ["IsHome"] = "true" });
         await browser.AddLocationAsync(name);
-        return (browser, (await StoredData.LocationNamedAsync(factory, name))!);
+        var home = (await StoredData.LocationNamedAsync(factory, homeName))!;
+        var gym = (await StoredData.LocationNamedAsync(factory, name))!;
+        await browser.AddTravelLegAsync(home.Id, gym.Id, minutes: 25, alsoTheReturnJourney: true);
+        return (browser, gym);
     }
 
     private static Task SaveWeekStartAsync(TestBrowser browser, string day) =>

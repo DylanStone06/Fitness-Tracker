@@ -101,8 +101,8 @@ public sealed partial class TestBrowser
     public Task<HttpResponseMessage> LogoutAsync() =>
         SubmitFormAsync("/", "/Account/Logout", []);
 
-    public Task<HttpResponseMessage> AddLocationAsync(string name) =>
-        SubmitFormAsync("/Locations/Create", "/Locations/Create", new() { ["Name"] = name });
+    public Task<HttpResponseMessage> AddLocationAsync(string name, Dictionary<string, string>? fields = null) =>
+        SubmitFormAsync("/Locations/Create", "/Locations/Create", new(fields ?? []) { ["Name"] = name });
 
     public Task<HttpResponseMessage> AddTravelLegAsync(Guid from, Guid to, int minutes, bool alsoTheReturnJourney = false, string mode = "Walk") =>
         SubmitFormAsync("/TravelLegs/Create", "/TravelLegs/Create", new()

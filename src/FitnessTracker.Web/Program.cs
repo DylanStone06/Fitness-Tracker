@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +50,12 @@ builder.Services.AddAuthorizationBuilder()
 // Who is signed in, for AppDbContext's per-user filtering (CLAUDE.md rule 5).
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+
+// "Now", for checks that look ahead from today. Tests replace it with a fixed clock.
+builder.Services.AddSingleton<IClock>(SystemClock.Instance);
+
+// SCH-1: the one check every save of an activity goes through.
+builder.Services.AddScoped<ActivityChecker>();
 
 // The connection string is read when a database context is first needed, after all configuration
 // (including test overrides) has been applied. In development, dev\ft-dev.ps1 run keeps it in user-secrets.

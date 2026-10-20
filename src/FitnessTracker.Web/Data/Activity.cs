@@ -1,3 +1,6 @@
+using FitnessTracker.Domain.Footprints;
+using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Scheduling;
 using NodaTime;
 
 namespace FitnessTracker.Web.Data;
@@ -86,4 +89,20 @@ public class Activity : IOwnedByUser, IVersioned
 
     /// <summary>CAL-3: how it repeats, as RRULE text (ADR 0001, RecurrenceRuleText), or null for a one-off.</summary>
     public string? RepeatRule { get; set; }
+
+    /// <summary>
+    /// The domain's view of this activity, for the check on save (SCH-1). A one-off is a series that happens once, so
+    /// both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward is 02:30).
+    /// </summary>
+    public PlannedActivity ToPlannedActivity() =>
+        new(Id,
+            Title,
+            new Series(
+                StartDate,
+                StartTime,
+                Duration.FromMinutes(LengthMinutes),
+                DateTimeZoneProviders.Tzdb[TimeZoneId],
+                RepeatRule is null ? RecurrenceRule.Daily().EndingAfter(1) : RecurrenceRuleText.Parse(RepeatRule)),
+            new Buffers(Duration.FromMinutes(PreparationMinutes), Duration.FromMinutes(ChangingMinutes)),
+            LocationId);
 }

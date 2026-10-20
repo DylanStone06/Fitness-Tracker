@@ -38,8 +38,11 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    the right type. An endpoint that returns a user's data without an id (preferences; the calendar feed in Phase 5)
    needs its own T19 test.
 5. **A form that refers to another record by id checks it is the user's own** (a travel leg's locations, an
-   activity's location): the filter
-   makes another user's id "not found", which the form reports as "choose from the list".
+   activity's location): the filter makes another user's id "not found", which the form reports as "choose from
+   the list".
+6. **Every save of an activity goes through `ActivityChecker`** (SCH-1, CLAUDE.md rule 3), on the activity exactly as
+   it would be stored; the rules themselves are in `Domain/Scheduling/ActivityCheck`. A new way of saving (calendar
+   drag and drop, accepted suggestions, imports) calls it too and shows its problems and clashes.
 
 ### Notes for later phases
 

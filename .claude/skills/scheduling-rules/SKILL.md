@@ -117,12 +117,32 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - `DailyLoad.Of(footprints, zone)`: footprint time per local day, split at real midnight (23/25-hour days);
   overlapping footprints each count (§7.3 "total footprint minutes"). Days with no load are left out.
 
+## The check on save (`Domain/Scheduling/ActivityCheck`, SCH-1, first part)
+
+- `ActivityCheck.Check(candidate, others, context)` is the one check for a new or changed activity. The Web calls it
+  through `ActivityChecker`, which builds `PlannedActivity`s from stored activities (`Activity.ToPlannedActivity`: a
+  one-off is a series with `Daily().EndingAfter(1)`, so both resolve clock times the same way) and a
+  `PlanningContext` (today in the user's timezone, home, travel times, each location's name and opening hours).
+- **Problems** stop the save, each with a `CheckAspect` for the form field: a repeat that never happens (Repeat), no
+  home or a missing travel leg for an activity away from home (Location; never guessed as zero), H8 (Length), and
+  H4 on **every** occurrence checked, naming the first and counting the rest (Time).
+- **Clashes** (H1) are only looked for when there are no problems (they depend on travel and length). The user can
+  save them with "Save anyway" (Q2), asked on each save; acceptance isn't stored yet.
+- **Window:** the candidate's occurrences from the later of today and its first date, for `WeeksAhead` (8) weeks;
+  others' occurrences 2 days either side (a footprint is at most 24 h). Rules like every 98 and every 99 weeks can't
+  be proved clash-free in any practical window, so it is a window, said in the message.
+- **Other activities never stop the check:** the candidate's own stored version is left out (an edit doesn't clash
+  with itself); one whose travel can't be worked out is checked without travel; an occurrence whose footprint breaks
+  H8 is skipped.
+- `ActivityCheck.Describe(clash, zone)`: "On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 19:30 to
+  20:30)." Spans past midnight say "the next day".
+
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |
 |---|---|---|
 | Drawing footprints on the calendar | CAL-5 | 5 |
-| The one validator and hard constraints H1-H8 (overlap, sleep minimum, opening hours, rest gaps...) | SCH-1, §7.2 | 6 (some checks in 4) |
+| The rest of the one validator: sleep minimum (H3), rest gaps and demanding sessions (H5-H7), and checking moves, suggestions and imports | SCH-1, §7.2 | 5-8 (H1, H4, H8 built in 4) |
 | Scoring, "Plan my week", explanations | §7.3, §7.4, SCH-2 to SCH-7 | 6 |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
@@ -159,14 +179,14 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T7 | Weekly, fortnightly, end date, count | **Covered** | `SeriesTests` |
 | T8 | Cancel one, move one, edit series: both kept, reports 2 | **Covered** | `OccurrenceChangeTests.EditingTheSeries_KeepsBothOneOffChanges_AndReportsTwo` |
 | T9 | Commute and gym travel counted once each | **Covered** (domain) | `DailyLoadTests.AnOfficeDayAndAnEveningGymSession_*` |
-| T10 | Buffer overlapping another activity is a conflict | **Covered** (domain) | `ConflictsTests.ChangingTimeRunningInto*`, `PreparationTimeOverlapping*` |
-| T11 | Back-to-back: no conflict; 1 min overlap: conflict | **Covered** (domain) | `ConflictsTests.BackToBackActivities_*`, `OverlappingByOneMinute_*` |
+| T10 | Buffer overlapping another activity is a conflict | **Covered** (domain and on save) | `ConflictsTests.ChangingTimeRunningInto*`, `PreparationTimeOverlapping*`, `ActivityCheckTests.AClash_IsFoundOnFootprints_*`, web `ActivityChecksTests.Add_WhoseTravelRunsIntoAnotherActivity_Clashes` |
+| T11 | Back-to-back: no conflict; 1 min overlap: conflict | **Covered** (domain and on save) | `ConflictsTests.BackToBackActivities_*`, `OverlappingByOneMinute_*`, web `ActivityChecksTests.Add_BackToBackWithAnotherActivity_IsSaved` |
 | T12 | Late event below sleep minimum | Not built (Phases 6, 8) | |
 | T13 | Demanding sessions too close | Not built (Phase 6) | |
 | T14 | Busy day: largest gap and footprint explained | Not built (Phase 6) | |
 | T15 | "Brighton weekend" template | Not built (Phase 6) | |
 | T16 | Reschedule a missed workout | Not built (Phase 6) | |
-| T17 | Gym opens 06:00, travel 05:35: valid | **Domain covered**; the validator must pass `Activity`, not `Whole` (Phase 4, commit 8) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*` |
+| T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
 | T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, preferences) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests` |
 | T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
