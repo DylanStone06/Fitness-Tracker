@@ -142,6 +142,18 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - `ActivityCheck.Describe(clash, zone)`: "On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 19:30 to
   20:30)." Spans past midnight say "the next day".
 
+## The agenda (`Domain/Scheduling/Agenda`, GOL-2, first part)
+
+- `Agenda.Between(activities, context, from, through)`: every occurrence starting on those dates (in its own zone),
+  in time order, then title, then id (SCH-7). Each has its footprint (null over 24 hours, H8), a plain-English
+  `Note` when travel or the footprint can't be worked out (P1), and `ClashesWith` titles, found on footprints over
+  `MarginDays` (3) days either side, so a clash with last night's shift shows. The check on save uses the same
+  margin, travel rule (`Travel`) and time wording (`Times`), and also reports an activity overlapping its own next
+  occurrence, so the two never disagree.
+- `Agenda.Trip`: "Leave home 17:35, back 19:45": leaving is when the journey out starts, after getting ready at home
+  (§7.1). Times on another day say "the day before" or "the next day"; a time the clocks repeat says which one
+  ("01:15 GMT"). `Agenda.Starts` does the same for the start.
+
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |

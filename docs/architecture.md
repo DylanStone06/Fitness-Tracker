@@ -7,7 +7,7 @@ are in [ADR 0001](decisions/0001-stack.md); what's still missing is in [known li
 
 | Project | Holds | Rule |
 |---|---|---|
-| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, one-off changes), `Templates` (A/B week cycles); later footprints, scheduling, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
+| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, RRULE text, one-off changes), `Templates` (A/B week cycles), `Footprints` (footprints, travel times), `Locations` (opening hours), `Scheduling` (clashes, daily load, the check on save, the home page's agenda); later the planner, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
 | `FitnessTracker.Web` | MVC controllers and views, `Data/` (database, migrations, Identity), `Services/` | No scheduling rules in controllers or views. |
 | `FitnessTracker.*.Tests` | xUnit v2 tests | Integration tests run the real app in memory (`TestAppFactory`). |
 
@@ -45,6 +45,11 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    drag and drop, accepted suggestions, imports) calls it too and shows its problems and clashes.
 
 ### Notes for later phases
+
+- **Phase 5, one-off changes to an occurrence** (CAL-4). `PlanningData.ActivitiesOnAsync` loads a one-off only if its
+  start date is in the dates asked for, and a repeating activity only if it has started by then. Once a moved
+  occurrence is stored, an activity moved into those dates from outside them must still be loaded, or the check on
+  save and the home page will miss it.
 
 - **Optimistic concurrency** (requirements §9, built for locations). Records that implement `IVersioned` get a new
   `Version` on every save, checked like `OwnerId`, so an out-of-date tab can't overwrite a newer save. An ownership
