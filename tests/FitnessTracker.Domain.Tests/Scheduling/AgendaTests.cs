@@ -263,6 +263,52 @@ public class AgendaTests
         Assert.Null(Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, 22, 0)));
     }
 
+    // SCH-7: setting off for the 18:00 gym session at 17:35 ties with a 17:35 call at home (a clash kept with "Save
+    // anyway"). The answer is the agenda's first, the call (earlier start), whatever order the items come in.
+    [Fact]
+    public void Next_WithATie_IsTheSameWhateverOrderTheItemsComeIn()
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+        var call = OneOff("Call", Monday, new LocalTime(17, 35), minutes: 10, at: null);
+        var agenda = Agenda.Between([gym, call], Context(), Monday, Monday);
+        var now = Instant.FromUtc(2026, 11, 2, 17, 0);
+
+        Assert.Equal("Call", Agenda.Next(agenda, now)?.Item.Activity.Title);
+        Assert.Equal("Call", Agenda.Next([.. agenda.Reverse()], now)?.Item.Activity.Title);
+    }
+
+    // T4, §8: 01:30 on Sunday 25 October 2026 is the first 01:30 (BST), 00:30 UTC; 50 minutes end at 01:20 UTC (01:20
+    // GMT). At the second 01:15 (GMT) it's under way, although the clock reads earlier than 01:30.
+    [Theory]
+    [InlineData(0, 29, true, false)]
+    [InlineData(1, 15, true, true)]
+    [InlineData(1, 20, false, false)]
+    public void OnTheNightTheClocksGoBack_UnderWayFollowsTheMoment(int hour, int minute, bool isNext, bool underWay)
+    {
+        var sunday = new LocalDate(2026, 10, 25);
+        var late = OneOff("Late session", sunday, new LocalTime(1, 30), minutes: 50, at: null);
+
+        var next = Agenda.Next(Agenda.Between([late], Context(), sunday, sunday), Instant.FromUtc(2026, 10, 25, hour, minute));
+
+        Assert.Equal(isNext, next is not null);
+        Assert.Equal(underWay, next?.UnderWay ?? false);
+    }
+
+    // T5, §8: 01:30 on Sunday 28 March 2027 doesn't exist and happens at 02:30 BST, 01:30 UTC.
+    [Theory]
+    [InlineData(1, 0, false)]
+    [InlineData(1, 30, true)]
+    public void OnTheNightTheClocksGoForward_ItIsUnderWayFrom0230(int hour, int minute, bool underWay)
+    {
+        var sunday = new LocalDate(2027, 3, 28);
+        var late = OneOff("Late session", sunday, new LocalTime(1, 30), minutes: 50, at: null);
+
+        var next = Agenda.Next(Agenda.Between([late], Context(), sunday, sunday), Instant.FromUtc(2027, 3, 28, hour, minute));
+
+        Assert.NotNull(next);
+        Assert.Equal(underWay, next.UnderWay);
+    }
+
     private static PlannedActivity OneOff(string title, LocalDate date, LocalTime start, int minutes, Guid? at, Buffers? buffers = null) =>
         new(Guid.NewGuid(), title,
             new Series(date, start, Duration.FromMinutes(minutes), London, RecurrenceRule.Daily().EndingAfter(1)),

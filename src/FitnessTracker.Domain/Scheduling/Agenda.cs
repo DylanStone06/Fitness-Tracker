@@ -82,8 +82,9 @@ public static class Agenda
 
     /// <summary>
     /// GOL-2's "the next activity": of the items not over at <paramref name="now"/>, the one you start getting ready or
-    /// set off for first (ties keep the agenda's order, SCH-7). An item is over once you're back, at its footprint's
-    /// end, or at its own end when it has no footprint. Null when everything listed is over.
+    /// set off for first; ties go in the agenda's own order, whatever order the items come in (SCH-7). An item is over
+    /// once you're back, at its footprint's end, or at its own end when it has no footprint. Null when everything
+    /// listed is over.
     /// </summary>
     public static NextUp? Next(IReadOnlyList<AgendaItem> items, Instant now)
     {
@@ -91,6 +92,10 @@ public static class Agenda
             .Select(item => (Item: item, Time: item.Footprint?.Whole ?? item.Occurrence.Time))
             .Where(entry => entry.Time.End > now)
             .OrderBy(entry => entry.Time.Start)
+            .ThenBy(entry => entry.Item.Occurrence.Time.Start)
+            .ThenBy(entry => entry.Item.Activity.Title, StringComparer.Ordinal)
+            .ThenBy(entry => entry.Item.Activity.Id)
+            .ThenBy(entry => entry.Item.Occurrence.Date)
             .FirstOrDefault();
         return next.Item is null ? null : new NextUp(next.Item, UnderWay: next.Time.Start <= now);
     }
