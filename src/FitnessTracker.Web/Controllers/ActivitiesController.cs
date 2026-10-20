@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Web.Data;
@@ -191,17 +193,35 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
             ModelState.AddModelError(FieldFor(problem.Aspect), problem.Message);
         }
 
-        if (result.Problems.Count == 0 && result.Clashes.Count > 0 && !model.ConfirmClashes)
+        if (result.Problems.Count > 0 || result.Clashes.Count == 0)
         {
-            var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
-            ViewData["Clashes"] = result.Clashes.Select(clash => ActivityCheck.Describe(clash, zone)).ToList();
-            ModelState.AddModelError(nameof(model.ConfirmClashes),
-                $"It clashes with your other activities, listed below (checked from {result.Checked.Start.ToString("d MMMM uuuu", CultureInfo.InvariantCulture)} " +
-                $"for {ActivityCheck.WeeksAhead} weeks). Change it, or tick \"Save anyway\" to keep the clashes.");
+            return ModelState.IsValid;
         }
 
-        return ModelState.IsValid;
+        // "Save anyway" only accepts the clashes the page showed: if the activity now clashes differently (it was
+        // changed in the same submit, or another activity changed meanwhile), the new clashes are shown and asked about.
+        var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
+        var clashes = result.Clashes.Select(clash => ActivityCheck.Describe(clash, zone)).ToList();
+        var fingerprint = FingerprintOf(clashes);
+        if (model.ConfirmClashes && model.ShownClashes == fingerprint)
+        {
+            return ModelState.IsValid;
+        }
+
+        ViewData["Clashes"] = clashes;
+        ModelState.Remove(nameof(model.ShownClashes));
+        model.ShownClashes = fingerprint;
+        ModelState.Remove(nameof(model.ConfirmClashes));
+        model.ConfirmClashes = false;
+        ModelState.AddModelError(nameof(model.ConfirmClashes),
+            $"It clashes with your other activities, listed below (checked from {result.Checked.Start.ToString("d MMMM uuuu", CultureInfo.InvariantCulture)} " +
+            $"for {ActivityCheck.WeeksAhead} weeks). Change it, or tick \"Save anyway\" to keep the clashes.");
+        return false;
     }
+
+    // The same clashes always give the same text, in the same order (SCH-7), so the same fingerprint.
+    private static string FingerprintOf(IEnumerable<string> clashes) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", clashes))));
 
     private static string FieldFor(CheckAspect aspect) => aspect switch
     {

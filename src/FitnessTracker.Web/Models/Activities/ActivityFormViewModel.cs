@@ -113,10 +113,13 @@ public class ActivityFormViewModel
 
     /// <summary>
     /// Q2: the user has seen the clashes with other activities and wants to keep them (§7.2: an accepted conflict).
-    /// Asked for each save, so a clash is always a decision made with the clash in view.
+    /// Only counts for the clashes in <see cref="ShownClashes"/>, so a clash is always a decision made with it in view.
     /// </summary>
     [Display(Name = "Save anyway, with these clashes")]
     public bool ConfirmClashes { get; set; }
+
+    /// <summary>A fingerprint of the clashes the page showed, so "Save anyway" accepts exactly those and no others.</summary>
+    public string? ShownClashes { get; set; }
 
     /// <summary>Edit only: the version of the activity the form was opened with (requirements §9).</summary>
     public Guid Version { get; set; }

@@ -24,9 +24,44 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
     }
 
-    // Q2: the user can choose to keep a clash, and it is saved.
+    // Q2: the user can choose to keep a clash once it has been shown, and it is saved.
     [Fact]
     public async Task Add_ClashingWithAnotherActivity_IsSaved_WithSaveAnyway()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Team meeting");
+        var title = TestBrowser.NewName("Gym");
+        var clashing = new Dictionary<string, string> { ["StartTime"] = "07:30" };
+        var shown = TestBrowser.FormIn(await (await browser.AddActivityAsync(title, clashing)).Content.ReadAsStringAsync());
+
+        var response = await browser.SubmitAsync(shown, "/Activities/Create", TestBrowser.ActivityForm(title, new(clashing) { ["ConfirmClashes"] = "true" }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.NotNull(await StoredData.ActivityTitledAsync(factory, title));
+    }
+
+    // §7.2, Q2: "Save anyway" accepts the clashes that were shown, not whatever the posted form clashes with. Ticking
+    // it while moving the activity into a different clash (Lunch, never shown) shows that clash and asks again.
+    [Fact]
+    public async Task Add_WithSaveAnyway_ButADifferentClash_IsNotSaved_AndShowsTheNewClash()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Team meeting");
+        await browser.AddActivityAsync("Lunch", new() { ["StartTime"] = "12:00" });
+        var title = TestBrowser.NewName("Gym");
+        var shown = TestBrowser.FormIn(await (await browser.AddActivityAsync(title, new() { ["StartTime"] = "07:30" })).Content.ReadAsStringAsync());
+
+        var response = await browser.SubmitAsync(shown, "/Activities/Create",
+            TestBrowser.ActivityForm(title, new() { ["StartTime"] = "11:30", ["ConfirmClashes"] = "true" }));
+
+        var html = await AssertShowsAnErrorAsync(response);
+        Assert.Contains("overlaps Lunch", html);
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+    }
+
+    // A "Save anyway" posted without any clashes having been shown accepts nothing.
+    [Fact]
+    public async Task Add_WithSaveAnywayTickedBeforeAnyClashWasShown_IsNotSaved()
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
         await browser.AddActivityAsync("Team meeting");
@@ -34,8 +69,8 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
 
         var response = await browser.AddActivityAsync(title, new() { ["StartTime"] = "07:30", ["ConfirmClashes"] = "true" });
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.NotNull(await StoredData.ActivityTitledAsync(factory, title));
+        Assert.Contains("overlaps Team meeting", await AssertShowsAnErrorAsync(response));
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
     }
 
     // T10: the footprint clashes, not just the activity: a 07:00 gym session with a 45-minute walk home runs into a
