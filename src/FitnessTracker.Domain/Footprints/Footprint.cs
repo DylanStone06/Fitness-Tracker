@@ -1,4 +1,5 @@
 ﻿using NodaTime;
+using NodaTime.TimeZones;
 
 namespace FitnessTracker.Domain.Footprints;
 
@@ -145,7 +146,10 @@ public sealed class Footprint
     /// </summary>
     public static Duration LongestOn(LocalDate day, DateTimeZone zone)
     {
-        var dayLength = zone.AtStartOfDay(day.PlusDays(1)).ToInstant() - zone.AtStartOfDay(day).ToInstant();
+        // Leniently, so a midnight the clocks skip (or a whole day skipped, as Samoa did on 30 December 2011) moves to
+        // the next real moment rather than throwing: a skipped day then has no length, and gets 24 hours like any other.
+        Instant StartOf(LocalDate date) => date.AtMidnight().InZone(zone, Resolvers.LenientResolver).ToInstant();
+        var dayLength = StartOf(day.PlusDays(1)) - StartOf(day);
         return dayLength > Longest ? dayLength : Longest;
     }
 

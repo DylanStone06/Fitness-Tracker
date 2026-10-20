@@ -174,6 +174,19 @@ public class FootprintTests
         Assert.Equal(Duration.FromHours(hours), Footprint.LongestOn(new LocalDate(year, month, day), London));
     }
 
+    // Samoa skipped Friday 30 December 2011 entirely. The days next to it, and the skipped day itself, get 24 hours
+    // rather than an error (the form accepts dates back to 1900, and Pacific/Apia is in the timezone list).
+    [Theory]
+    [InlineData(29)]
+    [InlineData(30)]
+    [InlineData(31)]
+    public void LongestOn_NextToADayTheClocksSkipped_IsTwentyFourHours(int december)
+    {
+        var apia = DateTimeZoneProviders.Tzdb["Pacific/Apia"];
+
+        Assert.Equal(Duration.FromHours(24), Footprint.LongestOn(new LocalDate(2011, 12, december), apia));
+    }
+
     // The error names the argument that is wrong, not always the activity.
     [Fact]
     public void Around_NamesTheArgumentThatIsWrong()

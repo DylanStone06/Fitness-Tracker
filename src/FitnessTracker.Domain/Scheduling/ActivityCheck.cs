@@ -82,8 +82,9 @@ public static class ActivityCheck
         var journeys = JourneysFor(candidate, context, problems);
         var travel = journeys ?? Journeys.None;
 
-        // A length of zero or less can't even be turned into occurrences, so it is the only thing left to say.
-        var usual = (series.Length, Footprint.LongestOn(series.FirstDate, series.Zone));
+        // The usual length against an ordinary day (no limit given: 24 hours). A length of zero or less can't even be
+        // turned into occurrences, so it is the only thing left to say.
+        (Duration Length, Duration? Longest) usual = (series.Length, null);
         if (series.Length <= Duration.Zero)
         {
             problems.AddRange(LengthProblems([usual], candidate.Buffers, travel));
@@ -94,12 +95,12 @@ public static class ActivityCheck
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
         var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End);
 
-        // H8 on every occurrence, not just the usual length: a moved one can be longer, and the limit depends on the day
-        // (the whole 25-hour day the clocks go back is allowed, Q7).
-        problems.AddRange(LengthProblems(
-            longerOccurrences.Select(occurrence => (occurrence.Time.Duration, Times.LongestFor(occurrence.Time, series.Zone))).Prepend(usual),
-            candidate.Buffers,
-            travel));
+        // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
+        // clocks go back is allowed (Q7). The usual length is also checked against an ordinary day whenever the rule
+        // still falls on dates after these, which can't all be checked one by one (a 25-hour Sunday every 60 weeks
+        // lands on an ordinary Sunday next time). When every date left is inside them, each has been checked already.
+        var lengths = longerOccurrences.Select(occurrence => (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone)));
+        problems.AddRange(LengthProblems(FallsAfter(series, longerDates.End) ? lengths.Prepend(usual) : lengths, candidate.Buffers, travel));
         if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, longerDates.End) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
@@ -195,8 +196,21 @@ public static class ActivityCheck
         return null;
     }
 
-    // Each H8 problem once, for whichever lengths break their day's limit.
-    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration Longest)> lengths, Buffers buffers, Journeys journeys) =>
+    // Whether the series' rule falls on any date after `after`. Without an end it always does; with an end date, if one
+    // is left; with a count, if fewer than that many fall up to `after` (counted from the first date).
+    private static bool FallsAfter(Series series, LocalDate after)
+    {
+        var rule = series.Rule;
+        if (rule.LastDate is { } lastDate)
+        {
+            return lastDate > after && rule.Dates(series.FirstDate, from: after.PlusDays(1), through: lastDate).Any();
+        }
+
+        return rule.Count is not { } count || rule.Dates(series.FirstDate, from: series.FirstDate, through: after).Count() < count;
+    }
+
+    // Each H8 problem once, for whichever lengths break their day's limit (none given: an ordinary day's 24 hours).
+    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration? Longest)> lengths, Buffers buffers, Journeys journeys) =>
         lengths.Distinct()
             .SelectMany(length => Footprint.ProblemsWith(length.Length, buffers, journeys, length.Longest))
             .Distinct()

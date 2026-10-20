@@ -251,6 +251,31 @@ public class ActivityCheckTests
         Assert.Equal(tooLong, problems.Any(problem => problem.Aspect == CheckAspect.Length));
     }
 
+    // H8 beyond the year checked (scheduling review): a 25-hour Sunday every 60 weeks is fine on 25 October 2026, but
+    // next falls on Sunday 19 December 2027, an ordinary 24-hour day.
+    [Fact]
+    public void A25HourRepeat_LandingOnOrdinaryDaysLater_IsAProblemWithItsLength()
+    {
+        var festival = new PlannedActivity(Guid.NewGuid(), "Festival",
+            new Series(new LocalDate(2026, 10, 25), new LocalTime(0, 0), Duration.FromHours(25), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Sunday], everyWeeks: 60)),
+            Buffers.None, null);
+
+        Assert.Equal(CheckAspect.Length, Assert.Single(ActivityCheck.Check(festival, [], Context()).Problems).Aspect);
+    }
+
+    // Q7: the only date is Sunday 25 October 2026, so 25 hours is allowed, though the first date is the Saturday.
+    [Fact]
+    public void ARepeatWhoseOnlyDateIsThe25HourDay_IsAllowed()
+    {
+        var festival = new PlannedActivity(Guid.NewGuid(), "Festival",
+            new Series(new LocalDate(2026, 10, 24), new LocalTime(0, 0), Duration.FromHours(25), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Sunday]).EndingAfter(1)),
+            Buffers.None, null);
+
+        Assert.Empty(ActivityCheck.Check(festival, [], Context()).Problems);
+    }
+
     // §7.1, P1: travel is never guessed. Without a home, or a travel time in either direction, the save is stopped and
     // the problem says what to add.
     [Fact]
