@@ -165,6 +165,19 @@ public class AgendaTests
         Assert.Equal(["A", "B"], Agenda.Between([a, b], Context(), Monday, Monday).Select(item => item.Activity.Title));
     }
 
+    // SCH-7 with a full tie: two "Gym" sessions at 18:00 (one at home, one at the gym) come out in the same order
+    // whichever order the database returns them in.
+    [Fact]
+    public void SameTitleAndStart_SameOrder_WhateverOrderTheyComeIn()
+    {
+        var atHome = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: null);
+        var atGym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+
+        Assert.Equal(
+            Agenda.Between([atHome, atGym], Context(), Monday, Monday).Select(item => item.Activity.Id),
+            Agenda.Between([atGym, atHome], Context(), Monday, Monday).Select(item => item.Activity.Id));
+    }
+
     private static PlannedActivity OneOff(string title, LocalDate date, LocalTime start, int minutes, Guid? at, Buffers? buffers = null) =>
         new(Guid.NewGuid(), title,
             new Series(date, start, Duration.FromMinutes(minutes), London, RecurrenceRule.Daily().EndingAfter(1)),

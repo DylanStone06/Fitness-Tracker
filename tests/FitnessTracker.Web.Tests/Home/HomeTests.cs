@@ -1,6 +1,8 @@
 using System.Net;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FitnessTracker.Web.Tests.Home;
 
@@ -126,6 +128,24 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         });
 
         Assert.Contains("more than 24 hours", await HomePageAsync(browser));
+    }
+
+    // A stored activity the app can't use (its length edited by hand to less than zero) is left out with a note,
+    // rather than stopping the page.
+    [Fact]
+    public async Task AnActivityThatCantBeRead_IsLeftOut_AndTheHomePageStillOpens()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Broken");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-10-19" });
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Activities.IgnoreQueryFilters()
+                .Where(activity => activity.Title == title)
+                .ExecuteUpdateAsync(set => set.SetProperty(activity => activity.LengthMinutes, -30));
+        }
+
+        Assert.Contains($"{title} couldn&#x27;t be read", await HomePageAsync(browser));
     }
 
     // The next 7 days: Tuesday 20 to Monday 26 October. A weekly Monday activity shows today and on the 26th; a one-off

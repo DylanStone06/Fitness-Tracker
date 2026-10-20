@@ -91,11 +91,14 @@ public class Activity : IOwnedByUser, IVersioned
     public string? RepeatRule { get; set; }
 
     /// <summary>
-    /// The domain's view of this activity, for the check on save (SCH-1). A one-off is a series that happens once, so
-    /// both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward is 02:30).
+    /// The domain's view of this activity, for the check on save (SCH-1) and the home page. A one-off is a series that
+    /// happens once, so both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward
+    /// is 02:30). Throws FormatException (or DateTimeZoneNotFoundException) for a row the app couldn't have written,
+    /// such as one edited by hand, so callers can leave it out.
     /// </summary>
-    public PlannedActivity ToPlannedActivity() =>
-        new(Id,
+    public PlannedActivity ToPlannedActivity() => LengthMinutes <= 0
+        ? throw new FormatException($"{Title} has a length of {LengthMinutes} minutes.")
+        : new(Id,
             Title,
             new Series(
                 StartDate,

@@ -13,14 +13,18 @@ namespace FitnessTracker.Domain.Scheduling;
 public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith);
 
 /// <summary>
-/// GOL-2, first part: every occurrence starting on a run of days, in time order (then by title, SCH-7), for the home
+/// GOL-2, first part: every occurrence starting on a run of days, in time order (then by title and id, SCH-7), for the home
 /// page's "today and the next 7 days". Clashes (H1, CAL-6) are found on whole footprints, including activities from
 /// just before or after those days, which aren't listed themselves.
 /// </summary>
 public static class Agenda
 {
-    // As in ActivityCheck: two footprints of up to 24 hours can reach a third date across a 23-hour day.
-    private const int MarginDays = 3;
+    /// <summary>
+    /// Activities starting this many days either side of the dates looked at can still overlap them: two footprints of
+    /// up to 24 hours each (H8) can reach 48 hours apart, which spans a third date across a 23-hour day. Used by the
+    /// check on save too, and by callers deciding which activities to load.
+    /// </summary>
+    public const int MarginDays = 3;
 
     public static IReadOnlyList<AgendaItem> Between(IEnumerable<PlannedActivity> activities, PlanningContext context, LocalDate from, LocalDate through)
     {
@@ -66,6 +70,8 @@ public static class Agenda
             .Where(item => item.Entry.Occurrence.Time.Start.InZone(item.Entry.Activity.Series.Zone).Date is var date && date >= from && date <= through)
             .OrderBy(item => item.Entry.Occurrence.Time.Start)
             .ThenBy(item => item.Entry.Activity.Title, StringComparer.Ordinal)
+            .ThenBy(item => item.Entry.Activity.Id)
+            .ThenBy(item => item.Entry.Occurrence.Date)
             .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith))
             .ToList();
     }

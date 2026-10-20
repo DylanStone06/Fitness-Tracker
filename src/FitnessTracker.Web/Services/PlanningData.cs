@@ -57,7 +57,7 @@ public class PlanningData(AppDbContext db, IClock clock)
             }
             catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
             {
-                unreadable.Add($"{activity.Title} couldn't be read, so it wasn't checked against. Edit or delete it to fix this.");
+                unreadable.Add($"{activity.Title} couldn't be read, so it's left out. Edit or delete it to fix this.");
             }
         }
 

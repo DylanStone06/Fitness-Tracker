@@ -57,13 +57,12 @@ public static class ActivityCheck
     /// </summary>
     public const int WeeksAheadForHoursAndLength = 53;
 
-    // Other activities starting this many days either side of the dates checked can still overlap. Two footprints of
-    // up to 24 hours each (H8) can reach 48 hours apart, which spans a third date across a 23-hour day.
-    private const int MarginDays = 3;
+    // Other activities starting this many days either side of the dates checked can still overlap (Agenda.MarginDays).
+    private const int MarginDays = Agenda.MarginDays;
 
-    private static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+    private static readonly LocalDatePattern Date = Times.Date;
 
-    private static readonly LocalTimePattern Time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
+    private static readonly LocalTimePattern Time = Times.Time;
 
     public static ActivityCheckResult Check(PlannedActivity candidate, IEnumerable<PlannedActivity> others, PlanningContext context)
     {
@@ -115,9 +114,16 @@ public static class ActivityCheck
             .Where(other => other.Id != candidate.Id)
             .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
             .ToList();
-        var clashes = occurrences
+        var candidateBookings = occurrences
             .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys)))
+            .ToList();
+
+        // H1 also within the activity itself: a very long one can run into its own next occurrence on the night the
+        // clocks go forward. The home page shows that, so the check reports it too.
+        var clashes = candidateBookings
             .SelectMany(booking => Conflicts.Between(booking, otherBookings))
+            .Concat(Conflicts.Among(candidateBookings))
+            .OrderBy(clash => clash.Overlap.Start)
             .ToList();
         return new ActivityCheckResult(problems, clashes, dates) { Notes = notes };
     }
@@ -224,26 +230,13 @@ public static class ActivityCheck
     // out, and an occurrence whose footprint breaks H8 is skipped.
     private static List<Booking> BookingsOf(PlannedActivity other, DateInterval dates, PlanningContext context, List<string> notes, DateTimeZone zone)
     {
-        var journeys = Journeys.None;
-        if (other.LocationId is { } at && at != context.Home)
+        var known = Travel.KnownJourneys(other.LocationId, context);
+        if (known is null)
         {
-            var place = NameOf(at, context);
-            if (context.Home is not { } home)
-            {
-                notes.Add($"{other.Title} was checked without its travel to {place}, because none of your locations is marked as home.");
-            }
-            else if (context.Travel.JourneysFor(at, home) is { Journeys: { } known })
-            {
-                journeys = known;
-            }
-            else
-            {
-                var missing = context.Travel.JourneysFor(at, home).MissingLegs
-                    .Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}");
-                notes.Add($"{other.Title} was checked without its travel, because there's no travel time {string.Join(", or ", missing)}.");
-            }
+            notes.Add($"{other.Title} was checked without its travel, because {Travel.WhyUnknown(other.LocationId, context)}.");
         }
 
+        var journeys = known ?? Journeys.None;
         var bookings = new List<Booking>();
         foreach (var occurrence in other.Series.OccurrencesBetween(dates.Start, dates.End))
         {
@@ -260,8 +253,7 @@ public static class ActivityCheck
         return bookings;
     }
 
-    private static string NameOf(Guid location, PlanningContext context) =>
-        context.Places.TryGetValue(location, out var place) ? place.Name : "that location";
+    private static string NameOf(Guid location, PlanningContext context) => Travel.NameOf(location, context);
 
     // "19:30 to 20:30", or "22:00 to 06:00 the next day". The start's own date is given when it isn't the date the
     // message is about (an overnight activity from the day before), and a time the clocks repeat says which one it
@@ -271,13 +263,8 @@ public static class ActivityCheck
         var start = time.Start.InZone(zone);
         var end = time.End.InZone(zone);
         var startDate = start.Date == onDate ? "" : $"on {Date.Format(start.Date)} ";
-        return $"{startDate}{Clock(start)} to {Clock(end)}{(end.Date > start.Date ? " the next day" : "")}";
+        return $"{startDate}{Times.Clock(start)} to {Times.Clock(end)}{(end.Date > start.Date ? " the next day" : "")}";
     }
-
-    private static string Clock(ZonedDateTime moment) =>
-        moment.Zone.MapLocal(moment.LocalDateTime).Count > 1
-            ? $"{Time.Format(moment.TimeOfDay)} {moment.GetZoneInterval().Name}"
-            : Time.Format(moment.TimeOfDay);
 
     private static string CandidatePart(FootprintPart part) => part switch
     {

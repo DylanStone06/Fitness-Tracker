@@ -20,7 +20,8 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
         var today = user.Context.Today;
         var unreadable = new List<string>();
         // A few days either side, so clashes with activities just before or after the week still show.
-        var activities = await planning.ActivitiesOnAsync(new DateInterval(today.PlusDays(-3), today.PlusDays(HomeViewModel.DaysAhead + 3)), unreadable);
+        var loaded = new DateInterval(today.PlusDays(-Agenda.MarginDays), today.PlusDays(HomeViewModel.DaysAhead + Agenda.MarginDays));
+        var activities = await planning.ActivitiesOnAsync(loaded, unreadable);
         var agenda = Agenda.Between(activities, user.Context, today, today.PlusDays(HomeViewModel.DaysAhead));
         return View(HomeViewModel.From(user, agenda, await db.Activities.AnyAsync(), unreadable));
     }

@@ -379,6 +379,22 @@ public class ActivityCheckTests
         Assert.Contains("on Mon 2 Nov 2026, but it would be there on Tue 3 Nov 2026 01:30 to 02:20", problem.Message);
     }
 
+    // H1 within one activity: a daily 07:00 shift of 23 h 30 min runs to 06:30 UTC on Sunday 28 March 2027, but the
+    // next one starts at 07:00 BST, which is 06:00 UTC, after the clocks go forward. The home page shows that clash, so
+    // the check on save finds it too.
+    [Fact]
+    public void ARepeatingActivityThatOverlapsItsOwnNextOccurrence_Clashes()
+    {
+        var shift = new PlannedActivity(Guid.NewGuid(), "Long shift",
+            new Series(new LocalDate(2027, 3, 27), new LocalTime(7, 0), Duration.FromMinutes((23 * 60) + 30), London, RecurrenceRule.Daily()),
+            Buffers.None, null);
+
+        var result = ActivityCheck.Check(shift, [], Context() with { Today = new LocalDate(2027, 3, 27) });
+
+        var clash = Assert.Single(result.Clashes);
+        Assert.Equal(new Interval(Instant.FromUtc(2027, 3, 28, 6, 0), Instant.FromUtc(2027, 3, 28, 6, 30)), clash.Overlap);
+    }
+
     // Gym 18:00-18:50 at Town gym: 25 minutes there, 10 minutes changing, 45 minutes back (T1).
     private static PlannedActivity GymSession(LocalDate date, LocalTime? start = null) =>
         OneOff("Gym", date, start ?? new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
