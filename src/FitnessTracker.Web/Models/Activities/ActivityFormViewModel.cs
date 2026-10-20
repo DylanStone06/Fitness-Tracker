@@ -80,13 +80,21 @@ public class ActivityFormViewModel
     [Display(Name = "Demanding: a hard session that needs recovery afterwards")]
     public bool IsDemanding { get; set; }
 
+    /// <summary>Blank: the category's default (ACC-6), filled in when it is saved.</summary>
     [Display(Name = "Getting ready beforehand (minutes)")]
     [Range(0, Activity.MaxBufferMinutes, ErrorMessage = "Enter between {1} and {2} minutes.")]
-    public int PreparationMinutes { get; set; }
+    public int? PreparationMinutes { get; set; }
 
+    /// <summary>Blank: the category's default (ACC-6), filled in when it is saved.</summary>
     [Display(Name = "Changing or showering afterwards (minutes)")]
     [Range(0, Activity.MaxBufferMinutes, ErrorMessage = "Enter between {1} and {2} minutes.")]
-    public int ChangingMinutes { get; set; }
+    public int? ChangingMinutes { get; set; }
+
+    /// <summary>ACC-6: each category's default buffers, for the hint in the empty boxes. Filled by the controller, never posted.</summary>
+    [BindNever]
+    [ValidateNever]
+    public IReadOnlyDictionary<ActivityCategory, (int Preparation, int Changing)> DefaultBuffers { get; set; } =
+        Enum.GetValues<ActivityCategory>().ToDictionary(category => category, CategoryBuffers.BuiltIn);
 
     [StringLength(Activity.NotesMaxLength, ErrorMessage = "Notes must be {1} characters or fewer.")]
     public string? Notes { get; set => field = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
@@ -209,9 +217,13 @@ public class ActivityFormViewModel
         }
     }
 
-    /// <summary>Copies the form onto the activity. Only call once the form is valid.</summary>
+    /// <summary>
+    /// Copies the form onto the activity, with the category's default for a buffer left blank (ACC-6). Only call once
+    /// the form is valid.
+    /// </summary>
     public void ApplyTo(Activity activity, IsoDayOfWeek weekStart)
     {
+        var (defaultPreparation, defaultChanging) = DefaultBuffers.TryGetValue(Category, out var defaults) ? defaults : (0, 0);
         activity.Title = Title;
         activity.Category = Category;
         activity.LocationId = LocationId;
@@ -221,8 +233,8 @@ public class ActivityFormViewModel
         activity.IsFixed = IsFixed;
         activity.Priority = Priority;
         activity.IsDemanding = IsDemanding;
-        activity.PreparationMinutes = PreparationMinutes;
-        activity.ChangingMinutes = ChangingMinutes;
+        activity.PreparationMinutes = PreparationMinutes ?? defaultPreparation;
+        activity.ChangingMinutes = ChangingMinutes ?? defaultChanging;
         activity.Notes = Notes;
         activity.RepeatRule = Repeats == RepeatChoice.Never ? null : RecurrenceRuleText.Format(Rule(weekStart)!);
     }

@@ -15,7 +15,7 @@ namespace FitnessTracker.Web.Controllers;
 // CAL-2, CAL-3: the signed-in user's activities, once or repeating. The per-user filter means another user's
 // activity is "not found", exactly like one that doesn't exist (T19), and an activity can only be at the signed-in
 // user's own locations. Every save goes through the one check (SCH-1, ActivityChecker).
-public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Controller
+public class ActivitiesController(AppDbContext db, ActivityChecker checker, PlanningData planning) : Controller
 {
     private const string CheckNotes = "CheckNotes";
 
@@ -33,15 +33,15 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
     }
 
     [HttpGet]
-    public async Task<IActionResult> Create() => View(new ActivityFormViewModel { Locations = await MyLocationsAsync() });
+    public async Task<IActionResult> Create() => View(await FillListsAsync(new ActivityFormViewModel()));
 
     [HttpPost]
     public async Task<IActionResult> Create(ActivityFormViewModel model)
     {
+        await FillListsAsync(model);
         await CheckFormAsync(model);
         if (!ModelState.IsValid)
         {
-            model.Locations = await MyLocationsAsync();
             return View(model);
         }
 
@@ -51,7 +51,6 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
         model.ApplyTo(activity, preferences.WeekStart);
         if (!await PassesTheCheckAsync(activity, model))
         {
-            model.Locations = await MyLocationsAsync();
             return View(model);
         }
 
@@ -70,7 +69,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
         }
 
         var model = ActivityFormViewModel.From(activity);
-        model.Locations = await MyLocationsAsync();
+        await FillListsAsync(model);
         return View(model);
     }
 
@@ -83,10 +82,10 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
             return NotFound();
         }
 
+        await FillListsAsync(model);
         await CheckFormAsync(model);
         if (!ModelState.IsValid)
         {
-            model.Locations = await MyLocationsAsync();
             return View(model);
         }
 
@@ -102,7 +101,6 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
         model.ApplyTo(activity, weekStart);
         if (!await PassesTheCheckAsync(activity, model))
         {
-            model.Locations = await MyLocationsAsync();
             return View(model);
         }
 
@@ -124,7 +122,6 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
             // The hidden field shows what was posted unless the old value is cleared.
             ModelState.Remove(nameof(model.Version));
             model.Version = current.Version;
-            model.Locations = await MyLocationsAsync();
             return View(model);
         }
 
@@ -176,6 +173,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker) : Co
 
     // Through the per-user filter: another user's activity is simply not found.
     private Task<Activity?> FindAsync(Guid id) => db.Activities.SingleOrDefaultAsync(activity => activity.Id == id);
+
+    // What the form lists (locations) and the category defaults it hints at and fills blank buffers with (ACC-6).
+    private async Task<ActivityFormViewModel> FillListsAsync(ActivityFormViewModel model)
+    {
+        model.Locations = await MyLocationsAsync();
+        model.DefaultBuffers = await planning.DefaultBuffersAsync();
+        return model;
+    }
 
     private async Task<IReadOnlyList<Location>> MyLocationsAsync() =>
         (await db.Locations.AsNoTracking().ToListAsync())

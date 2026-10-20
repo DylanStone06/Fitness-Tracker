@@ -32,6 +32,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<Activity> Activities => Set<Activity>();
 
+    public DbSet<CategoryBuffers> CategoryBuffers => Set<CategoryBuffers>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -97,6 +99,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // Deleting a location keeps its activities, with no location.
             activity.HasOne<Location>().WithMany().HasForeignKey(a => a.LocationId).OnDelete(DeleteBehavior.SetNull);
             activity.HasOne<AppUser>().WithMany().HasForeignKey(a => a.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<CategoryBuffers>(buffers =>
+        {
+            // One set of defaults per category per person, even if two tabs save for the first time at once.
+            buffers.HasIndex(b => new { b.OwnerId, b.Category }).IsUnique();
+            buffers.HasOne<AppUser>().WithMany().HasForeignKey(b => b.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every owned entity type gets the same protection, so a new one can't be forgotten.

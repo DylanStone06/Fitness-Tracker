@@ -48,6 +48,37 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
         Assert.Null(saved.RepeatRule);
     }
 
+    // ACC-6: buffers left blank get the category's default: the built-in one (Gym: 10 and 10 minutes) until the user
+    // sets their own (Run: 7 and 12). A zero typed in stays zero.
+    [Theory]
+    [InlineData("Gym", "", "", 10, 10)]
+    [InlineData("Run", "", "", 7, 12)]
+    [InlineData("Gym", "0", "0", 0, 0)]
+    [InlineData("Gym", "", "3", 10, 3)]
+    public async Task Add_WithBlankBuffers_UsesTheCategorysDefault(string category, string preparation, string changing, int storedPreparation, int storedChanging)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.SubmitFormAsync("/CategoryBuffers", "/CategoryBuffers", TestBrowser.CategoryBuffersForm(new() { ["Rows[3].PreparationMinutes"] = "7", ["Rows[3].ChangingMinutes"] = "12" }));
+        var title = TestBrowser.NewName("Session");
+
+        await browser.AddActivityAsync(title, new() { ["Category"] = category, ["PreparationMinutes"] = preparation, ["ChangingMinutes"] = changing });
+
+        var saved = await StoredData.ActivityTitledAsync(factory, title);
+        Assert.Equal((storedPreparation, storedChanging), (saved?.PreparationMinutes, saved?.ChangingMinutes));
+    }
+
+    // The form shows each category's default in the empty boxes, so the user can see what blank means.
+    [Fact]
+    public async Task TheForm_ShowsTheDefaultsForEachCategory()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        var html = await (await browser.GetAsync("/Activities/Create")).Content.ReadAsStringAsync();
+
+        Assert.Contains("data-buffers=", html);
+        Assert.Contains("&quot;Gym&quot;:[10,10]", html);
+    }
+
     // A night shift runs past midnight: its length is elapsed time (§8), so it is simply 8 hours.
     [Fact]
     public async Task Add_ANightShift_IsSavedWithItsLength()

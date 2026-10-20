@@ -5,6 +5,9 @@
     var categories = Enum.GetValues<ActivityCategory>().Select(category => new SelectListItem(ActivityDisplay.CategoryName(category), category.ToString())).ToList();
     var priorities = Enum.GetValues<ActivityPriority>().Select(priority => new SelectListItem(priority.ToString(), priority.ToString())).ToList();
     var places = Model.Locations.Select(location => new SelectListItem(location.Name, location.Id.ToString())).ToList();
+    // ACC-6: each category's default buffers, for the empty boxes' hint (site.js updates it when the category changes).
+    var buffers = System.Text.Json.JsonSerializer.Serialize(Model.DefaultBuffers.ToDictionary(pair => pair.Key.ToString(), pair => new[] { pair.Value.Preparation, pair.Value.Changing }));
+    var (defaultPreparation, defaultChanging) = Model.DefaultBuffers.TryGetValue(Model.Category, out var selected) ? selected : (0, 0);
 }
 <div class="mb-3">
     <label asp-for="Title" class="form-label"></label>
@@ -15,7 +18,7 @@
 <div class="mb-3">
     <label asp-for="Category" class="form-label"></label>
     <span asp-validation-for="Category" class="d-block text-danger" id="category-error"></span>
-    <select asp-for="Category" class="form-select" asp-items="categories"
+    <select asp-for="Category" class="form-select" asp-items="categories" data-buffers="@buffers"
             aria-describedby="category-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Category")"></select>
 </div>
 
@@ -71,18 +74,21 @@
 
 <fieldset class="mb-3" aria-describedby="buffers-hint">
     <legend class="fs-6 mb-1">Time around it</legend>
-    <div class="form-text mt-0 mb-1" id="buffers-hint">Counted in the time it takes up, so nothing else is planned then.</div>
+    <div class="form-text mt-0 mb-1" id="buffers-hint">
+        Counted in the time it takes up, so nothing else is planned then. Leave a box blank to use your
+        <a asp-controller="CategoryBuffers" asp-action="Index">default for the category</a>, shown in grey.
+    </div>
     <div class="mb-2">
         <label asp-for="PreparationMinutes" class="form-label mb-0"></label>
         <span asp-validation-for="PreparationMinutes" class="d-block text-danger" id="preparation-error"></span>
-        <input asp-for="PreparationMinutes" type="number" step="1" class="form-control" inputmode="numeric"
-               aria-describedby="preparation-error" aria-invalid="@ViewData.ModelState.AriaInvalid("PreparationMinutes")" />
+        <input asp-for="PreparationMinutes" type="number" step="1" class="form-control" inputmode="numeric" placeholder="@defaultPreparation"
+               aria-describedby="buffers-hint preparation-error" aria-invalid="@ViewData.ModelState.AriaInvalid("PreparationMinutes")" />
     </div>
     <div>
         <label asp-for="ChangingMinutes" class="form-label mb-0"></label>
         <span asp-validation-for="ChangingMinutes" class="d-block text-danger" id="changing-error"></span>
-        <input asp-for="ChangingMinutes" type="number" step="1" class="form-control" inputmode="numeric"
-               aria-describedby="changing-error" aria-invalid="@ViewData.ModelState.AriaInvalid("ChangingMinutes")" />
+        <input asp-for="ChangingMinutes" type="number" step="1" class="form-control" inputmode="numeric" placeholder="@defaultChanging"
+               aria-describedby="buffers-hint changing-error" aria-invalid="@ViewData.ModelState.AriaInvalid("ChangingMinutes")" />
     </div>
 </fieldset>
 

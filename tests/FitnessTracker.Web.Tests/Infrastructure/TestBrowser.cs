@@ -153,6 +153,28 @@ public sealed partial class TestBrowser
         return form;
     }
 
+    /// <summary>
+    /// Every row of the default-buffers form (ACC-6) as a new user's page fills it (the built-in defaults), with the
+    /// given changes. Rows are in ActivityCategory order: Gym is row 2, Run row 3.
+    /// </summary>
+    public static Dictionary<string, string> CategoryBuffersForm(Dictionary<string, string>? changes = null)
+    {
+        var form = new Dictionary<string, string>();
+        foreach (var (category, i) in Enum.GetValues<FitnessTracker.Web.Data.ActivityCategory>().Select((category, i) => (category, i)))
+        {
+            var (preparation, changing) = FitnessTracker.Web.Data.CategoryBuffers.BuiltIn(category);
+            form[$"Rows[{i}].PreparationMinutes"] = preparation.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            form[$"Rows[{i}].ChangingMinutes"] = changing.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        foreach (var (name, value) in changes ?? [])
+        {
+            form[name] = value;
+        }
+
+        return form;
+    }
+
     /// <summary>True when the home page opens instead of redirecting to sign-in.</summary>
     public async Task<bool> IsSignedInAsync() =>
         (await Http.GetAsync("/")).StatusCode == HttpStatusCode.OK;

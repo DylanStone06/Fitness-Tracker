@@ -48,6 +48,12 @@ public static class StoredData
     public static Task<int> PreferencesCountOfAsync(TestAppFactory factory, string email) =>
         ReadAsync(factory, db => PreferencesOf(db, email).CountAsync());
 
+    /// <summary>The default buffers saved by the user with this email address, by category (ACC-6).</summary>
+    public static Task<Dictionary<ActivityCategory, CategoryBuffers>> CategoryBuffersOfAsync(TestAppFactory factory, string email) =>
+        ReadAsync(factory, db => db.CategoryBuffers.IgnoreQueryFilters().AsNoTracking()
+            .Where(buffers => db.Users.Any(user => user.Id == buffers.OwnerId && user.Email == email))
+            .ToDictionaryAsync(buffers => buffers.Category));
+
     private static IQueryable<UserPreferences> PreferencesOf(AppDbContext db, string email) =>
         db.UserPreferences.IgnoreQueryFilters().AsNoTracking()
             .Where(preferences => db.Users.Any(user => user.Id == preferences.OwnerId && user.Email == email));

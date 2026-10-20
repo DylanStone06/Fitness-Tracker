@@ -36,6 +36,17 @@ public class PlanningData(AppDbContext db, IClock clock)
         return new UserPlanning(preferences, saved is not null, locations, legs, context);
     }
 
+    /// <summary>ACC-6: each category's default getting-ready and changing minutes: the user's own, or the built-in ones.</summary>
+    public async Task<IReadOnlyDictionary<ActivityCategory, (int Preparation, int Changing)>> DefaultBuffersAsync()
+    {
+        var stored = await db.CategoryBuffers.AsNoTracking().ToListAsync();
+        return Enum.GetValues<ActivityCategory>().ToDictionary(
+            category => category,
+            category => stored.FirstOrDefault(row => row.Category == category) is { } saved
+                ? (saved.PreparationMinutes, saved.ChangingMinutes)
+                : CategoryBuffers.BuiltIn(category));
+    }
+
     /// <summary>
     /// The user's activities that can fall on <paramref name="dates"/>: repeating ones that have started by then, and
     /// one-offs on those dates. One the app can't read (edited by hand, say) is left out and named in
