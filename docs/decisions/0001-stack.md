@@ -57,7 +57,7 @@ suggestions, later AI).
 | **React SPA + API** | Two applications to build, deploy and secure. Overkill for a single-user-first MVP. |
 | **SQL Server LocalDB / PostgreSQL** | Neither is installed, and PostgreSQL would need Docker or an install. SQLite is enough until hosting is decided. |
 | **`DateTime` / `TimeZoneInfo` only** | Easy to mix up clock times and exact moments. Results depend on the operating system's timezone data, so DST tests can differ between machines. |
-| **Ical.Net for recurrence** | Full RFC 5545 support we don't need yet. The MVP needs daily, weekly and every-N-weeks rules, which are small enough to own and test fully. Storing standard RRULE text keeps the door open to adopting it later. |
+| **Ical.Net for recurrence** | Full RFC 5545 support we don't need yet. The MVP needs daily, weekly and every-N-weeks rules, which are small enough to own and test fully. Storing standard RRULE text keeps the door open to adopting it later. (Phase 4 note: the stored text keeps two app meanings that differ from RFC 5545, the first date and UNTIL, so adopting it would mean converting stored rules, not only swapping the code. See `RecurrenceRuleText`.) |
 
 ## Consequences
 
@@ -74,6 +74,22 @@ suggestions, later AI).
   ticks through NodaTime value converters.
 - Without npm, front-end libraries are downloaded by hand (with approval), pinned, and kept with their licences.
 - Our own recurrence expander must be thoroughly tested (requirements T4–T8).
+
+## FullCalendar, as added (Phase 5, 20 October 2026)
+
+The owner approved the download on 20 October 2026.
+
+| | |
+|---|---|
+| Version | Standard Bundle **6.1.21**, published 18 June 2026. 6.1.22 (16 October 2026) was skipped as only four days old; move up once it has been out a few weeks. |
+| Licence | MIT (`wwwroot/lib/fullcalendar/LICENSE.md`); standard features only, no premium plugins |
+| Source | npm package `fullcalendar`, through jsDelivr: `https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/` |
+| Files | `index.global.min.js` (283,987 bytes, SHA-256 `TnL/Fpr4V7u4/uYmNklJ1XBCSwDfNsAb0IepWANxUV4=`) and `LICENSE.md` (1,066 bytes, `TAsNribJnjsRvnC5kKcDvk3rdeIYhBBFguDiF3htMgk=`), both checked against jsDelivr's published checksums |
+| Kept as shipped | `.gitattributes` stores `wwwroot/lib/**` byte for byte, so the checksums still match |
+
+FullCalendar 6 adds its styles to the page with `<style>` elements, which the Content-Security-Policy (no
+`unsafe-inline`) blocks. The calendar page needs a per-request nonce for them, which FullCalendar reads from a
+`<meta name="csp-nonce">` element; that is built with the page.
 
 ## To verify before adding (Phase 2, and Phase 5 for FullCalendar)
 

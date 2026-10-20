@@ -1,0 +1,34 @@
+@model IReadOnlyList<FitnessTracker.Web.Data.TravelLeg>
+@{
+    ViewData["Title"] = "Travel times";
+    var names = (IReadOnlyDictionary<Guid, string>)ViewData["Names"]!;
+}
+
+<h1>Travel times</h1>
+<p>How long it takes to get from one of your locations to another. Each direction has its own time, because the way
+    there can take longer than the way back.</p>
+
+<p><a class="btn btn-primary" asp-action="Create">Add a travel time</a></p>
+
+@if (Model.Count == 0)
+{
+    <p>You haven't added any travel times yet.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var leg in Model)
+        {
+            var journey = $"{names.GetValueOrDefault(leg.FromLocationId)} to {names.GetValueOrDefault(leg.ToLocationId)}";
+            <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                <span class="flex-grow-1 text-break">
+                    @journey
+                    <span class="d-block small text-body-secondary">@leg.Minutes minutes, @leg.Mode.ToString().ToLowerInvariant()</span>
+                </span>
+                @* The hidden journey tells screen reader users which travel time each button is for. *@
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@leg.Id">Edit<span class="visually-hidden"> @journey</span></a>
+                <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@leg.Id">Delete<span class="visually-hidden"> @journey</span></a>
+            </li>
+        }
+    </ul>
+}

@@ -1,0 +1,42 @@
+@model FitnessTracker.Web.Models.Calendar.CalendarPageViewModel
+@{
+    ViewData["Title"] = "Calendar";
+}
+@section Head {
+    @* §9: FullCalendar adds its styles with <style> elements; this one-time code lets them through the
+       Content-Security-Policy, for this page only. *@
+    <meta name="csp-nonce" content="@SecurityHeaders.StyleNonce(Context)" />
+}
+
+<h1>Calendar</h1>
+<p class="text-body-secondary">
+    Each activity with the time around it: getting ready, travel and changing are the lighter blocks joined to it.
+    Select an activity to change it.
+</p>
+
+@if (Model.Unreadable.Count > 0)
+{
+    <div class="alert alert-warning" role="status">
+        <ul class="mb-0">
+            @foreach (var problem in Model.Unreadable)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+<div id="calendar" class="ft-calendar"
+     data-events-url="@Model.EventsUrl"
+     data-time-zone="@Model.TimeZoneId"
+     data-first-day="@Model.FirstDay"
+     data-hour12="@(Model.Hour12 ? "true" : "false")"></div>
+<p id="calendar-status" class="small text-body-secondary mt-2" role="status"></p>
+<noscript>
+    <p>The calendar needs JavaScript. Your activities are all on the <a asp-controller="Activities" asp-action="Index">Activities</a> page.</p>
+</noscript>
+
+@section Scripts {
+    <script src="~/lib/fullcalendar/index.global.min.js"></script>
+    <script src="~/js/calendar.js" asp-append-version="true"></script>
+}

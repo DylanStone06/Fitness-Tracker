@@ -1,0 +1,228 @@
+@model ActivityFormViewModel
+@using FitnessTracker.Web.Data
+@* The fields shared by the add and edit forms (CAL-2, CAL-3, FIT-6). Checked on the server only. *@
+@{
+    var categories = Enum.GetValues<ActivityCategory>().Select(category => new SelectListItem(ActivityDisplay.CategoryName(category), category.ToString())).ToList();
+    var priorities = Enum.GetValues<ActivityPriority>().Select(priority => new SelectListItem(priority.ToString(), priority.ToString())).ToList();
+    var places = Model.Locations.Select(location => new SelectListItem(location.Name, location.Id.ToString())).ToList();
+    // ACC-6: each category's default buffers, for the empty boxes' hint (site.js updates it when the category changes).
+    var buffers = System.Text.Json.JsonSerializer.Serialize(Model.DefaultBuffers.ToDictionary(pair => pair.Key.ToString(), pair => new[] { pair.Value.Preparation, pair.Value.Changing }));
+    var (defaultPreparation, defaultChanging) = Model.DefaultBuffers.TryGetValue(Model.Category, out var selected) ? selected : (0, 0);
+}
+<div class="mb-3">
+    <label asp-for="Title" class="form-label"></label>
+    <span asp-validation-for="Title" class="d-block text-danger" id="title-error"></span>
+    <input asp-for="Title" class="form-control" aria-describedby="title-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Title")" />
+</div>
+
+<div class="mb-3">
+    <label asp-for="Category" class="form-label"></label>
+    <span asp-validation-for="Category" class="d-block text-danger" id="category-error"></span>
+    <select asp-for="Category" class="form-select" asp-items="categories" data-buffers="@buffers"
+            aria-describedby="category-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Category")"></select>
+</div>
+
+<div class="mb-3">
+    <label asp-for="LocationId" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="where-hint">
+        Travel to and from it is added when it's away from home, using your <a asp-controller="TravelLegs" asp-action="Index">travel times</a>.
+    </div>
+    <span asp-validation-for="LocationId" class="d-block text-danger" id="where-error"></span>
+    <select asp-for="LocationId" class="form-select" asp-items="places"
+            aria-describedby="where-hint where-error" aria-invalid="@ViewData.ModelState.AriaInvalid("LocationId")">
+        <option value="">Nowhere in particular</option>
+    </select>
+</div>
+
+<div class="row g-2 mb-3">
+    <div class="col-sm-6">
+        <label asp-for="StartDate" class="form-label"></label>
+        <div class="form-text mt-0 mb-1" id="date-hint">If it repeats, the first date it can happen.</div>
+        <span asp-validation-for="StartDate" class="d-block text-danger" id="date-error"></span>
+        <input asp-for="StartDate" type="date" class="form-control"
+               aria-describedby="date-hint date-error" aria-invalid="@ViewData.ModelState.AriaInvalid("StartDate")" />
+    </div>
+    <div class="col-sm-6">
+        <label asp-for="StartTime" class="form-label"></label>
+        <span asp-validation-for="StartTime" class="d-block text-danger" id="time-error"></span>
+        <input asp-for="StartTime" type="time" class="form-control"
+               aria-describedby="time-error" aria-invalid="@ViewData.ModelState.AriaInvalid("StartTime")" />
+    </div>
+</div>
+
+<fieldset class="mb-3" aria-describedby="length-hint">
+    <legend class="fs-6 mb-1">How long it takes</legend>
+    <div class="form-text mt-0 mb-1" id="length-hint">
+        Up to 24 hours, or a whole longer day, such as the day the clocks go back (25 hours in the UK). A night shift from 22:00 to 06:00 is 8 hours: it
+        ends the next morning. On the two nights a year the clocks change, it ends an hour earlier or later by the clock.
+    </div>
+    <div class="row g-2">
+        <div class="col-6">
+            <label asp-for="DurationHours" class="form-label mb-0"></label>
+            <span asp-validation-for="DurationHours" class="d-block text-danger" id="hours-error"></span>
+            <input asp-for="DurationHours" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="hours-error" aria-invalid="@ViewData.ModelState.AriaInvalid("DurationHours")" />
+        </div>
+        <div class="col-6">
+            <label asp-for="DurationMinutes" class="form-label mb-0"></label>
+            <span asp-validation-for="DurationMinutes" class="d-block text-danger" id="minutes-error"></span>
+            <input asp-for="DurationMinutes" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="minutes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("DurationMinutes")" />
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="mb-3" aria-describedby="buffers-hint">
+    <legend class="fs-6 mb-1">Time around it</legend>
+    <div class="form-text mt-0 mb-1" id="buffers-hint">
+        Counted in the time it takes up, so nothing else is planned then. Leave a box blank to use your
+        <a asp-controller="CategoryBuffers" asp-action="Index">default for the category</a>, shown in grey.
+    </div>
+    <div class="mb-2">
+        <label asp-for="PreparationMinutes" class="form-label mb-0"></label>
+        <span asp-validation-for="PreparationMinutes" class="d-block text-danger" id="preparation-error"></span>
+        <input asp-for="PreparationMinutes" type="number" step="1" class="form-control" inputmode="numeric" placeholder="@defaultPreparation"
+               aria-describedby="buffers-hint preparation-error" aria-invalid="@ViewData.ModelState.AriaInvalid("PreparationMinutes")" />
+    </div>
+    <div>
+        <label asp-for="ChangingMinutes" class="form-label mb-0"></label>
+        <span asp-validation-for="ChangingMinutes" class="d-block text-danger" id="changing-error"></span>
+        <input asp-for="ChangingMinutes" type="number" step="1" class="form-control" inputmode="numeric" placeholder="@defaultChanging"
+               aria-describedby="buffers-hint changing-error" aria-invalid="@ViewData.ModelState.AriaInvalid("ChangingMinutes")" />
+    </div>
+</fieldset>
+
+<fieldset class="mb-3">
+    <legend class="fs-6 mb-1">Can the planner move it?</legend>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" asp-for="IsFixed" value="true" id="IsFixed" />
+        <label class="form-check-label" for="IsFixed">Fixed: keep it at this time</label>
+    </div>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" asp-for="IsFixed" value="false" id="IsFixed-movable" />
+        <label class="form-check-label" for="IsFixed-movable">Movable: the planner may suggest another time</label>
+    </div>
+</fieldset>
+
+<div class="mb-3">
+    <label asp-for="Priority" class="form-label"></label>
+    <span asp-validation-for="Priority" class="d-block text-danger" id="priority-error"></span>
+    <select asp-for="Priority" class="form-select" asp-items="priorities"
+            aria-describedby="priority-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Priority")"></select>
+</div>
+
+<div class="mb-3 form-check">
+    <input asp-for="IsDemanding" class="form-check-input" aria-describedby="demanding-hint" />
+    <label asp-for="IsDemanding" class="form-check-label"></label>
+    <div class="form-text" id="demanding-hint">The planner keeps demanding sessions apart, as set in your preferences.</div>
+</div>
+
+<div class="mb-3">
+    <label asp-for="Notes" class="form-label"></label>
+    <span asp-validation-for="Notes" class="d-block text-danger" id="notes-error"></span>
+    <textarea asp-for="Notes" class="form-control" rows="3"
+              aria-describedby="notes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Notes")"></textarea>
+</div>
+
+<fieldset class="mb-3 border rounded p-2" aria-describedby="repeats-error">
+    <legend class="fs-5 float-none w-auto px-1 mb-1">Repeats</legend>
+    <span asp-validation-for="Repeats" class="d-block text-danger" id="repeats-error"></span>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" asp-for="Repeats" value="Never" id="Repeats" />
+        <label class="form-check-label" for="Repeats">Doesn't repeat</label>
+    </div>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" asp-for="Repeats" value="Daily" id="Repeats-daily" />
+        <label class="form-check-label" for="Repeats-daily">Daily</label>
+    </div>
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="radio" asp-for="Repeats" value="Weekly" id="Repeats-weekly" />
+        <label class="form-check-label" for="Repeats-weekly">Weekly, on the days below</label>
+    </div>
+
+    <div class="mb-2">
+        <label asp-for="RepeatEvery" class="form-label mb-0"></label>
+        <div class="form-text mt-0 mb-1" id="every-hint">How many days or weeks apart. 2 with weekly is fortnightly.</div>
+        <span asp-validation-for="RepeatEvery" class="d-block text-danger" id="every-error"></span>
+        <input asp-for="RepeatEvery" type="number" step="1" class="form-control" inputmode="numeric"
+               aria-describedby="every-hint every-error" aria-invalid="@ViewData.ModelState.AriaInvalid("RepeatEvery")" />
+    </div>
+
+    <fieldset class="mb-2" aria-describedby="days-error">
+        <legend class="fs-6 mb-1">On these days (weekly only)</legend>
+        <span asp-validation-for="RepeatDays[0]" class="d-block text-danger" id="days-error"></span>
+        <div class="d-flex flex-wrap column-gap-3">
+            @for (var i = 0; i < Week.Days.Count; i++)
+            {
+                <div class="form-check">
+                    <input asp-for="RepeatDays[i]" class="form-check-input" />
+                    <label asp-for="RepeatDays[i]" class="form-check-label">@Week.Days[i]</label>
+                </div>
+            }
+        </div>
+    </fieldset>
+
+    <fieldset aria-describedby="ends-error">
+        <legend class="fs-6 mb-1">Ends</legend>
+        <span asp-validation-for="Ends" class="d-block text-danger" id="ends-error"></span>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" asp-for="Ends" value="Never" id="Ends" />
+            <label class="form-check-label" for="Ends">Never</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" asp-for="Ends" value="OnDate" id="Ends-date" />
+            <label class="form-check-label" for="Ends-date">On a date</label>
+        </div>
+        <div class="ms-4 mb-2">
+            <label asp-for="EndDate" class="form-label mb-0"></label>
+            <span asp-validation-for="EndDate" class="d-block text-danger" id="end-date-error"></span>
+            <input asp-for="EndDate" type="date" class="form-control"
+                   aria-describedby="end-date-error" aria-invalid="@ViewData.ModelState.AriaInvalid("EndDate")" />
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" asp-for="Ends" value="AfterCount" id="Ends-count" />
+            <label class="form-check-label" for="Ends-count">After a number of times</label>
+        </div>
+        <div class="ms-4">
+            <label asp-for="EndCount" class="form-label mb-0"></label>
+            <span asp-validation-for="EndCount" class="d-block text-danger" id="end-count-error"></span>
+            <input asp-for="EndCount" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="end-count-error" aria-invalid="@ViewData.ModelState.AriaInvalid("EndCount")" />
+        </div>
+    </fieldset>
+</fieldset>
+
+@* Q2: shown only when the one check found clashes (H1). Saving with them is a choice made here, each time. *@
+@if (ViewData["Clashes"] is IReadOnlyList<string> clashes && clashes.Count > 0)
+{
+    const int shown = 5;
+    <div class="alert alert-warning mb-3">
+        <h2 class="h5">Clashes with your other activities</h2>
+        <ul>
+            @foreach (var clash in clashes.Take(shown))
+            {
+                <li>@clash</li>
+            }
+        </ul>
+        @if (clashes.Count > shown)
+        {
+            <p>And @(clashes.Count - shown) more.</p>
+        }
+        @if (ViewData["CheckNotes"] is IReadOnlyList<string> { Count: > 0 } notes)
+        {
+            <p class="mb-1">Some of your other activities could only be checked in part:</p>
+            <ul>
+                @foreach (var note in notes)
+                {
+                    <li>@note</li>
+                }
+            </ul>
+        }
+        <input type="hidden" asp-for="ShownClashes" />
+        <span asp-validation-for="ConfirmClashes" class="d-block text-danger" id="confirm-error"></span>
+        <div class="form-check">
+            <input asp-for="ConfirmClashes" class="form-check-input" aria-describedby="confirm-error" />
+            <label asp-for="ConfirmClashes" class="form-check-label"></label>
+        </div>
+    </div>
+}

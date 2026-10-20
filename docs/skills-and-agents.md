@@ -17,21 +17,23 @@ or its start-of-session hook. All were copied on 13 October 2026.
 | `accessibility` | Affaan Mustafa, Everything Claude Code | MIT | WCAG 2.2 AA for every screen | Web sections only. |
 | `break-ui` | Emil Kowalski | MIT | Worst-case data for calendar and list screens | Fixtures use made-up people and `example.com`. The worst-case toggle is development-only. |
 | `test-driven-development` | Jesse Vincent, Superpowers | MIT | Red-green-refactor for domain logic, services, controllers and bug fixes; `writing-good-tests.md` for test quality | Examples are TypeScript: use xUnit and `dev\ft-dev.ps1 test`. "Delete code written before the test" applies only to the current change. Exempt: scaffolding, EF migrations, Razor views, CSS, vendored libraries. Its link to `superpowers:writing-skills` points at a skill we don't have. |
-| `verification-before-completion` | Jesse Vincent, Superpowers | MIT | No "done", "fixed" or "passing" without fresh evidence from this turn | None. It matches `CLAUDE.md` (we never push, so its push wording doesn't apply). |
+| `verification-before-completion` | Jesse Vincent, Superpowers | MIT | No "done", "fixed" or "passing" without fresh evidence from this turn | None. It matches `CLAUDE.md`, including its wording about checking before a push. |
 
 **Not copied:**
 - `gravelmaster`: house rules for the shop. Its useful habits are in `CLAUDE.md` instead.
 - `review-animations`: this app needs very little motion.
 - `emil-design-eng`: it may be added for a polish pass after the MVP.
 
-## Planned project additions (Phase 3)
+## Project additions (Phase 3)
 
-These are created once the scheduling rules exist in code, so they describe real behaviour, not guesses.
+Written for this project on 14 October 2026, once the time and recurrence rules existed in code, so they describe
+real behaviour, not guesses. Both are instructions only. The skill marks the parts not built yet (footprints,
+constraints, scoring, sleep) and says to read the requirements rather than guess; it grows as each phase lands.
 
 | Item | Type | Purpose | Inputs → outputs | Tools | How its work is checked |
 |---|---|---|---|---|---|
-| `scheduling-rules` | Skill | Reference for footprints, hard and soft constraints, scoring weights, time rules and the T-scenario catalogue | Loaded when touching `Domain/Scheduling`, `Domain/Recurrence`, `Domain/Time` or sleep code | None | Every scenario in it exists as a passing test |
-| `scheduling-reviewer` | Agent (`.claude/agents/`) | Independent review of recurrence, DST, travel, sleep and planner changes; proposes missing edge-case tests | The changes → findings by severity with a failing-test sketch for each | `Read`, `Grep`, `Glob` only; preloads `scheduling-rules` | Each accepted finding becomes a failing test, then a fix |
+| `scheduling-rules` | Skill (`.claude/skills/scheduling-rules/`) | Reference for the time, recurrence and template-cycle rules as built (footprints, constraints and scoring added as they are built) and the T-scenario catalogue | Loaded when touching `Domain/Time`, `Domain/Recurrence`, `Domain/Templates`, and later `Domain/Scheduling` or sleep code | None | Every scenario it marks as covered names a passing test |
+| `scheduling-reviewer` | Agent (`.claude/agents/scheduling-reviewer.md`) | Independent review of recurrence, DST, travel, sleep and planner changes; proposes missing edge-case tests | The changes → findings by severity with a failing-test sketch for each | `Read`, `Grep`, `Glob` only; preloads `scheduling-rules` (and is told to read it) | Each accepted finding becomes a failing test, then a fix |
 
 ## Already available (user-level plugins and built-ins)
 
@@ -52,7 +54,8 @@ These are created once the scheduling rules exist in code, so they describe real
 2. The main session writes a failing test, watches it fail, then writes the code (`test-driven-development`).
 3. Run `dev\ft-dev.ps1 check`.
 4. Review: `/code-review`, plus `scheduling-reviewer`, `break-ui` or `accessibility` where they apply.
-5. Commit locally (one commit per change). The owner pushes from GitHub Desktop.
+5. Commit (one commit per change). Claude pushes and opens the pull request where its tools allow; otherwise the
+   owner does it from GitHub Desktop (the owner's decision, 20 October 2026).
 
 ## Plugins evaluated (13 October 2026)
 
@@ -68,7 +71,7 @@ Plugins are installed for the user, so they apply to **every** project on this P
 | csharp-lsp | Anthropic (official marketplace) | Runs the `csharp-ls` language server locally | Later (decide in Phase 2) | Live C# errors and go-to-definition, but needs `dotnet` and `csharp-ls` on PATH, and Windows problems have been reported. `ft-dev check` gives the same errors at build time. |
 | playwright | Microsoft (partner) | Drives a browser through Node | No | Needs Node. The built-in browser covers manual checks; automated browser tests, if wanted, would use the .NET Playwright package. |
 | Superpowers | Jesse Vincent (partner) | A bash start-of-session hook in every project, which injects a skill telling Claude to check for skills before every reply | **Plugin: no. Two skills copied** (above) | The hook needs bash, which this PC doesn't have. Its forcefully worded bootstrap would add process to every reply in every project, including GravelMaster (where it conflicts with committing straight to `master`). It also duplicates our plan/review workflow. Its `test-driven-development` and `verification-before-completion` skills are self-contained, so they were copied without the plugin. |
-| commit-commands | Anthropic | Runs git, including push | No | We never push, and we have our own commit message format |
+| commit-commands | Anthropic | Runs git, including push | No | We have our own commit message format (pushing was the owner's job when this was decided; since 20 October 2026 Claude pushes where its tools allow) |
 | code-simplifier | Anthropic | One agent | No | Already included in pr-review-toolkit |
 | Frugal, Wave Planning | Community | Hooks and agents in every session | No | Model-routing plugins: same aim as OmniRoute, within Claude. Model choice is already in the app's model picker. |
 

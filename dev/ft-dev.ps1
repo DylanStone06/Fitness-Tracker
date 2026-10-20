@@ -3,11 +3,14 @@
     Development commands for the Fitness Tracker.
 
 .DESCRIPTION
-    build   Build the solution (warnings are errors).
-    test    Run every test, or only those whose full name contains -Filter.
-    run     Run the web app on http://localhost:5137.
-    format  Fix formatting and code style in place.
-    check   What must pass before every commit: formatting check, build, every test.
+    build      Build the solution (warnings are errors).
+    test       Run every test, or only those whose full name contains -Filter.
+    run        Run the web app on http://localhost:5137. The first run creates the development
+               database's connection string in user-secrets (the database itself lives in
+               %LOCALAPPDATA%\FitnessTracker, outside the repository).
+    format     Fix formatting and code style in place.
+    check      What must pass before every commit: formatting check, build, every test.
+    migration  Add an EF Core migration named -Name for the latest model changes.
 
     Uses the per-user .NET SDK at %LOCALAPPDATA%\GravelMasterDev\dotnet when it exists
     (this PC has no dotnet on PATH), otherwise dotnet from PATH.
@@ -17,15 +20,21 @@
 
 .EXAMPLE
     dev\ft-dev.ps1 test -Filter ArchitectureTests
+
+.EXAMPLE
+    dev\ft-dev.ps1 migration -Name AddLocations
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('build', 'test', 'run', 'format', 'check')]
+    [ValidateSet('build', 'test', 'run', 'format', 'check', 'migration')]
     [string] $Command,
 
     # Runs only tests whose full name contains this text. Any `dotnet test --filter` expression also works.
-    [string] $Filter
+    [string] $Filter,
+
+    # The new migration's name, describing what changed (e.g. AddLocations).
+    [string] $Name
 )
 
 Set-StrictMode -Version Latest
@@ -50,6 +59,10 @@ if ($Filter -and $Command -ne 'test') {
     Write-Host "-Filter only works with the test command." -ForegroundColor Red
     exit 1
 }
+if ($Name -and $Command -ne 'migration') {
+    Write-Host "-Name only works with the migration command." -ForegroundColor Red
+    exit 1
+}
 
 $dotnet = Get-DotnetPath
 # Quieter output, and no usage data sent to Microsoft from these commands.
@@ -72,16 +85,54 @@ function Invoke-Dotnet {
     }
 }
 
+# Stores the development database's connection string in user-secrets the first time, pointing at
+# %LOCALAPPDATA%\FitnessTracker. Real personal data then never sits inside the repository folder.
+function Initialize-DevelopmentDatabase {
+    $ErrorActionPreference = 'Continue'
+    # Created every time: SQLite makes a missing database file, but not a missing folder.
+    $folder = Join-Path $env:LOCALAPPDATA 'FitnessTracker'
+    New-Item -ItemType Directory -Force $folder | Out-Null
+
+    $secrets = & $dotnet user-secrets list --project $webProject
+    if ($secrets -match '^ConnectionStrings:Default = ') { return }
+
+    $database = Join-Path $folder 'fitness-dev.db'
+    Invoke-Dotnet @('user-secrets', 'set', 'ConnectionStrings:Default', "Data Source=$database", '--project', $webProject)
+    Write-Host "Development database: $database" -ForegroundColor Cyan
+}
+
 switch ($Command) {
     'build' {
         Invoke-Dotnet @('build', $solution)
     }
     'test' {
-        $testArguments = @('test', $solution)
-        if ($Filter) { $testArguments += @('--filter', $Filter) }
-        Invoke-Dotnet ($testArguments + $noTestsIsAnError)
+        if (-not $Filter) {
+            Invoke-Dotnet (@('test', $solution) + $noTestsIsAnError)
+            break
+        }
+
+        # A filter usually matches tests in only one test project, so "nothing ran" is judged across all of
+        # them: each project writes a results file, and the totals are added up.
+        $results = Join-Path $repoRoot 'TestResults\ft-dev'
+        Remove-Item -Recurse -Force $results -ErrorAction SilentlyContinue
+        Invoke-Dotnet @('build', $solution)
+        foreach ($project in Get-ChildItem (Join-Path $repoRoot 'tests') -Recurse -Filter '*.Tests.csproj') {
+            Invoke-Dotnet @('test', $project.FullName, '--no-build', '--filter', $Filter,
+                '--logger', "trx;LogFileName=$($project.BaseName).trx", '--results-directory', $results)
+        }
+
+        $matched = 0
+        foreach ($file in Get-ChildItem $results -Filter '*.trx' -ErrorAction SilentlyContinue) {
+            $matched += [int]([xml](Get-Content -Raw $file.FullName)).TestRun.ResultSummary.Counters.total
+        }
+        if ($matched -eq 0) {
+            Write-Host "FAILED: no test matched -Filter '$Filter'." -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "$matched test(s) matched -Filter '$Filter', and all passed." -ForegroundColor Green
     }
     'run' {
+        Initialize-DevelopmentDatabase
         Invoke-Dotnet @('run', '--project', $webProject, '--launch-profile', 'http')
     }
     'format' {
@@ -95,5 +146,29 @@ switch ($Command) {
         Write-Host '3/3 Tests' -ForegroundColor Cyan
         Invoke-Dotnet (@('test', $solution, '--no-build') + $noTestsIsAnError)
         Write-Host 'check passed: formatting, build and every test.' -ForegroundColor Green
+    }
+    'migration' {
+        if (-not $Name) {
+            Write-Host "Give the migration a name: dev\ft-dev.ps1 migration -Name AddLocations" -ForegroundColor Red
+            exit 1
+        }
+        Invoke-Dotnet @('tool', 'restore')
+
+        # dotnet-ef starts the app's services to read the model, which needs some connection string. This one is
+        # passed as an app argument (so nothing is left behind in the shell), overrides user-secrets so the real
+        # database isn't touched, and is never connected to.
+        $designTimeDatabase = @('--', '--ConnectionStrings:Default', 'Data Source=:memory:')
+
+        $ErrorActionPreference = 'Continue'
+        & $dotnet dotnet-ef migrations has-pending-model-changes --project $webProject @designTimeDatabase
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host 'The model has not changed since the last migration, so no migration was added.' -ForegroundColor Yellow
+            exit 0
+        }
+
+        Invoke-Dotnet (@('dotnet-ef', 'migrations', 'add', $Name, '--project', $webProject,
+                '--output-dir', 'Data\Migrations') + $designTimeDatabase)
+        # Generated code uses block namespaces, which the build's code-style rules reject.
+        Invoke-Dotnet @('format', $solution, '--include', 'src\FitnessTracker.Web\Data\Migrations\')
     }
 }

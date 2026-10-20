@@ -8,6 +8,9 @@ plainly when a week's goals won't fit. Personal project (github.com/DylanStone06
 | Requirements, IDs (ACC-, CAL-, SCH-…) and test scenarios (T1–T24) | `docs/requirements.md` |
 | Stack and the reasons for it | `docs/decisions/0001-stack.md` |
 | Phases, current status, definition of done | `docs/roadmap.md` |
+| How the parts fit, and the data-isolation rules for new code | `docs/architecture.md` |
+| What's missing or imperfect, and when it's planned | `docs/known-limitations.md` |
+| Ideas not yet agreed, and where each would fit | `docs/ideas.md` |
 | Skills, agents and the review loop | `docs/skills-and-agents.md` |
 
 The person asking wants plain English. Explain what you're doing and why, say what was and wasn't checked, and never
@@ -62,8 +65,10 @@ xUnit. Don't add a framework, database, package or front-end library without say
 - One branch per phase (`phase-N-short-name`); **one commit per change**; stage only the files you changed.
 - Commit message: a plain-English subject and body, an honest "What was checked:" line, and a numbered
   "To see the change:" list.
-- No `Co-Authored-By` or any other AI attribution. **Never push, merge or delete branches**: the owner does that from
-  GitHub Desktop.
+- No `Co-Authored-By` or any other AI attribution.
+- **GitHub work is done by Claude as far as its tools allow** (the owner's decision, 20 October 2026): pushing branches,
+  opening pull requests and merging a finished phase. Never force-push, rewrite pushed history or delete a branch
+  without asking. If a push or GitHub step is blocked, say what was blocked and what the owner needs to do.
 
 ## Privacy and safety
 
