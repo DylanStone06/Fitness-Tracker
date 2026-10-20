@@ -62,6 +62,31 @@ public class AgendaTests
         Assert.Equal(expected, Agenda.Trip(Assert.Single(Agenda.Between([gym], Context(), Monday, Monday))));
     }
 
+    // §8: two dates later is said by its date. A 24-hour session from 23:30 on the 25-hour Sunday 25 October 2026, with
+    // 30 minutes' changing, ends at midnight starting Tuesday the 27th.
+    [Fact]
+    public void ATimeTwoDatesLater_SaysItsDate()
+    {
+        var sunday = new LocalDate(2026, 10, 25);
+        var marathon = OneOff("Marathon", sunday, new LocalTime(23, 30), minutes: 24 * 60, at: Home, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(30)));
+
+        Assert.Equal(
+            "With getting ready and changing: 23:30 to 00:00 on Tue 27 Oct 2026",
+            Agenda.Trip(Assert.Single(Agenda.Between([marathon], Context(), sunday, sunday))));
+    }
+
+    // Q7 on the agenda: the whole 25-hour day has a footprint, so its clashes are found and nothing is said against it.
+    [Fact]
+    public void TheWhole25HourDay_HasAFootprint()
+    {
+        var sunday = new LocalDate(2026, 10, 25);
+
+        var item = Assert.Single(Agenda.Between([OneOff("Festival", sunday, new LocalTime(0, 0), minutes: 25 * 60, at: null)], Context(), sunday, sunday));
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 10, 24, 23, 0), Instant.FromUtc(2026, 10, 26, 0, 0)), item.Footprint?.Whole);
+        Assert.Null(item.Note);
+    }
+
     // T4: 01:15 happens twice on Sunday 25 October 2026. Gym from 00:30 BST gets back at the second 01:15, so it says
     // which: the trip is 2 h 10 min, not 1 h 10 min.
     [Fact]
@@ -122,7 +147,7 @@ public class AgendaTests
         var item = Assert.Single(Agenda.Between([long16Hours], Context(travel: slowWayBack), Monday, Monday));
 
         Assert.Null(item.Footprint);
-        Assert.Contains("more than a whole day", item.Note);
+        Assert.Contains("more than a day allows", item.Note);
     }
 
     // CAL-6: a clash shows on both items. The gym session's walk home runs into dinner at 19:30.

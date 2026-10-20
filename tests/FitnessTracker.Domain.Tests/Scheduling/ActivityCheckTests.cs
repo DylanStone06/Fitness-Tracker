@@ -276,6 +276,52 @@ public class ActivityCheckTests
         Assert.Empty(ActivityCheck.Check(festival, [], Context()).Problems);
     }
 
+    // P1: the length problem says what makes up the total, so a default filled in for a blank box (ACC-6) or the
+    // travel isn't a hidden reason. With nothing around it, it doesn't mention preparation at all.
+    [Fact]
+    public void TheLengthProblem_SaysWhatMakesUpTheTotal()
+    {
+        var withTravel = OneOff("Hike", new LocalDate(2026, 11, 2), new LocalTime(0, 0), minutes: 23 * 60, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
+        var bare = OneOff("Festival", new LocalDate(2026, 10, 26), new LocalTime(0, 0), minutes: 25 * 60, at: Home);
+
+        var withTravelProblem = Assert.Single(ActivityCheck.Check(withTravel, [], Context()).Problems).Message;
+        var bareProblem = Assert.Single(ActivityCheck.Check(bare, [], Context()).Problems).Message;
+
+        Assert.StartsWith("With 25 min there, 10 min changing and 45 min back, it would take up 24 h 20 min", withTravelProblem);
+        Assert.StartsWith("It would take up 25 h", bareProblem);
+    }
+
+    // The long day isn't 25 hours everywhere (Lord Howe Island's clocks go back 30 minutes), so the message doesn't
+    // promise 25.
+    [Fact]
+    public void TheLengthProblem_DoesntPromise25HoursWhereTheLongDayIsShorter()
+    {
+        var lordHowe = DateTimeZoneProviders.Tzdb["Australia/Lord_Howe"];
+        var festival = new PlannedActivity(Guid.NewGuid(), "Festival",
+            new Series(new LocalDate(2027, 4, 4), new LocalTime(0, 0), Duration.FromHours(25), lordHowe, RecurrenceRule.Daily().EndingAfter(1)),
+            Buffers.None, null);
+
+        var problem = Assert.Single(ActivityCheck.Check(festival, [], Context()).Problems).Message;
+
+        Assert.DoesNotContain("25 on the day", problem);
+    }
+
+    // §8: "the next day" only for the next day. A 24-hour shift from 23:30 GMT on Saturday 27 March 2027 ends at 00:30
+    // BST on Monday the 29th (the Sunday has 23 hours), which is said by its date.
+    [Fact]
+    public void AnActivityEndingTwoDatesLater_IsNotSaidToEndTheNextDay()
+    {
+        var longShift = OneOff("Long shift", new LocalDate(2027, 3, 27), new LocalTime(23, 30), minutes: 24 * 60, at: null);
+        var call = OneOff("Call", new LocalDate(2027, 3, 29), new LocalTime(0, 0), minutes: 20, at: null);
+
+        var clash = Assert.Single(ActivityCheck.Check(call, [longShift], Context()).Clashes);
+
+        Assert.Equal(new Interval(Instant.FromUtc(2027, 3, 28, 23, 0), Instant.FromUtc(2027, 3, 28, 23, 20)), clash.Overlap);
+        var described = ActivityCheck.Describe(clash, London);
+        Assert.DoesNotContain("the next day", described);
+        Assert.Contains("to 00:30 on Mon 29 Mar 2027", described);
+    }
+
     // §7.1, P1: travel is never guessed. Without a home, or a travel time in either direction, the save is stopped and
     // the problem says what to add.
     [Fact]
@@ -375,6 +421,19 @@ public class ActivityCheckTests
         Assert.Equal((FootprintPart.Activity, FootprintPart.TravelBack), (clash.CandidatePart, clash.OtherPart));
         Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 19, 30), Instant.FromUtc(2026, 11, 2, 19, 45)), clash.Overlap);
         Assert.Empty(result.Notes);
+    }
+
+    // Q7 for other activities: the whole 25-hour day is checked for clashes like any other, not left out as too long.
+    [Fact]
+    public void AnotherActivityTakingTheWhole25HourDay_IsCheckedForClashes()
+    {
+        var festival = OneOff("Festival", new LocalDate(2026, 10, 25), new LocalTime(0, 0), minutes: 25 * 60, at: null);
+        var reading = OneOff("Reading", new LocalDate(2026, 10, 25), new LocalTime(20, 0), minutes: 30, at: null);
+
+        var result = ActivityCheck.Check(reading, [festival], Context());
+
+        Assert.Empty(result.Notes);
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 10, 25, 20, 0), Instant.FromUtc(2026, 10, 25, 20, 30)), Assert.Single(result.Clashes).Overlap);
     }
 
     // A night shift from Monday runs into an early gym session on Tuesday: the message gives the shift's own date, or

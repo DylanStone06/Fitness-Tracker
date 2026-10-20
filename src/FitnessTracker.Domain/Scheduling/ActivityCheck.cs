@@ -40,7 +40,7 @@ public sealed record ActivityCheckResult(IReadOnlyList<CheckProblem> Problems, I
 /// <summary>
 /// SCH-1, first part: the check every new or changed activity goes through before it is saved, whatever made the
 /// change. Problems that stop the save: a repeat that never happens, travel that can't be worked out (never guessed
-/// as zero, P1), a footprint over 24 hours (H8), and an activity outside its location's opening hours on any date
+/// as zero, P1), a footprint longer than the day allows (H8), and an activity outside its location's opening hours on any date
 /// (H4). Clashes with other activities' footprints (H1) are only looked for once there are no problems, because they
 /// depend on the travel and length being right. A repeating activity is checked for <see cref="WeeksAhead"/> weeks
 /// from today, or from its first date if that is later: rules such as "every 98 weeks" and "every 99 weeks" can't be
@@ -51,7 +51,7 @@ public static class ActivityCheck
     public const int WeeksAhead = 8;
 
     /// <summary>
-    /// Opening hours (H4) and the 24-hour limit (H8) are checked further ahead than clashes: they can't be overridden,
+    /// Opening hours (H4) and the length limit (H8) are checked further ahead than clashes: they can't be overridden,
     /// they are cheap, and they depend on the weekday and on the clocks changing, which a year covers. A daily rule
     /// every N days is checked for at least 7 x N days, so every weekday it can fall on is reached.
     /// </summary>
@@ -210,12 +210,38 @@ public static class ActivityCheck
     }
 
     // Each H8 problem once, for whichever lengths break their day's limit (none given: an ordinary day's 24 hours).
-    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration? Longest)> lengths, Buffers buffers, Journeys journeys) =>
-        lengths.Distinct()
-            .SelectMany(length => Footprint.ProblemsWith(length.Length, buffers, journeys, length.Longest))
+    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration? Longest)> lengths, Buffers buffers, Journeys journeys)
+    {
+        var found = lengths.Distinct()
+            .SelectMany(length => Footprint.ProblemsWith(length.Length, buffers, journeys, length.Longest).Select(problem => (problem, length.Length)))
+            .ToList();
+        return found
+            .Select(item => item.problem)
             .Distinct()
             .Order()
-            .Select(problem => new CheckProblem(CheckAspect.Length, Footprint.Describe(problem)));
+            .Select(problem => new CheckProblem(CheckAspect.Length, problem == FootprintProblem.LongerThanADay
+                ? TooLong(found.Where(item => item.problem == problem).Max(item => item.Length), buffers, journeys)
+                : Footprint.Describe(problem)));
+    }
+
+    // P1: what makes up the total, so a default filled in for a blank box (ACC-6) or the travel isn't a hidden reason.
+    // "With 25 min there, 10 min changing and 45 min back, it would take up 24 h 20 min: more than a day allows ...".
+    // The limit isn't given as a number of hours: the long day is 25 hours in London but 24 h 30 min on Lord Howe Island.
+    private static string TooLong(Duration length, Buffers buffers, Journeys journeys)
+    {
+        (Duration Part, string What)[] around =
+        [
+            (buffers.Preparation, "getting ready"),
+            (journeys.Out, "there"),
+            (buffers.Changing, "changing"),
+            (journeys.Back, "back"),
+        ];
+        var parts = around.Where(part => part.Part > Duration.Zero).Select(part => $"{Times.Length(part.Part)} {part.What}").ToList();
+        var total = around.Aggregate(length, (sum, part) => part.Part > Duration.Zero ? sum + part.Part : sum);
+        var list = parts.Count > 1 ? $"{string.Join(", ", parts[..^1])} and {parts[^1]}" : parts.SingleOrDefault();
+        var takesUp = $"it would take up {Times.Length(total)}: more than a day allows (24 hours, or all of a longer day, such as the day the clocks go back).";
+        return list is null ? char.ToUpperInvariant(takesUp[0]) + takesUp[1..] : $"With {list}, {takesUp}";
+    }
 
     // H4 on every date checked, because opening hours depend on the day. Reports the first date and counts the rest.
     private static CheckProblem? OpeningHoursProblem(PlannedActivity activity, IReadOnlyList<Occurrence> occurrences, PlanningContext context, DateTimeZone zone, LocalDate checkedUpTo)
@@ -262,8 +288,8 @@ public static class ActivityCheck
             var longest = Times.LongestFor(occurrence.Time, other.Series.Zone);
             if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys, longest).Count > 0)
             {
-                notes.Add($"{other.Title} on {Date.Format(occurrence.Time.Start.InZone(zone).Date)} wasn't checked: with its preparation, " +
-                          "travel and changing it would take up more than a whole day.");
+                notes.Add($"{other.Title} on {Date.Format(occurrence.Time.Start.InZone(zone).Date)} wasn't checked: counting getting ready, " +
+                          "travel and changing, it would take up more than a day allows.");
                 continue;
             }
 
@@ -283,7 +309,7 @@ public static class ActivityCheck
         var start = time.Start.InZone(zone);
         var end = time.End.InZone(zone);
         var startDate = start.Date == onDate ? "" : $"on {Date.Format(start.Date)} ";
-        return $"{startDate}{Times.Clock(start)} to {Times.Clock(end)}{(end.Date > start.Date ? " the next day" : "")}";
+        return $"{startDate}{Times.Clock(start)} to {Times.Clock(end)}{Times.RelativeTo(end.Date, start.Date)}";
     }
 
     private static string CandidatePart(FootprintPart part) => part switch

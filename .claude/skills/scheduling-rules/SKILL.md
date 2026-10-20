@@ -134,7 +134,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - **Windows**, from the later of today and the first date (`FirstCheckedDate`), or from the first date when nothing
   of the activity falls from today on (a past one-off, an ended series), so nothing is saved unchecked. The Web
   loads only the other activities in `OthersThatCanClash`. Clashes: `WeeksAhead` (8) weeks, others' occurrences 3
-  days either side (two 24-hour footprints reach 48 h apart, a third date across a 23-hour day). Rules like every 98
+  days either side (two footprints of up to a day each reach 49 h apart, a third date across a 23-hour day). Rules like every 98
   and every 99 weeks can't be proved clash-free in any practical window, so it is a window, said in the message.
   H4 and H8: `WeeksAheadForHoursAndLength` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
   every weekday and both clock changes are reached; H8 on every occurrence (a moved one can be longer), and a
@@ -148,7 +148,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 ## The agenda (`Domain/Scheduling/Agenda`, GOL-2, first part)
 
 - `Agenda.Between(activities, context, from, through)`: every occurrence starting on those dates (in its own zone),
-  in time order, then title, then id (SCH-7). Each has its footprint (null over 24 hours, H8), a plain-English
+  in time order, then title, then id (SCH-7). Each has its footprint (null when longer than the day allows, H8), a plain-English
   `Note` when travel or the footprint can't be worked out (P1), and `ClashesWith` titles, found on footprints over
   `MarginDays` (3) days either side, so a clash with last night's shift shows. The check on save uses the same
   margin, travel rule (`Travel`) and time wording (`Times`), and also reports an activity overlapping its own next

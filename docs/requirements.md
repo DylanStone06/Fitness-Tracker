@@ -221,7 +221,7 @@ validation errors.
 | H5 | Demanding sessions are at least the configured number of hours apart. |
 | H6 | No more than the configured number of demanding sessions per day. |
 | H7 | No demanding session on a recovery day. |
-| H8 | Durations are positive; a footprint is at most 24 hours, or the whole day on the 25-hour day the clocks go back (Q7). |
+| H8 | Durations are positive; a footprint is at most 24 hours, or the length of the day its activity starts on when that day is longer, such as the 25-hour day the clocks go back (Q7). |
 
 ### 7.3 Soft preferences (scoring)
 
@@ -333,7 +333,7 @@ Decided by the owner on 20 October 2026, at the end of Phase 4:
 | # | Question | Decision |
 |---|---|---|
 | Q6 | Does a night shift on a clock-change night end at its usual clock time? | No: lengths stay elapsed time (§8), so it ends an hour earlier or later by the clock. The form says so. |
-| Q7 | Can an activity take up the whole of the 25-hour day the clocks go back? | Yes: H8's limit is 24 hours, or the whole day on a day longer than that. |
+| Q7 | Can an activity take up the whole of the 25-hour day the clocks go back? | Yes: H8's limit is 24 hours, or the length of the day the activity starts on when that day is longer (the day the clocks go back: 25 hours in the UK). |
 | Q8 | Are activities re-checked when the timezone preference changes? | Yes, after the move. Problems and clashes are shown on the Preferences page; they don't stop the change. |
 | Q9 | Default getting-ready and changing times per category (ACC-6)? | Built in Phase 4. |
 | Q10 | Back-to-back activities at the same place (the office gym straight after work)? | After the MVP, with location chaining (SCH-8). |

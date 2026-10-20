@@ -1,4 +1,4 @@
-﻿using NodaTime;
+using NodaTime;
 using NodaTime.TimeZones;
 
 namespace FitnessTracker.Domain.Footprints;
@@ -107,7 +107,7 @@ public sealed class Footprint
 
     /// <summary>
     /// H8: the activity lasts longer than zero, buffers and journeys aren't negative (zero is fine), and the whole
-    /// footprint is at most <paramref name="longest"/>: 24 hours unless given, or the whole day on the 25-hour day the
+    /// footprint is at most <paramref name="longest"/>: 24 hours unless given, or the length of the day it starts on when that day is longer, such as the 25-hour day the
     /// clocks go back (<see cref="LongestOn"/>, requirements Q7). Every broken limit is reported, in the order of the
     /// enum, each naming its own part. A negative part counts as zero towards the limit, so it can't hide a footprint
     /// that is too long anyway.
@@ -161,7 +161,7 @@ public sealed class Footprint
         FootprintProblem.NegativeChanging => "Changing time can't be less than zero.",
         FootprintProblem.NegativeTravelOut => "Travel time there can't be less than zero.",
         FootprintProblem.NegativeTravelBack => "Travel time back can't be less than zero.",
-        FootprintProblem.LongerThanADay => "With preparation, travel and changing, it would take up more than a whole day (24 hours, or 25 on the day the clocks go back).",
+        FootprintProblem.LongerThanADay => "Counting getting ready, travel and changing, it would take up more than a day allows (24 hours, or all of a longer day, such as the day the clocks go back).",
         _ => throw new ArgumentOutOfRangeException(nameof(problem), problem, null),
     };
 

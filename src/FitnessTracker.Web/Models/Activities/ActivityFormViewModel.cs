@@ -203,7 +203,7 @@ public class ActivityFormViewModel
         if (DurationHours is >= 0 and <= 25 && DurationMinutes is >= 0 and <= 59 && length is < 1 or > 25 * 60)
         {
             yield return new ValidationResult(
-                "Enter how long it takes: at least 1 minute and at most 24 hours (25 on the day the clocks go back).", [nameof(DurationHours)]);
+                "Enter how long it takes: at least 1 minute and at most 25 hours (more than 24 only fits on a day the clocks go back).", [nameof(DurationHours)]);
         }
 
         if (Repeats == RepeatChoice.Never)

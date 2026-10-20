@@ -7,7 +7,7 @@ namespace FitnessTracker.Domain.Scheduling;
 
 /// <summary>
 /// One occurrence on the agenda. <see cref="Footprint"/> is the time it takes up, from getting ready to getting back
-/// (null if that would be more than 24 hours, H8). <see cref="Note"/> says, in plain English, what couldn't be worked
+/// (null if that would be longer than the day allows, H8). <see cref="Note"/> says, in plain English, what couldn't be worked
 /// out (travel, or the footprint): P1, said, never guessed. <see cref="ClashesWith"/>: the titles of what it overlaps.
 /// </summary>
 public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith);
@@ -21,7 +21,7 @@ public static class Agenda
 {
     /// <summary>
     /// Activities starting this many days either side of the dates looked at can still overlap them: two footprints of
-    /// up to 24 hours each (H8) can reach 48 hours apart, which spans a third date across a 23-hour day. Used by the
+    /// up to a day each (H8: 24 hours, or 25 on the day the clocks go back) can reach 49 hours apart, which spans a third date across a 23-hour day. Used by the
     /// check on save too, and by callers deciding which activities to load.
     /// </summary>
     public const int MarginDays = 3;
@@ -40,7 +40,7 @@ public static class Agenda
                 if (Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel, longest).Count > 0)
                 {
                     entries.Add((activity, occurrence, null,
-                        "With its preparation, travel and changing it would take up more than a whole day, so it isn't checked for clashes."));
+                        "Counting getting ready, travel and changing, it would take up more than a day allows, so it isn't checked for clashes."));
                     continue;
                 }
 
@@ -98,8 +98,7 @@ public static class Agenda
         string At(Instant moment)
         {
             var local = moment.InZone(zone);
-            var otherDay = local.Date < day ? " the day before" : local.Date > day ? " the next day" : "";
-            return Times.Clock(local) + otherDay;
+            return Times.Clock(local) + Times.RelativeTo(local.Date, day);
         }
 
         var travelOut = footprint.Segments.Where(segment => segment.Part == FootprintPart.TravelOut).Select(segment => (Instant?)segment.Time.Start).FirstOrDefault();
@@ -163,6 +162,28 @@ internal static class Times
     /// <summary>H8's limit for an occurrence: 24 hours, or the whole day it starts on if that day is longer (Q7).</summary>
     public static Duration LongestFor(Interval occurrence, DateTimeZone zone) =>
         Footprint.LongestOn(occurrence.Start.InZone(zone).Date, zone);
+
+    /// <summary>
+    /// How a moment's date reads next to <paramref name="day"/>, to follow a time: nothing on that day, " the next day"
+    /// or " the day before", or " on Tue 27 Oct 2026" further away (§8: never "the next day" for two days later).
+    /// </summary>
+    public static string RelativeTo(LocalDate date, LocalDate day) =>
+        date == day ? ""
+        : date == day.PlusDays(1) ? " the next day"
+        : date == day.PlusDays(-1) ? " the day before"
+        : $" on {Date.Format(date)}";
+
+    /// <summary>"50 min", "8 h" or "1 h 30 min".</summary>
+    public static string Length(Duration length)
+    {
+        var minutes = (long)length.TotalMinutes;
+        return (minutes / 60, minutes % 60) switch
+        {
+            (0, var justMinutes) => $"{justMinutes} min",
+            (var hours, 0) => $"{hours} h",
+            (var hours, var andMinutes) => $"{hours} h {andMinutes} min",
+        };
+    }
 
     /// <summary>"07:30", or "01:15 BST" for a time the clocks repeat on the night they go back.</summary>
     public static string Clock(ZonedDateTime moment) =>
