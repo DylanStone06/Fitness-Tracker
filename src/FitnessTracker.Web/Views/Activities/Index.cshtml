@@ -8,6 +8,12 @@
 <p>Everything that takes up your time, once or repeating. Work is an activity too: add it as a weekly activity at your
     office.</p>
 
+@* CAL-4, P5: what an edit of the whole activity did to occurrences changed on their own. *@
+@if (ViewData["SeriesEdit"] is string seriesEdit)
+{
+    <div class="alert alert-info" role="status">@seriesEdit</div>
+}
+
 @* P1: after a save, other activities that could only be checked in part are named, never silently assumed fine. *@
 @if (ViewData["CheckNotes"] is string[] { Length: > 0 } notes)
 {

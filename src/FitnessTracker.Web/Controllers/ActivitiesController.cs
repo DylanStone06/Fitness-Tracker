@@ -9,6 +9,7 @@ using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using NodaTime.TimeZones;
 
 namespace FitnessTracker.Web.Controllers;
 
@@ -19,10 +20,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 {
     private const string CheckNotes = "CheckNotes";
 
+    /// <summary>TempData: what an edit of the whole activity did to its one-off changes, shown on the list or calendar.</summary>
+    public const string SeriesEdit = "SeriesEdit";
+
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         ViewData[CheckNotes] = TempData[CheckNotes] as string[] ?? [];
+        ViewData[SeriesEdit] = TempData[SeriesEdit] as string;
         var activities = await db.Activities.AsNoTracking().ToListAsync();
         ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
         return View(activities
@@ -98,10 +103,28 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             ? rule.WeekStart
             : (await PreferencesAsync()).WeekStart;
 
+        // CAL-4, T8: occurrences changed on their own keep their changes where the edited activity still falls on
+        // their dates. Changes that can't be read (edited by hand) can't be kept.
+        Series? before = null;
+        try
+        {
+            before = activity.ToPlannedActivity().Series;
+        }
+        catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
+        {
+        }
+
         // Saved only if nobody has saved this activity since the form was opened (requirements §9). If the check
         // stops it, the changed activity is simply never saved.
         db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
+        var unreadableChanges = before is null && activity.OccurrenceChanges is not null;
         model.ApplyTo(activity, weekStart);
+        var (kept, removed) = before is null ? (0, 0) : activity.KeepChangesFrom(before);
+        if (unreadableChanges)
+        {
+            activity.OccurrenceChanges = null;
+        }
+
         if (!await PassesTheCheckAsync(activity, model))
         {
             return View(model);
@@ -128,7 +151,38 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return View(model);
         }
 
+        if (SeriesEditMessage(kept, removed, unreadableChanges) is { } message)
+        {
+            TempData[SeriesEdit] = message;
+        }
+
         return AfterSaving(model);
+    }
+
+    // CAL-4: what happened to the occurrences changed on their own, in plain English (P5: never silently).
+    private static string? SeriesEditMessage(int kept, int removed, bool unreadable)
+    {
+        var parts = new List<string>();
+        if (kept > 0)
+        {
+            parts.Add(kept == 1
+                ? "1 occurrence you changed on its own keeps its change"
+                : $"{kept} occurrences you changed on their own keep their changes");
+        }
+
+        if (removed > 0)
+        {
+            parts.Add(removed == 1
+                ? "1 change was on a day it no longer happens, so it was removed"
+                : $"{removed} changes were on days it no longer happens, so they were removed");
+        }
+
+        if (unreadable)
+        {
+            parts.Add("its changes to single occurrences couldn't be read, so they were removed");
+        }
+
+        return parts.Count == 0 ? null : $"Saved. {string.Join("; ", parts)}.";
     }
 
     // Back where the form was opened from: the calendar, on the activity's week, or the list.

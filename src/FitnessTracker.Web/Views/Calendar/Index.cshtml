@@ -15,6 +15,12 @@
 </p>
 <p><a class="btn btn-primary" asp-controller="Activities" asp-action="Create" asp-route-returnToCalendar="true">Add an activity</a></p>
 
+@* CAL-4, P5: back from editing the whole activity: what happened to occurrences changed on their own. *@
+@if (TempData[FitnessTracker.Web.Controllers.ActivitiesController.SeriesEdit] is string seriesEdit)
+{
+    <div class="alert alert-info" role="status">@seriesEdit</div>
+}
+
 @if (Model.Unreadable.Count > 0)
 {
     <div class="alert alert-warning" role="status">
