@@ -24,6 +24,14 @@ public enum PreferredTimeOfDay
     Evening,
 }
 
+/// <summary>ACC-3: how the pages look. Dark unless chosen otherwise (the owner's choice, 20 October 2026).</summary>
+public enum Appearance
+{
+    Dark,
+    Light,
+    Device,
+}
+
 /// <summary>A set of weekdays, stored as one number.</summary>
 [Flags]
 public enum DaysOfWeek
@@ -62,6 +70,8 @@ public class UserPreferences : IOwnedByUser, IVersioned
     public DistanceUnit DistanceUnit { get; set; } = DistanceUnit.Kilometres;
 
     public WeightUnit WeightUnit { get; set; } = WeightUnit.Kilograms;
+
+    public Appearance Appearance { get; set; } = Appearance.Dark;
 
     // ACC-4
     public int TargetSleepMinutes { get; set; } = 8 * 60;

@@ -36,8 +36,8 @@ Size: S = a day or less, M = a few days, L = a phase of its own.
 ### Home page and look
 
 The owner also asked for the app to look good, so ideas 1-5 were built on 20 October 2026 and have left this page:
-a greeting and a **Next up** card (GOL-2's "next activity"), one colour per category (CAL-2), dark mode following the
-device, a calmer look, and home-page activities that open their edit page. See [design](design.md) and the
+a greeting and a **Next up** card (GOL-2's "next activity"), one colour per category (CAL-2), dark mode (dark by
+default, with a choice in Preferences, ACC-3), a calmer look, and home-page activities that open their edit page. See [design](design.md) and the
 [roadmap](roadmap.md).
 
 | # | Idea | Why it's good | Fits | Size | Recommendation |

@@ -57,6 +57,7 @@ builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 // The user's planning data, read the same way everywhere; and SCH-1, the one check every save of an activity goes through.
 builder.Services.AddScoped<PlanningData>();
 builder.Services.AddScoped<ActivityChecker>();
+builder.Services.AddScoped<UserAppearance>();
 
 // The connection string is read when a database context is first needed, after all configuration
 // (including test overrides) has been applied. In development, dev\ft-dev.ps1 run keeps it in user-secrets.

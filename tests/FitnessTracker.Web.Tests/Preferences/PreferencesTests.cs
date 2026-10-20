@@ -100,6 +100,8 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
     [InlineData("DistanceUnit", "9")]
     [InlineData("WeightUnit", "Stone")]
     [InlineData("PreferredTimeOfDay", "7")]
+    [InlineData("Appearance", "Purple")]
+    [InlineData("Appearance", "5")]
     public async Task Save_ShowsAnError_AndSavesNothing_ForAValueThatCantBeRight(string field, string value)
     {
         var (browser, email) = await SignedInAsync("alex");

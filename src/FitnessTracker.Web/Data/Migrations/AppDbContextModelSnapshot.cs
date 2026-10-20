@@ -304,6 +304,9 @@ namespace FitnessTracker.Web.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Appearance")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("DistanceUnit")
                         .HasColumnType("INTEGER");
 

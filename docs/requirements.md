@@ -77,7 +77,7 @@ IDs are referenced from tests and commit messages. **[MVP]** = first release; **
 - **ACC-2 [MVP]** Every page except sign-in and register needs a signed-in user. A user can only read or change their
   own data; anyone else's returns "not found" (not "forbidden", which would confirm it exists).
 - **ACC-3 [MVP]** Preferences: timezone (IANA name), week start day, 12/24-hour clock, distance unit (km/mi), weight
-  unit (kg/lb).
+  unit (kg/lb), appearance (dark by default, light, or matching the device; added by the owner on 20 October 2026).
 - **ACC-4 [MVP]** Sleep preferences: target sleep, minimum sleep, usual bedtime and wake time, wind-down before bed
   (default 30 min), wake-up routine before the first commitment (default 30 min).
 - **ACC-5 [MVP]** Work pattern: workdays and hours, office or remote per day, commute legs for office days.

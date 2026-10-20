@@ -1,12 +1,23 @@
+@inject FitnessTracker.Web.Services.UserAppearance UserAppearance
+@{
+    // ACC-3, Appearance: the page arrives dark or light. "Match my device" arrives light, and js/theme.js switches it
+    // to the device's setting before it is drawn (it stays light without JavaScript). data-theme names the choice.
+    var appearance = await UserAppearance.CurrentAsync(Context);
+    var followsDevice = appearance == FitnessTracker.Web.Data.Appearance.Device;
+    var theme = appearance == FitnessTracker.Web.Data.Appearance.Dark ? "dark" : "light";
+}
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="en-GB" data-bs-theme="@theme" data-theme="@appearance.ToString().ToLowerInvariant()">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     @* "Error:" first after an unsuccessful form submit, so screen reader users hear about it as the page loads. *@
     <title>@(ViewData.ModelState.IsValid ? "" : "Error: ")@ViewData["Title"] - Fitness Tracker</title>
-    <meta name="color-scheme" content="light dark" />
-    <script src="~/js/theme.js" asp-append-version="true"></script>
+    <meta name="color-scheme" content="@(followsDevice ? "light dark" : theme)" />
+    @if (followsDevice)
+    {
+        <script src="~/js/theme.js" asp-append-version="true"></script>
+    }
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/FitnessTracker.Web.styles.css" asp-append-version="true" />

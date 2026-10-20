@@ -27,7 +27,7 @@ the parts fit is in [architecture notes](architecture.md).
 |---|---|---|---|
 | ACC-1 | Done | 2 | Register, sign in, sign out. No email (documented limitation). |
 | ACC-2 | Done | 2 | Sign-in required everywhere; per-user isolation in the data layer; another user's data is "not found". |
-| ACC-3, ACC-4, ACC-7 | Done | 4 | Preferences page: timezone, week start, clock, units, sleep, exercise preferences. The 12-hour clock isn't applied to times shown yet (Phase 5). |
+| ACC-3, ACC-4, ACC-7 | Done | 4 | Preferences page: timezone, week start, clock, units, appearance (dark by default), sleep, exercise preferences. The 12-hour clock isn't applied to times shown yet (Phase 5). |
 | ACC-5 | Done | 4 | Work is an ordinary activity (category Work, at the office, repeating on workdays); no separate record. |
 | ACC-6 | Done | 4 | "Default time around activities" page (linked from Preferences); a blank getting-ready or changing time on an activity gets its category's default. Built-in defaults for exercise until the user sets their own. |
 | TRV-1 | Done | 2, 4 | Locations with a home and opening hours (closed days, closing after midnight). |
