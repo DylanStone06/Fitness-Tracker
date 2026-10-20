@@ -5,16 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     @* "Error:" first after an unsuccessful form submit, so screen reader users hear about it as the page loads. *@
     <title>@(ViewData.ModelState.IsValid ? "" : "Error: ")@ViewData["Title"] - Fitness Tracker</title>
+    <meta name="color-scheme" content="light dark" />
+    <script src="~/js/theme.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/FitnessTracker.Web.styles.css" asp-append-version="true" />
 </head>
 <body>
+    @{
+        // The menu marks the section you're in: aria-current "page" on that section's own page, "true" on the pages
+        // within it. The default times page is opened from Preferences, so it counts as Preferences.
+        var controller = ViewContext.RouteData.Values["controller"] as string;
+        var action = ViewContext.RouteData.Values["action"] as string;
+        var section = controller == "CategoryBuffers" ? "Preferences" : controller;
+        string? Current(string name) =>
+            section != name ? null
+            : controller == name && action == "Index" ? "page"
+            : name == "Home" ? null
+            : "true";
+    }
     <a class="visually-hidden-focusable" href="#main">Skip to main content</a>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-light bg-white border-bottom box-shadow mb-3" aria-label="Main">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-controller="Home" asp-action="Index">Fitness Tracker</a>
+    <header class="site-header sticky-top border-bottom mb-4">
+        <nav class="navbar navbar-expand-sm" aria-label="Main">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center gap-2" asp-controller="Home" asp-action="Index">
+                    <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+                        <defs>
+                            <linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0" stop-color="#2563eb" />
+                                <stop offset="1" stop-color="#15803d" />
+                            </linearGradient>
+                        </defs>
+                        <rect width="28" height="28" rx="8" fill="url(#brand-gradient)" />
+                        <path d="M5 15h4l2.5-5 4 9 2.5-5H23" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Fitness Tracker
+                </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav"
                         aria-controls="main-nav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
@@ -24,19 +50,19 @@
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Home</a>
+                                <a class="nav-link @(Current("Home") is null ? null : "active")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index">Home</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Activities" asp-action="Index">Activities</a>
+                                <a class="nav-link @(Current("Activities") is null ? null : "active")" aria-current="@Current("Activities")" asp-controller="Activities" asp-action="Index">Activities</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Locations" asp-action="Index">Locations</a>
+                                <a class="nav-link @(Current("Locations") is null ? null : "active")" aria-current="@Current("Locations")" asp-controller="Locations" asp-action="Index">Locations</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="TravelLegs" asp-action="Index">Travel times</a>
+                                <a class="nav-link @(Current("TravelLegs") is null ? null : "active")" aria-current="@Current("TravelLegs")" asp-controller="TravelLegs" asp-action="Index">Travel times</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Preferences" asp-action="Index">Preferences</a>
+                                <a class="nav-link @(Current("Preferences") is null ? null : "active")" aria-current="@Current("Preferences")" asp-controller="Preferences" asp-action="Index">Preferences</a>
                             </li>
                         }
                     </ul>

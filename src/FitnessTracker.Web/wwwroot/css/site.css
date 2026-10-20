@@ -1,22 +1,172 @@
-/* Site-wide styles. Bootstrap 5.3 supplies the base; keep additions small. */
+/* Site-wide styles: the look in docs/design.md, on top of Bootstrap 5.3. Every colour pair used for text meets WCAG
+   2.2 AA (4.5:1) in both themes, and form-box borders 3:1; the measured ratios are in docs/design.md. */
 
-/* Slightly darker blues than Bootstrap's defaults, for more contrast on white
-   (links about 4.7:1, primary buttons about 5.2:1; WCAG AA needs 4.5:1). */
-a {
-  color: #0077cc;
+:root {
+  --bs-border-radius: 0.6rem;
+  --bs-border-radius-sm: 0.4rem;
+  --bs-border-radius-lg: 1rem;
 }
 
+/* Light theme: the default, and the one used without JavaScript. Every variable set here is set again for the dark
+   theme below: this file loads after Bootstrap, so a light value left out there would win over Bootstrap's dark one. */
+:root,
+[data-bs-theme="light"] {
+  --bs-body-bg: #f7f5f0;
+  --bs-body-bg-rgb: 247, 245, 240;
+  --bs-body-color: #1f2328;
+  --bs-body-color-rgb: 31, 35, 40;
+  --bs-secondary-color: #59606a;
+  --bs-secondary-color-rgb: 89, 96, 106;
+  --bs-border-color: #e3dfd6;
+  --bs-link-color: #0b62b0;
+  --bs-link-color-rgb: 11, 98, 176;
+  --bs-link-hover-color: #084a86;
+  --bs-link-hover-color-rgb: 8, 74, 134;
+  --bs-primary: #1d63b0;
+  --bs-primary-rgb: 29, 99, 176;
+  --bs-form-invalid-color: #b42318;
+  --bs-form-invalid-border-color: #b42318;
+  --ft-surface: #ffffff;
+  --ft-input-border: #868c96;
+  --ft-danger-text: #b42318;
+  --ft-shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 2px 8px rgba(31, 35, 40, 0.04);
+}
+
+/* Dark theme: set on <html> by js/theme.js when the device asks for it. */
+[data-bs-theme="dark"] {
+  --bs-body-bg: #15171c;
+  --bs-body-bg-rgb: 21, 23, 28;
+  --bs-body-color: #e8e6e3;
+  --bs-body-color-rgb: 232, 230, 227;
+  --bs-secondary-color: #a9afb9;
+  --bs-secondary-color-rgb: 169, 175, 185;
+  --bs-border-color: #30343d;
+  --bs-link-color: #7cb4f5;
+  --bs-link-color-rgb: 124, 180, 245;
+  --bs-link-hover-color: #a8cdf8;
+  --bs-link-hover-color-rgb: 168, 205, 248;
+  --bs-primary: #1d63b0;
+  --bs-primary-rgb: 29, 99, 176;
+  --bs-form-invalid-color: #ff8a80;
+  --bs-form-invalid-border-color: #ff8a80;
+  --ft-surface: #1e2128;
+  --ft-input-border: #737b87;
+  --ft-danger-text: #ff8a80;
+  --ft-shadow: none;
+}
+
+h1, .h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2, .h2, h3, .h3, .h4, .h5 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Cards and lists sit on the page as white (dark: raised) surfaces. */
+.card {
+  --bs-card-bg: var(--ft-surface);
+  --bs-card-border-color: var(--bs-border-color);
+  box-shadow: var(--ft-shadow);
+}
+
+.list-group {
+  --bs-list-group-bg: var(--ft-surface);
+  --bs-list-group-border-color: var(--bs-border-color);
+  box-shadow: var(--ft-shadow);
+}
+
+.list-group-flush {
+  box-shadow: none;
+}
+
+/* Buttons: Bootstrap's own blue, red and grey only just reach 4.5:1 on white, and not on the off-white page. */
 .btn-primary {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #1d63b0;
+  --bs-btn-border-color: #1d63b0;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #17538f;
+  --bs-btn-hover-border-color: #17538f;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #134779;
+  --bs-btn-active-border-color: #134779;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #1d63b0;
+  --bs-btn-disabled-border-color: #1d63b0;
+}
+
+.btn-danger {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #b42318;
+  --bs-btn-border-color: #b42318;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #931c13;
+  --bs-btn-hover-border-color: #931c13;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #7a170f;
+  --bs-btn-active-border-color: #7a170f;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #b42318;
+  --bs-btn-disabled-border-color: #b42318;
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: var(--bs-secondary-color);
+  --bs-btn-border-color: var(--ft-input-border);
+  --bs-btn-hover-color: var(--ft-surface);
+  --bs-btn-hover-bg: var(--bs-secondary-color);
+  --bs-btn-hover-border-color: var(--bs-secondary-color);
+  --bs-btn-active-color: var(--ft-surface);
+  --bs-btn-active-bg: var(--bs-secondary-color);
+  --bs-btn-active-border-color: var(--bs-secondary-color);
+}
+
+.btn-outline-danger {
+  --bs-btn-color: var(--ft-danger-text);
+  --bs-btn-border-color: var(--ft-danger-text);
+  --bs-btn-hover-color: var(--ft-surface);
+  --bs-btn-hover-bg: var(--ft-danger-text);
+  --bs-btn-hover-border-color: var(--ft-danger-text);
+  --bs-btn-active-color: var(--ft-surface);
+  --bs-btn-active-bg: var(--ft-danger-text);
+  --bs-btn-active-border-color: var(--ft-danger-text);
+}
+
+.text-danger {
+  color: var(--ft-danger-text) !important;
+}
+
+/* Form boxes are white (dark: raised) with a border of 3:1 or more, so they can be seen as boxes (WCAG 1.4.11). */
+.form-control,
+.form-select {
+  background-color: var(--ft-surface);
+  border-color: var(--ft-input-border);
+}
+
+.form-check-input {
+  --bs-form-check-bg: var(--ft-surface);
+  border-color: var(--ft-input-border);
+}
+
+.form-check-input:checked {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-select:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem var(--bs-body-bg), 0 0 0 0.25rem #258cfb;
+}
+
+/* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it
+   (WCAG 2.4.11). */
+html {
+  scroll-padding-top: 5rem;
 }
 
 /* Long email addresses wrap (at any character) rather than running off a 320 px phone screen. */
 .account-email {
   overflow-wrap: anywhere;
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
