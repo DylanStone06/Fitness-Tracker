@@ -270,6 +270,93 @@ h2, .h2, h3, .h3, .h4, .h5 {
   accent-color: var(--bs-primary);
 }
 
+/* The calendar (CAL-1, FullCalendar): its colours come from the theme, through FullCalendar's own variables.
+   Activities use their category's label colours (each at least 6.34:1, docs/design.md) with the stripe colour as a
+   thicker left edge; getting ready, travel and changing are lighter, dashed blocks in the same colour (CAL-5). */
+.ft-calendar {
+  --fc-border-color: var(--bs-border-color);
+  --fc-page-bg-color: var(--ft-surface);
+  --fc-neutral-bg-color: var(--bs-tertiary-bg);
+  --fc-list-event-hover-bg-color: var(--bs-tertiary-bg);
+  --fc-today-bg-color: rgba(var(--bs-primary-rgb), 0.08);
+  --fc-now-indicator-color: var(--ft-danger-text);
+  --fc-button-text-color: var(--bs-body-color);
+  --fc-button-bg-color: var(--ft-surface);
+  --fc-button-border-color: var(--ft-input-border);
+  --fc-button-hover-bg-color: var(--bs-tertiary-bg);
+  --fc-button-hover-border-color: var(--ft-input-border);
+  --fc-button-active-bg-color: var(--bs-primary);
+  --fc-button-active-border-color: var(--bs-primary);
+  padding: 0.75rem;
+  background-color: var(--ft-surface);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: var(--ft-shadow);
+}
+
+.ft-calendar .fc-button-primary:not(:disabled).fc-button-active,
+.ft-calendar .fc-button-primary:not(:disabled):active {
+  color: #fff;
+}
+
+.ft-calendar .fc-header-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ft-calendar .fc-toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.ft-calendar .ft-event {
+  --fc-event-bg-color: var(--ft-cat-bg);
+  --fc-event-border-color: var(--ft-cat);
+  --fc-event-text-color: var(--ft-cat-text);
+  border-left-width: 4px;
+}
+
+.ft-calendar .ft-segment {
+  --fc-event-bg-color: var(--ft-surface);
+  --fc-event-border-color: var(--ft-cat);
+  --fc-event-text-color: var(--bs-secondary-color);
+  border-style: dashed;
+}
+
+.ft-calendar .fc-list .ft-segment {
+  display: none;
+}
+
+.ft-calendar .ft-clash {
+  outline: 2px solid var(--ft-danger-text);
+  outline-offset: -2px;
+}
+
+.ft-event-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ft-event-title {
+  font-weight: 600;
+}
+
+.ft-event-details {
+  font-size: 0.875rem;
+  color: var(--bs-secondary-color);
+}
+
+.ft-event-clash {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ft-danger-text);
+}
+
+/* In an activity's own colours the clash text keeps the label colour, which is what its contrast was measured on. */
+.ft-calendar .fc-timegrid .ft-event-clash {
+  color: inherit;
+}
+
 /* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it
    (WCAG 2.4.11). */
 html {

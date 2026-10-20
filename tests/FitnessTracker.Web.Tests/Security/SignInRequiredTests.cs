@@ -11,6 +11,7 @@ public sealed class SignInRequiredTests(TestAppFactory factory) : IClassFixture<
     [InlineData("/Home/Index")]
     [InlineData("/Locations")]
     [InlineData("/Locations/Create")]
+    [InlineData("/Calendar")]
     [InlineData("/Calendar/Events?start=2026-10-19&end=2026-10-26")]
     public async Task Page_RedirectsToSignIn_WhenSignedOut(string url)
     {

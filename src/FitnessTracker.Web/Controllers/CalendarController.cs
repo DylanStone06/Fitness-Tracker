@@ -17,6 +17,19 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
     /// <summary>The most days one request may ask for: a month view shows six weeks.</summary>
     public const int MostDays = 42;
 
+    /// <summary>The page: FullCalendar, given the user's settings, draws the days from <see cref="Events"/>.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Index()
+    {
+        var user = await planning.LoadAsync();
+        return View(new CalendarPageViewModel(
+            Url.Action(nameof(Events))!,
+            user.Now.Zone.Id,
+            (int)user.Preferences.WeekStart % 7,
+            !user.Preferences.Use24HourClock,
+            await planning.UnreadableAsync()));
+    }
+
     /// <summary>
     /// The occurrences on screen from <paramref name="start"/> up to (not including) <paramref name="end"/>, clock
     /// times in the user's timezone as FullCalendar sends them ("2026-10-19T00:00:00", or a date).

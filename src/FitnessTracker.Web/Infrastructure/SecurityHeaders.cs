@@ -14,13 +14,33 @@ public static class SecurityHeaders
     public const string ContentSecurityPolicy =
         "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
+    private const string StyleNonceKey = "SecurityHeaders.StyleNonce";
+
+    /// <summary>
+    /// A one-time code (128 random bits) for this response, allowing &lt;style&gt; elements that carry it. Only a page
+    /// that asks gets one: the calendar, whose library adds its styles that way (it reads the code from a
+    /// &lt;meta name="csp-nonce"&gt; element). Every other page keeps the policy above.
+    /// </summary>
+    public static string StyleNonce(HttpContext context)
+    {
+        if (context.Items[StyleNonceKey] is not string nonce)
+        {
+            nonce = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+            context.Items[StyleNonceKey] = nonce;
+        }
+
+        return nonce;
+    }
+
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
         {
             context.Response.OnStarting(() =>
             {
                 var headers = context.Response.Headers;
-                headers.ContentSecurityPolicy = ContentSecurityPolicy;
+                headers.ContentSecurityPolicy = context.Items[StyleNonceKey] is string nonce
+                    ? $"{ContentSecurityPolicy}; style-src 'self' 'nonce-{nonce}'"
+                    : ContentSecurityPolicy;
                 headers.XContentTypeOptions = "nosniff";
                 // For browsers that don't read frame-ancestors.
                 headers.XFrameOptions = "DENY";

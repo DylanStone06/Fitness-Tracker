@@ -72,5 +72,10 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
   started" shows its progress as a bar and in words ("3 of 4 done"). On wide screens, Next up and today sit beside
   the next 7 days; on phones they stack.
 - **Empty states** say what to do next ("Nothing planned in the next 7 days. Add an activity.").
+- **Calendar** (FullCalendar): a card like the others; activities in their category's label colours with a thicker
+  stripe-coloured edge, and getting ready, travel and changing as dashed, lighter blocks in the same colour, joined to
+  it (hidden in the list view). A clash has a red outline and says "⚠ Clashes with …". Buttons are words, not icons.
+  On phones (under 768 px) it opens on the list. The calendar page alone allows FullCalendar's `<style>` elements, by
+  a one-time code in the policy (`SecurityHeaders.StyleNonce`).
 - **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
   elements (`<progress>`, not a styled `<div>`).

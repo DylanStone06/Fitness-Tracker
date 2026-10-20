@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/FitnessTracker.Web.styles.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
     @{
@@ -62,6 +63,9 @@
                         {
                             <li class="nav-item">
                                 <a class="nav-link @(Current("Home") is null ? null : "active")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index">Home</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(Current("Calendar") is null ? null : "active")" aria-current="@Current("Calendar")" asp-controller="Calendar" asp-action="Index">Calendar</a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link @(Current("Activities") is null ? null : "active")" aria-current="@Current("Activities")" asp-controller="Activities" asp-action="Index">Activities</a>

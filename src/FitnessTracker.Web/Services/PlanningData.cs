@@ -62,7 +62,22 @@ public class PlanningData(AppDbContext db, IClock clock)
             .Where(activity => activity.Id != except && activity.StartDate <= dates.End
                 && (activity.RepeatRule != null || activity.StartDate >= dates.Start))
             .ToListAsync();
+        return Planned(stored, unreadable);
+    }
 
+    /// <summary>
+    /// P1: every stored activity the app can't read, named, for a page that shows only some dates (the calendar), so
+    /// one isn't just missing.
+    /// </summary>
+    public async Task<List<string>> UnreadableAsync()
+    {
+        var unreadable = new List<string>();
+        Planned(await db.Activities.AsNoTracking().ToListAsync(), unreadable);
+        return unreadable;
+    }
+
+    private static List<PlannedActivity> Planned(List<Activity> stored, List<string> unreadable)
+    {
         var planned = new List<PlannedActivity>();
         foreach (var activity in stored)
         {
