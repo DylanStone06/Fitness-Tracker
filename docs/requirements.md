@@ -327,3 +327,14 @@ later phase; the change is then recorded here.
 | Q3 | Which week is "week A" in a cycle? | The week the template is first applied |
 | Q4 | What's in the starter exercise list? | About 30 common lifts and bodyweight exercises |
 | Q5 | Where will it be hosted? | Decide in Phase 9 |
+
+Decided by the owner on 20 October 2026, at the end of Phase 4:
+
+| # | Question | Decision |
+|---|---|---|
+| Q6 | Does a night shift on a clock-change night end at its usual clock time? | No: lengths stay elapsed time (§8), so it ends an hour earlier or later by the clock. The form says so. |
+| Q7 | Can an activity take up the whole of the 25-hour day the clocks go back? | Yes: H8's limit is 24 hours, or the whole day on a day longer than that. |
+| Q8 | Are activities re-checked when the timezone preference changes? | Yes, after the move. Problems and clashes are shown on the Preferences page; they don't stop the change. |
+| Q9 | Default getting-ready and changing times per category (ACC-6)? | Built in Phase 4. |
+| Q10 | Back-to-back activities at the same place (the office gym straight after work)? | After the MVP, with location chaining (SCH-8). |
+| Q11 | Does a day's load count overlapping footprints each in full? | Yes, as §7.3's "total footprint minutes": an overlap there is a clash the user chose to keep. |

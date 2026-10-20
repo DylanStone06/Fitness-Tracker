@@ -115,7 +115,8 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   location chaining (SCH-8, after the MVP) unless the owner brings "staying at the same place" forward. Pinned by
   `DailyLoadTests.AnOfficeGymStraightAfterWork_*`.
 - `DailyLoad.Of(footprints, zone)`: footprint time per local day, split at real midnight (23/25-hour days);
-  overlapping footprints each count (§7.3 "total footprint minutes"). Days with no load are left out.
+  overlapping footprints each count (§7.3 "total footprint minutes"; kept by the owner, requirements Q11). Days with
+  no load are left out.
 
 ## The check on save (`Domain/Scheduling/ActivityCheck`, SCH-1, first part)
 
