@@ -12,8 +12,8 @@ namespace FitnessTracker.Web.Controllers;
 
 public class HomeController(AppDbContext db, PlanningData planning) : Controller
 {
-    // GOL-2, first part: what is still to set up, and today and the next 7 days. Everything is the signed-in user's
-    // own, through the per-user filter (T19, HomeTests).
+    // GOL-2, first part: a greeting, what is still to set up, the next activity, and today and the next 7 days.
+    // Everything is the signed-in user's own, through the per-user filter (T19, HomeTests).
     public async Task<IActionResult> Index()
     {
         var user = await planning.LoadAsync();
@@ -23,7 +23,8 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
         var loaded = new DateInterval(today.PlusDays(-Agenda.MarginDays), today.PlusDays(HomeViewModel.DaysAhead + Agenda.MarginDays));
         var activities = await planning.ActivitiesOnAsync(loaded, unreadable);
         var agenda = Agenda.Between(activities, user.Context, today, today.PlusDays(HomeViewModel.DaysAhead));
-        return View(HomeViewModel.From(user, agenda, await db.Activities.AnyAsync(), unreadable));
+        var categories = await db.Activities.AsNoTracking().ToDictionaryAsync(activity => activity.Id, activity => activity.Category);
+        return View(HomeViewModel.From(user, agenda, categories, unreadable));
     }
 
     // Error and Status are re-run for whichever request failed, which may be a signed-out POST whose

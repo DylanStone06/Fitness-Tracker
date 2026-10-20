@@ -179,6 +179,67 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         Assert.Contains("Clashes with Call", html);
     }
 
+    // The greeting follows the time where the user is: 12:00 UTC is 13:00 in London, 08:00 in New York, 21:00 in Tokyo.
+    [Theory]
+    [InlineData("Europe/London", "Good afternoon")]
+    [InlineData("America/New_York", "Good morning")]
+    [InlineData("Asia/Tokyo", "Good evening")]
+    public async Task TheGreeting_FollowsTheTimeWhereTheUserIs(string zone, string expected)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.SubmitFormAsync("/Preferences", "/Preferences", new(PreferencesForm()) { ["TimeZoneId"] = zone });
+
+        Assert.Contains(expected, await HomePageAsync(browser));
+    }
+
+    // GOL-2, "the next activity": at 13:00 the 09:00 meeting is over, so the evening gym session is next, with when to
+    // leave (T1).
+    [Fact]
+    public async Task NextUp_IsTheNextActivity_WithWhenToLeave()
+    {
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync();
+        await browser.AddActivityAsync("Morning meeting", new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "09:00" });
+        await browser.AddActivityAsync("Evening gym", new()
+        {
+            ["LocationId"] = gym.Id.ToString(),
+            ["StartDate"] = "2026-10-19",
+            ["StartTime"] = "18:00",
+            ["DurationHours"] = "0",
+            ["DurationMinutes"] = "50",
+            ["ChangingMinutes"] = "10",
+        });
+
+        var nextUp = Section(await HomePageAsync(browser), "next-up-heading");
+
+        Assert.Contains("Evening gym", nextUp);
+        Assert.Contains("Leave home 17:35, back 19:45", nextUp);
+        Assert.DoesNotContain("Morning meeting", nextUp);
+    }
+
+    [Fact]
+    public async Task NextUp_IsLeftOut_WhenNothingIsLeft()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Morning meeting", new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "09:00" });
+
+        Assert.DoesNotContain("next-up-heading", await HomePageAsync(browser));
+    }
+
+    // CAL-2: each activity shows its category by name (its colour is never the only signal), and opens its edit page.
+    [Fact]
+    public async Task EachActivity_ShowsItsCategory_AndOpensItsEditPage()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Catch-up");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "19:00", ["Category"] = "Social" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var html = await HomePageAsync(browser);
+
+        Assert.Contains($"href=\"/Activities/Edit/{id}\"", html);
+        Assert.Contains("class=\"ft-chip\">Social</span>", html);
+    }
+
     // T19: the home page shows only the signed-in user's own activities.
     [Fact]
     public async Task AnotherUsersActivities_AreNotShown()
@@ -226,6 +287,14 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         ["MinimumHoursBetweenDemandingSessions"] = "24",
         ["MaximumDemandingSessionsPerDay"] = "1",
     };
+
+    /// <summary>One section of the page, from its heading (found by id) to the section's end.</summary>
+    private static string Section(string html, string headingId)
+    {
+        var start = html.IndexOf($"id=\"{headingId}\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"No heading with the id {headingId}.");
+        return html[start..html.IndexOf("</section>", start, StringComparison.Ordinal)];
+    }
 
     private static async Task<string> HomePageAsync(TestBrowser browser)
     {

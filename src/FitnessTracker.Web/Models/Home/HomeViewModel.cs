@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Services;
 using NodaTime;
 
@@ -8,18 +9,27 @@ namespace FitnessTracker.Web.Models.Home;
 public sealed record SetupStep(string Text, bool Done, string Controller, string Action = "Index", string? Progress = null);
 
 /// <summary>
-/// The home page (GOL-2, first part): what is still to set up, and the agenda for today and the next 7 days. The rest
-/// of GOL-2 (free time, tonight's sleep, weekly targets) comes with the phases that build those.
+/// The home page (GOL-2, first part): a greeting, what is still to set up, the next activity, and the agenda for today
+/// and the next 7 days. The rest of GOL-2 (free time, tonight's sleep, weekly targets) comes with the phases that
+/// build those.
 /// </summary>
 public sealed class HomeViewModel
 {
     public const int DaysAhead = 7;
+
+    public required string Greeting { get; init; }
 
     public required IReadOnlyList<SetupStep> Steps { get; init; }
 
     public required LocalDate Today { get; init; }
 
     public required IReadOnlyList<AgendaItem> Agenda { get; init; }
+
+    /// <summary>The next activity (GOL-2), or null when nothing listed is left.</summary>
+    public required NextUp? Next { get; init; }
+
+    /// <summary>Each of the user's activities' category, for its colour and name (CAL-2).</summary>
+    public required IReadOnlyDictionary<Guid, ActivityCategory> Categories { get; init; }
 
     public required Guid? Home { get; init; }
 
@@ -33,7 +43,15 @@ public sealed class HomeViewModel
     public IEnumerable<AgendaItem> On(LocalDate date) =>
         Agenda.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
 
-    public static HomeViewModel From(UserPlanning user, IReadOnlyList<AgendaItem> agenda, bool hasActivities, IReadOnlyList<string> unreadable)
+    /// <summary>"Good morning" from 05:00, "Good afternoon" from 12:00, "Good evening" from 18:00 until 05:00.</summary>
+    public static string GreetingAt(LocalTime time) => time.Hour switch
+    {
+        >= 5 and < 12 => "Good morning",
+        >= 12 and < 18 => "Good afternoon",
+        _ => "Good evening",
+    };
+
+    public static HomeViewModel From(UserPlanning user, IReadOnlyList<AgendaItem> agenda, IReadOnlyDictionary<Guid, ActivityCategory> categories, IReadOnlyList<string> unreadable)
     {
         var home = user.Context.Home;
 
@@ -52,10 +70,14 @@ public sealed class HomeViewModel
                 new("Mark your home", home is not null, "Locations"),
                 new("Add travel times to your other places", home is not null && present == needed, "TravelLegs",
                     Progress: home is null ? "Mark your home first" : needed > 0 ? $"{present} of {needed} journeys" : null),
-                new("Add an activity", hasActivities, "Activities", "Create"),
+                new("Add an activity", categories.Count > 0, "Activities", "Create"),
             ],
+            Greeting = GreetingAt(user.Now.TimeOfDay),
             Today = user.Context.Today,
             Agenda = agenda,
+            // Qualified: inside this class, "Agenda" is the property.
+            Next = Domain.Scheduling.Agenda.Next(agenda, user.Now.ToInstant()),
+            Categories = categories,
             Home = home,
             PlaceNames = user.Locations.ToDictionary(location => location.Id, location => location.Name),
             Unreadable = unreadable,

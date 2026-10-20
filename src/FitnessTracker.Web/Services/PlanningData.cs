@@ -6,13 +6,17 @@ using NodaTime.TimeZones;
 
 namespace FitnessTracker.Web.Services;
 
-/// <summary>What the planning pages need about the signed-in user, read once through the per-user filter.</summary>
+/// <summary>
+/// What the planning pages need about the signed-in user, read once through the per-user filter. <see cref="Now"/> is
+/// the moment it was read, in the user's timezone; the context's "today" is its date.
+/// </summary>
 public sealed record UserPlanning(
     UserPreferences Preferences,
     bool PreferencesSaved,
     IReadOnlyList<Location> Locations,
     IReadOnlyList<TravelLeg> Legs,
-    PlanningContext Context);
+    PlanningContext Context,
+    ZonedDateTime Now);
 
 /// <summary>
 /// Reads the signed-in user's preferences (or the defaults), locations, travel times and "today" in their timezone,
@@ -27,13 +31,13 @@ public class PlanningData(AppDbContext db, IClock clock)
         var locations = await db.Locations.AsNoTracking().Include(location => location.OpeningTimes).ToListAsync();
         var legs = await db.TravelLegs.AsNoTracking().ToListAsync();
 
-        var zone = DateTimeZoneProviders.Tzdb[preferences.TimeZoneId];
+        var now = clock.GetCurrentInstant().InZone(DateTimeZoneProviders.Tzdb[preferences.TimeZoneId]);
         var context = new PlanningContext(
-            clock.GetCurrentInstant().InZone(zone).Date,
+            now.Date,
             locations.FirstOrDefault(location => location.IsHome)?.Id,
             TravelLeg.ToTravelTimes(legs),
             locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())));
-        return new UserPlanning(preferences, saved is not null, locations, legs, context);
+        return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
     }
 
     /// <summary>ACC-6: each category's default getting-ready and changing minutes: the user's own, or the built-in ones.</summary>

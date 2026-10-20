@@ -67,7 +67,8 @@
   --ft-surface: #1e2128;
   --ft-input-border: #737b87;
   --ft-danger-text: #ff8a80;
-  --ft-shadow: none;
+  /* No shadow, written as an invisible one: "none" can't be part of a list of shadows (.ft-next adds its stripe). */
+  --ft-shadow: 0 0 0 transparent;
   --ft-work: #6ea8fe;
   --ft-work-bg: #1f2a44;
   --ft-work-text: #bcd4ff;
@@ -235,6 +236,36 @@ h2, .h2, h3, .h3, .h4, .h5 {
   line-height: 1.5;
   color: var(--ft-cat-text);
   background-color: var(--ft-cat-bg);
+}
+
+/* Home page (GOL-2). Times line up in columns; the Next up card has a wider stripe and larger text. */
+.ft-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ft-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.ft-next.ft-stripe {
+  box-shadow: inset 6px 0 0 var(--ft-cat, transparent), var(--ft-shadow);
+}
+
+.ft-next-details .ft-time,
+.ft-next-details a {
+  font-size: 1.25rem;
+}
+
+.ft-progress {
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  accent-color: var(--bs-primary);
 }
 
 /* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it

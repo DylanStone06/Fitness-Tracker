@@ -203,6 +203,66 @@ public class AgendaTests
             Agenda.Between([atGym, atHome], Context(), Monday, Monday).Select(item => item.Activity.Id));
     }
 
+    // GOL-2, "the next activity": at 13:00 the morning meeting is over, so the evening gym session is next. London is
+    // on GMT on 2 November, so these clock times are UTC too.
+    [Fact]
+    public void Next_IsTheFirstActivityNotYetOver()
+    {
+        var meeting = OneOff("Meeting", Monday, new LocalTime(9, 0), minutes: 30, at: null);
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+        var agenda = Agenda.Between([meeting, gym], Context(), Monday, Monday);
+
+        var next = Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, 13, 0));
+
+        Assert.Equal("Gym", next?.Item.Activity.Title);
+        Assert.False(next?.UnderWay);
+    }
+
+    // Walking home from the gym (it ended at 18:50; back at 19:45) still counts: the session is under way until you're
+    // back. At 19:45 it's over (half-open, §8), and nothing else is left.
+    [Theory]
+    [InlineData(17, 35, true)]
+    [InlineData(19, 30, true)]
+    [InlineData(19, 45, false)]
+    public void AnActivity_IsUnderWay_FromLeavingUntilBack(int hour, int minute, bool stillNext)
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
+        var agenda = Agenda.Between([gym], Context(), Monday, Monday);
+
+        var next = Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, hour, minute));
+
+        Assert.Equal(stillNext, next is not null);
+        Assert.True(next?.UnderWay ?? true);
+    }
+
+    // What you have to set off for first is next, even when something else starts before it arrives: leaving for the
+    // 18:00 gym session at 17:35 comes before a 17:40 call at home (the two clash, and both say so).
+    [Fact]
+    public void Next_IsWhatYouSetOffForFirst()
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+        var call = OneOff("Call", Monday, new LocalTime(17, 40), minutes: 10, at: null);
+        var agenda = Agenda.Between([gym, call], Context(), Monday, Monday);
+
+        Assert.Equal("Gym", Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, 17, 0))?.Item.Activity.Title);
+    }
+
+    // An occurrence with no footprint (longer than the day allows, H8) is next until its own end.
+    [Fact]
+    public void AnOccurrenceWithNoFootprint_IsNextUntilItEnds()
+    {
+        var festival = OneOff("Festival", Monday, new LocalTime(6, 0), minutes: 16 * 60, at: Gym);
+        var slowWayBack = new TravelTimes(new Dictionary<Leg, Duration>
+        {
+            [new Leg(Home, Gym)] = Duration.FromMinutes(25),
+            [new Leg(Gym, Home)] = Duration.FromMinutes(600),
+        });
+        var agenda = Agenda.Between([festival], Context(travel: slowWayBack), Monday, Monday);
+
+        Assert.True(Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, 21, 59))?.UnderWay);
+        Assert.Null(Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, 22, 0)));
+    }
+
     private static PlannedActivity OneOff(string title, LocalDate date, LocalTime start, int minutes, Guid? at, Buffers? buffers = null) =>
         new(Guid.NewGuid(), title,
             new Series(date, start, Duration.FromMinutes(minutes), London, RecurrenceRule.Daily().EndingAfter(1)),

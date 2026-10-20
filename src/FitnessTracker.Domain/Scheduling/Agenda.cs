@@ -12,6 +12,9 @@ namespace FitnessTracker.Domain.Scheduling;
 /// </summary>
 public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith);
 
+/// <summary>The agenda item to do next (GOL-2), and whether it has begun: getting ready or the journey out counts.</summary>
+public sealed record NextUp(AgendaItem Item, bool UnderWay);
+
 /// <summary>
 /// GOL-2, first part: every occurrence starting on a run of days, in time order (then by title and id, SCH-7), for the home
 /// page's "today and the next 7 days". Clashes (H1, CAL-6) are found on whole footprints, including activities from
@@ -75,6 +78,21 @@ public static class Agenda
             .ThenBy(item => item.Entry.Occurrence.Date)
             .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith))
             .ToList();
+    }
+
+    /// <summary>
+    /// GOL-2's "the next activity": of the items not over at <paramref name="now"/>, the one you start getting ready or
+    /// set off for first (ties keep the agenda's order, SCH-7). An item is over once you're back, at its footprint's
+    /// end, or at its own end when it has no footprint. Null when everything listed is over.
+    /// </summary>
+    public static NextUp? Next(IReadOnlyList<AgendaItem> items, Instant now)
+    {
+        var next = items
+            .Select(item => (Item: item, Time: item.Footprint?.Whole ?? item.Occurrence.Time))
+            .Where(entry => entry.Time.End > now)
+            .OrderBy(entry => entry.Time.Start)
+            .FirstOrDefault();
+        return next.Item is null ? null : new NextUp(next.Item, UnderWay: next.Time.Start <= now);
     }
 
     /// <summary>The time it starts, saying which one when the clocks repeat it ("01:30 BST").</summary>

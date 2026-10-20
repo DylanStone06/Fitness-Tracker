@@ -35,15 +35,13 @@ Size: S = a day or less, M = a few days, L = a phase of its own.
 
 ### Home page and look
 
-The owner also asked for the app to look good, so ideas 1-5 are built straight after this page was written.
+The owner also asked for the app to look good, so ideas 1-5 were built on 20 October 2026 and have left this page:
+a greeting and a **Next up** card (GOL-2's "next activity"), one colour per category (CAL-2), dark mode following the
+device, a calmer look, and home-page activities that open their edit page. See [design](design.md) and the
+[roadmap](roadmap.md).
 
 | # | Idea | Why it's good | Fits | Size | Recommendation |
 |---|---|---|---|---|---|
-| 1 | A greeting ("Good afternoon") and a **Next up** card with when to leave | The plan's "one clear main action": the next thing to do first, not the whole week. GOL-2 already asks for "the next activity" but it isn't built yet. | GOL-2 | S | **Now** |
-| 2 | One colour per category, the same everywhere (blue work, green exercise, orange meal prep, purple social, grey other), always with the category in words | CAL-2 says "category (colour)" but no colours were chosen. The Phase 5 calendar needs them. | CAL-2 | S | **Now** |
-| 3 | Dark mode | Easier on the eyes for evening planning | Look | S | **Now**, following the device setting. A choice in Preferences later. |
-| 4 | A calmer, warmer look: off-white page, rounded cards, colour used sparingly | Makes it an app you want to open | Look | S | **Now** |
-| 5 | Everything on the home page opens its item (the gym session opens the activity) | Fewer clicks | GOL-2 | S | **Now**: activities on Home link to their edit page |
 | 6 | Navigation grouped by what you do daily (Home, Calendar, Training, Sleep, later Food), with setup pages (locations, travel times, default times) under Settings | The menu grows with every phase; setup pages are rarely needed once done | Layout | S | Phase 5, when Calendar joins the menu |
 | 7 | Progress that encourages rather than punishes: rings or bars for weekly targets; "weeks on target" rather than streaks that break | Fits P4 ("more training isn't automatically better"). GOL-3 lists streaks. | GOL-1, GOL-3 | S | Use for weekly targets (Phases 6-9); reword GOL-3's streaks when it is built |
 | 8 | Choose which cards the home page shows | Personal, but only useful once there are several cards | GOL-2 | M | After the MVP |

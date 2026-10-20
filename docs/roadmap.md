@@ -32,11 +32,11 @@ the parts fit is in [architecture notes](architecture.md).
 | ACC-6 | Done | 4 | "Default time around activities" page (linked from Preferences); a blank getting-ready or changing time on an activity gets its category's default. Built-in defaults for exercise until the user sets their own. |
 | TRV-1 | Done | 2, 4 | Locations with a home and opening hours (closed days, closing after midnight). |
 | TRV-2 | Done | 4 | Travel times per direction with a mode; footprints use them, a missing one is never zero. |
-| CAL-2 | Done | 4 | Activities page: add, edit, delete with category, place, length, buffers, fixed/movable, priority, notes. |
+| CAL-2 | Done | 4 | Activities page: add, edit, delete with category, place, length, buffers, fixed/movable, priority, notes. Each category has one colour, shown with its name ([design](design.md)). |
 | CAL-3 | Done | 3, 4 | Daily, weekly on days, every N, end date or count; stored as RRULE text. One occurrence's changes: Phase 5. |
 | FIT-6 | Done | 4 | The "demanding" flag on activities (used by H5-H7 in Phase 6). |
 | SCH-1 | Started | 4 | One check on every activity save: H1 (clashes, "Save anyway"), H4, H8, travel, never-happening repeats. H3, H5-H7 and other save paths in later phases. |
-| GOL-2 | Started | 4 | Home page: what to set up, today and the next 7 days with when to leave and clashes. |
+| GOL-2 | Started | 4 | Home page: a greeting, what to set up, the next activity (under way until you're back), today and the next 7 days with when to leave and clashes; each activity opens its edit page. |
 | T1, T9, T10, T11, T17 | Covered | 4 | Domain and page tests; names in the `scheduling-rules` skill. |
 | CAL-4 | Domain done | 3 | Cancel, move, restore one occurrence; series edits keep and report one-off changes. Screens in Phase 5. |
 | CAL-9 | Started | 3 | A/B week cycles (1-4 weeks, anchor week). Templates themselves in Phases 4-5. |

@@ -64,3 +64,10 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
 - **Header**: sticks to the top of the screen; `scroll-padding-top` keeps a field the error summary links to from
   hiding under it (WCAG 2.4.11).
 - **Cards and lists**: white (dark: raised) surfaces with rounded corners and a faint shadow (none in dark mode).
+- **Home page**: a greeting by the time of day where the user is, then one main thing: the **Next up** card (a wider
+  category stripe, larger time and title, when to leave). Times use tabular figures so they line up. "Getting
+  started" shows its progress as a bar and in words ("3 of 4 done"). On wide screens, Next up and today sit beside
+  the next 7 days; on phones they stack.
+- **Empty states** say what to do next ("Nothing planned in the next 7 days. Add an activity.").
+- **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
+  elements (`<progress>`, not a styled `<div>`).
