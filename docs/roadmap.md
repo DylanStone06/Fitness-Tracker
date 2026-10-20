@@ -1,7 +1,8 @@
 # Roadmap
 
 Requirement IDs (ACC-, CAL-, SCH-, …) and test scenarios (T1–T24) refer to [requirements.md](requirements.md).
-Each phase gets its own branch (`phase-N-short-name`). The owner merges and pushes.
+Each phase gets its own branch (`phase-N-short-name`). Claude pushes and opens the pull request where its tools allow
+(the owner's decision, 20 October 2026); otherwise the owner does it from GitHub Desktop.
 
 | # | Phase | Status | Objective | Main files | Key tests | Done when |
 |---|---|---|---|---|---|---|
@@ -55,4 +56,5 @@ the parts fit is in [architecture notes](architecture.md).
 4. Docs updated (requirements status, architecture notes, known limitations).
 5. A milestone report: what was built, why, files changed, tests run with **actual** results, open issues, decisions
    needed, next step.
-6. Committed locally, one commit per change; the owner pushes.
+6. Committed, one commit per change, and pushed with a pull request (by Claude where its tools allow, otherwise the
+   owner).
