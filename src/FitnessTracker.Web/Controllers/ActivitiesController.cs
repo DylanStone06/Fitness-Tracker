@@ -32,8 +32,10 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             .ToList());
     }
 
+    // From the calendar: the date and time selected there, and back to the calendar once saved.
     [HttpGet]
-    public async Task<IActionResult> Create() => View(await FillListsAsync(new ActivityFormViewModel()));
+    public async Task<IActionResult> Create(string? date, string? time, bool returnToCalendar = false) =>
+        View(await FillListsAsync(ActivityFormViewModel.ForNew(date, time, returnToCalendar)));
 
     [HttpPost]
     public async Task<IActionResult> Create(ActivityFormViewModel model)
@@ -56,11 +58,11 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 
         db.Activities.Add(activity);
         await db.SaveChangesAsync();
-        return RedirectToAction(nameof(Index));
+        return AfterSaving(model);
     }
 
     [HttpGet]
-    public async Task<IActionResult> Edit(Guid id)
+    public async Task<IActionResult> Edit(Guid id, bool returnToCalendar = false)
     {
         var activity = await FindAsync(id);
         if (activity is null)
@@ -69,6 +71,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         }
 
         var model = ActivityFormViewModel.From(activity);
+        model.ReturnToCalendar = returnToCalendar;
         await FillListsAsync(model);
         return View(model);
     }
@@ -125,8 +128,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return View(model);
         }
 
-        return RedirectToAction(nameof(Index));
+        return AfterSaving(model);
     }
+
+    // Back where the form was opened from: the calendar, on the activity's week, or the list.
+    private RedirectToActionResult AfterSaving(ActivityFormViewModel model) =>
+        model.ReturnToCalendar
+            ? RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = model.SavedStartDate })
+            : RedirectToAction(nameof(Index));
 
     // Only asks; deleting needs the form post below.
     [HttpGet]

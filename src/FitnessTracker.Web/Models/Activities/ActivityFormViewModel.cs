@@ -128,10 +128,27 @@ public class ActivityFormViewModel
     /// <summary>Edit only: the version of the activity the form was opened with (requirements §9).</summary>
     public Guid Version { get; set; }
 
+    /// <summary>Opened from the calendar: saving (or cancelling) goes back to it, on the activity's week.</summary>
+    public bool ReturnToCalendar { get; set; }
+
+    /// <summary>The start date as saved, once the form is valid: the week the calendar goes back to.</summary>
+    public string? SavedStartDate => ParseDate(StartDate) is { } date ? DateInput.Format(date) : null;
+
     /// <summary>The signed-in person's locations, for the list. Filled by the controller, never posted.</summary>
     [BindNever]
     [ValidateNever]
     public IReadOnlyList<Location> Locations { get; set; } = [];
+
+    /// <summary>
+    /// A new activity's form, starting at the date and time selected on the calendar. Either is left blank when it
+    /// can't be read (a link edited by hand), as the form is without them.
+    /// </summary>
+    public static ActivityFormViewModel ForNew(string? date, string? time, bool returnToCalendar) => new()
+    {
+        StartDate = ParseDate(date) is { } start && IsPlannable(start) ? DateInput.Format(start) : null,
+        StartTime = ParseTime(time) is { } clock ? TimeInput.Format(clock) : null,
+        ReturnToCalendar = returnToCalendar,
+    };
 
     public static ActivityFormViewModel From(Activity activity)
     {

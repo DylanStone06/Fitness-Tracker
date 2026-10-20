@@ -11,8 +11,9 @@
 <h1>Calendar</h1>
 <p class="text-body-secondary">
     Each activity with the time around it: getting ready, travel and changing are the lighter blocks joined to it.
-    Select an activity to change it.
+    Select an activity to change it, or an empty time to add one there.
 </p>
+<p><a class="btn btn-primary" asp-controller="Activities" asp-action="Create" asp-route-returnToCalendar="true">Add an activity</a></p>
 
 @if (Model.Unreadable.Count > 0)
 {
@@ -30,7 +31,10 @@
      data-events-url="@Model.EventsUrl"
      data-time-zone="@Model.TimeZoneId"
      data-first-day="@Model.FirstDay"
-     data-hour12="@(Model.Hour12 ? "true" : "false")"></div>
+     data-hour12="@(Model.Hour12 ? "true" : "false")"
+     data-create-url="@Url.Action("Create", "Activities")"
+     data-edit-url="@Url.Action("Edit", "Activities")"
+     data-initial-date="@Model.InitialDate"></div>
 <p id="calendar-status" class="small text-body-secondary mt-2" role="status"></p>
 <noscript>
     <p>The calendar needs JavaScript. Your activities are all on the <a asp-controller="Activities" asp-action="Index">Activities</a> page.</p>

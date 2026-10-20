@@ -7,7 +7,7 @@
     return;
   }
 
-  const { eventsUrl, timeZone, firstDay, hour12 } = element.dataset;
+  const { eventsUrl, createUrl, editUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
   const twelveHour = hour12 === 'true';
   const status = document.getElementById('calendar-status');
   const say = (text) => {
@@ -41,7 +41,7 @@
       .then((occurrences) => {
         const events = [];
         for (const occurrence of occurrences) {
-          events.push({ ...occurrence, url: `/Activities/Edit/${occurrence.extendedProps.activityId}` });
+          events.push({ ...occurrence, url: `${editUrl}/${occurrence.extendedProps.activityId}?returnToCalendar=true` });
           // CAL-5: getting ready, travel and changing, as lighter blocks joined to the activity (not in the list).
           for (const part of occurrence.extendedProps.footprint) {
             events.push({
@@ -127,6 +127,13 @@
     locale: 'en-gb',
     firstDay: Number(firstDay),
     initialView: narrow ? 'listWeek' : 'timeGridWeek',
+    // Back from adding or changing an activity: its week. Empty: today's.
+    initialDate: initialDate || undefined,
+    // An empty time opens "Add an activity" there (the button above the calendar does the same from the keyboard).
+    dateClick: (info) => {
+      const at = clockTime(info.date);
+      window.location.assign(`${createUrl}?date=${at.slice(0, 10)}&time=${at.slice(11, 16)}&returnToCalendar=true`);
+    },
     headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay,listWeek' },
     // Words, not FullCalendar's icon font: the font is a data: URL, which the Content-Security-Policy blocks, and
     // words say more to everyone.

@@ -17,17 +17,24 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
     /// <summary>The most days one request may ask for: a month view shows six weeks.</summary>
     public const int MostDays = 42;
 
-    /// <summary>The page: FullCalendar, given the user's settings, draws the days from <see cref="Events"/>.</summary>
+    /// <summary>
+    /// The page: FullCalendar, given the user's settings, draws the days from <see cref="Events"/>. It opens on the week
+    /// of <paramref name="date"/> (back from adding or changing an activity), or today's when that can't be read.
+    /// </summary>
     [HttpGet]
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(string? date)
     {
         var user = await planning.LoadAsync();
+        var initialDate = LocalDatePattern.Iso.Parse(date ?? "") is { Success: true } parsed && parsed.Value.Year is >= 1900 and <= 2999
+            ? LocalDatePattern.Iso.Format(parsed.Value)
+            : null;
         return View(new CalendarPageViewModel(
             Url.Action(nameof(Events))!,
             user.Now.Zone.Id,
             (int)user.Preferences.WeekStart % 7,
             !user.Preferences.Use24HourClock,
-            await planning.UnreadableAsync()));
+            await planning.UnreadableAsync(),
+            initialDate));
     }
 
     /// <summary>

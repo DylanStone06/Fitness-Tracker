@@ -34,7 +34,7 @@ the parts fit is in [architecture notes](architecture.md).
 | TRV-1 | Done | 2, 4 | Locations with a home and opening hours (closed days, closing after midnight). |
 | TRV-2 | Done | 4 | Travel times per direction with a mode; footprints use them, a missing one is never zero. |
 | CAL-2 | Done | 4 | Activities page: add, edit, delete with category, place, length, buffers, fixed/movable, priority, notes. Each category has one colour, shown with its name ([design](design.md)). |
-| CAL-1 | Started | 5 | Calendar page: week, day and list views (list on phones, CAL-10), from a data feed scoped to the user, a date range and their timezone; footprints as lighter blocks (CAL-5) and clashes in words (CAL-6). The 12-hour clock and week start from Preferences apply. Creating, one-occurrence changes and drag and drop are next. |
+| CAL-1 | Started | 5 | Calendar page: week, day and list views (list on phones, CAL-10), from a data feed scoped to the user, a date range and their timezone; footprints as lighter blocks (CAL-5) and clashes in words (CAL-6). The 12-hour clock and week start from Preferences apply. Selecting an empty time adds an activity there; adding or changing one from the calendar returns to its week. One-occurrence changes and drag and drop are next. |
 | CAL-3 | Done | 3, 4 | Daily, weekly on days, every N, end date or count; stored as RRULE text. One occurrence's changes: Phase 5. |
 | FIT-6 | Done | 4 | The "demanding" flag on activities (used by H5-H7 in Phase 6). |
 | SCH-1 | Started | 4 | One check on every activity save: H1 (clashes, "Save anyway"), H4, H8, travel, never-happening repeats. H3, H5-H7 and other save paths in later phases. |

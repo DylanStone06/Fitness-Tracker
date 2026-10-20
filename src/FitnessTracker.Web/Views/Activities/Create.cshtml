@@ -10,10 +10,18 @@
 
         <form asp-action="Create" method="post" novalidate>
             <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="ReturnToCalendar" />
             <partial name="_ActivityFields" />
 
             <button type="submit" class="btn btn-primary">Add activity</button>
-            <a class="btn btn-link" asp-action="Index">Cancel</a>
+            @if (Model.ReturnToCalendar)
+            {
+                <a class="btn btn-link" asp-controller="Calendar" asp-action="Index" asp-route-date="@Model.SavedStartDate">Cancel</a>
+            }
+            else
+            {
+                <a class="btn btn-link" asp-action="Index">Cancel</a>
+            }
         </form>
     </div>
 </div>
