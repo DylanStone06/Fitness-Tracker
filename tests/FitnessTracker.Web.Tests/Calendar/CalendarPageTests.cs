@@ -88,7 +88,7 @@ public sealed class CalendarPageTests(TestAppFactory factory) : IClassFixture<Te
     {
         var meta = Regex.Match(html, """<meta name="csp-nonce" content="([^"]+)" """.TrimEnd());
         Assert.True(meta.Success, "No csp-nonce meta element.");
-        return meta.Groups[1].Value;
+        return WebUtility.HtmlDecode(meta.Groups[1].Value);
     }
 
     private static async Task<string> PageAsync(TestBrowser browser)

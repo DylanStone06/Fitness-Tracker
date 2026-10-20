@@ -23,11 +23,17 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
         var loaded = new DateInterval(today.PlusDays(-Agenda.MarginDays), today.PlusDays(HomeViewModel.DaysAhead + Agenda.MarginDays));
         var activities = await planning.ActivitiesOnAsync(loaded, unreadable);
         var agenda = Agenda.Between(activities, user.Context, today, today.PlusDays(HomeViewModel.DaysAhead));
-        // Two columns, not whole rows: every activity's category, for its colour and name (CAL-2).
-        var categories = await db.Activities
-            .Select(activity => new { activity.Id, activity.Category })
-            .ToDictionaryAsync(activity => activity.Id, activity => activity.Category);
-        return View(HomeViewModel.From(user, agenda, categories, unreadable));
+        // A few columns, not whole rows: every activity's category, for its colour and name (CAL-2), and whether it
+        // repeats, so an occurrence opens its own page (CAL-4).
+        var kinds = await db.Activities
+            .Select(activity => new { activity.Id, activity.Category, Repeats = activity.RepeatRule != null })
+            .ToListAsync();
+        return View(HomeViewModel.From(
+            user,
+            agenda,
+            kinds.ToDictionary(kind => kind.Id, kind => kind.Category),
+            kinds.Where(kind => kind.Repeats).Select(kind => kind.Id).ToHashSet(),
+            unreadable));
     }
 
     // Error and Status are re-run for whichever request failed, which may be a signed-out POST whose

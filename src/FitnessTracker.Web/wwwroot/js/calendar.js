@@ -7,7 +7,12 @@
     return;
   }
 
-  const { eventsUrl, createUrl, editUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
+  const { eventsUrl, createUrl, editUrl, occurrenceUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
+
+  // CAL-4: an occurrence of a repeating activity opens its own page, to change just that one; a one-off, its form.
+  const pageFor = (props) => (props.repeats
+    ? `${occurrenceUrl}/${props.activityId}?date=${props.occurrenceDate}&returnToCalendar=true`
+    : `${editUrl}/${props.activityId}?returnToCalendar=true`);
   const twelveHour = hour12 === 'true';
   const status = document.getElementById('calendar-status');
   const say = (text) => {
@@ -41,7 +46,7 @@
       .then((occurrences) => {
         const events = [];
         for (const occurrence of occurrences) {
-          events.push({ ...occurrence, url: `${editUrl}/${occurrence.extendedProps.activityId}?returnToCalendar=true` });
+          events.push({ ...occurrence, url: pageFor(occurrence.extendedProps) });
           // CAL-5: getting ready, travel and changing, as lighter blocks joined to the activity (not in the list).
           for (const part of occurrence.extendedProps.footprint) {
             events.push({
@@ -93,6 +98,9 @@
       nodes.push(line(when, 'ft-event-time'));
     }
     nodes.push(line(info.event.title, 'ft-event-title'));
+    if (props.moved) {
+      nodes.push(line('Moved, this time only', 'ft-event-details'));
+    }
     if (inList) {
       const details = [props.category, props.place ? `at ${props.place}` : null, props.trip].filter(Boolean).join(' · ');
       if (details) {

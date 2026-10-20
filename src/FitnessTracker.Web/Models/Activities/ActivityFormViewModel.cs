@@ -4,7 +4,6 @@ using FitnessTracker.Web.Data;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NodaTime;
-using NodaTime.Text;
 
 namespace FitnessTracker.Web.Models.Activities;
 
@@ -28,24 +27,12 @@ public enum RepeatEndChoice
 /// The add and edit forms for an activity (CAL-2, CAL-3, FIT-6). The length is asked for as hours and minutes of
 /// elapsed time (§8), which is what is stored, so an activity that runs past midnight needs nothing special.
 /// </summary>
-public class ActivityFormViewModel
+public class ActivityFormViewModel : IConfirmsClashes
 {
     public const int MaxRepeatEvery = 99;
 
     public const int MaxEndCount = 500;
 
-    // Years the app plans in. Anything outside is almost certainly a mistyped year, and keeps date maths well away
-    // from the end of the calendar (31 December 9999).
-    private const int FirstPlannableYear = 1900;
-
-    private const int LastPlannableYear = 2999;
-
-    private const string OutsidePlannableYears = "Enter a date between the years 1900 and 2999.";
-
-    // As <input type="date"> and <input type="time"> send them.
-    private static readonly LocalDatePattern DateInput = LocalDatePattern.Iso;
-
-    private static readonly LocalTimePattern TimeInput = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
 
     // Trimmed as it is bound, so the checks see exactly what will be saved.
     [Required(ErrorMessage = "Enter a title for the activity.")]
@@ -132,7 +119,7 @@ public class ActivityFormViewModel
     public bool ReturnToCalendar { get; set; }
 
     /// <summary>The start date as saved, once the form is valid: the week the calendar goes back to.</summary>
-    public string? SavedStartDate => ParseDate(StartDate) is { } date ? DateInput.Format(date) : null;
+    public string? SavedStartDate => FormInput.ParseDate(StartDate) is { } date ? FormInput.Date.Format(date) : null;
 
     /// <summary>The signed-in person's locations, for the list. Filled by the controller, never posted.</summary>
     [BindNever]
@@ -145,8 +132,8 @@ public class ActivityFormViewModel
     /// </summary>
     public static ActivityFormViewModel ForNew(string? date, string? time, bool returnToCalendar) => new()
     {
-        StartDate = ParseDate(date) is { } start && IsPlannable(start) ? DateInput.Format(start) : null,
-        StartTime = ParseTime(time) is { } clock ? TimeInput.Format(clock) : null,
+        StartDate = FormInput.ParseDate(date) is { } start && FormInput.IsPlannable(start) ? FormInput.Date.Format(start) : null,
+        StartTime = FormInput.ParseTime(time) is { } clock ? FormInput.Time.Format(clock) : null,
         ReturnToCalendar = returnToCalendar,
     };
 
@@ -157,8 +144,8 @@ public class ActivityFormViewModel
             Title = activity.Title,
             Category = activity.Category,
             LocationId = activity.LocationId,
-            StartDate = DateInput.Format(activity.StartDate),
-            StartTime = TimeInput.Format(activity.StartTime),
+            StartDate = FormInput.Date.Format(activity.StartDate),
+            StartTime = FormInput.Time.Format(activity.StartTime),
             DurationHours = activity.LengthMinutes / 60,
             DurationMinutes = activity.LengthMinutes % 60,
             IsFixed = activity.IsFixed,
@@ -178,7 +165,7 @@ public class ActivityFormViewModel
             model.RepeatDays = Week.Days.Select(rule.Days.Contains).ToList();
             (model.Ends, model.EndDate, model.EndCount) = (rule.LastDate, rule.Count) switch
             {
-                ({ } lastDate, _) => (RepeatEndChoice.OnDate, DateInput.Format(lastDate), (int?)null),
+                ({ } lastDate, _) => (RepeatEndChoice.OnDate, FormInput.Date.Format(lastDate), (int?)null),
                 (_, { } count) => (RepeatEndChoice.AfterCount, null, count),
                 _ => (RepeatEndChoice.Never, null, null),
             };
@@ -197,19 +184,19 @@ public class ActivityFormViewModel
         // The choices (category, priority, repeats, ends) need no check here: the model binder refuses a value that
         // isn't one of them, even a number, and leaves the default.
         // Date boxes show dates the browser's way (02/11/2026 here), so the messages don't show a format.
-        var startDate = ParseDate(StartDate);
+        var startDate = FormInput.ParseDate(StartDate);
         if (startDate is null)
         {
             yield return new ValidationResult(
                 string.IsNullOrWhiteSpace(StartDate) ? "Enter the date it happens, or the first date if it repeats." : "Enter a real date, for example 2 November 2026.",
                 [nameof(StartDate)]);
         }
-        else if (!IsPlannable(startDate.Value))
+        else if (!FormInput.IsPlannable(startDate.Value))
         {
-            yield return new ValidationResult(OutsidePlannableYears, [nameof(StartDate)]);
+            yield return new ValidationResult(FormInput.OutsidePlannableYears, [nameof(StartDate)]);
         }
 
-        if (ParseTime(StartTime) is null)
+        if (FormInput.ParseTime(StartTime) is null)
         {
             yield return new ValidationResult(
                 string.IsNullOrWhiteSpace(StartTime) ? "Enter the start time." : "Enter the start time as a time between 00:00 and 23:59, for example 07:00.",
@@ -244,8 +231,8 @@ public class ActivityFormViewModel
         activity.Title = Title;
         activity.Category = Category;
         activity.LocationId = LocationId;
-        activity.StartDate = ParseDate(StartDate)!.Value;
-        activity.StartTime = ParseTime(StartTime)!.Value;
+        activity.StartDate = FormInput.ParseDate(StartDate)!.Value;
+        activity.StartTime = FormInput.ParseTime(StartTime)!.Value;
         activity.LengthMinutes = (DurationHours * 60) + DurationMinutes;
         activity.IsFixed = IsFixed;
         activity.Priority = Priority;
@@ -278,16 +265,16 @@ public class ActivityFormViewModel
 
         if (Ends == RepeatEndChoice.OnDate)
         {
-            var endDate = ParseDate(EndDate);
+            var endDate = FormInput.ParseDate(EndDate);
             if (endDate is null)
             {
                 problems.Add(new ValidationResult(
                     string.IsNullOrWhiteSpace(EndDate) ? "Enter the last date it can happen." : "Enter a real last date, for example 31 December 2026.",
                     [nameof(EndDate)]));
             }
-            else if (!IsPlannable(endDate.Value))
+            else if (!FormInput.IsPlannable(endDate.Value))
             {
-                problems.Add(new ValidationResult(OutsidePlannableYears, [nameof(EndDate)]));
+                problems.Add(new ValidationResult(FormInput.OutsidePlannableYears, [nameof(EndDate)]));
             }
         }
 
@@ -311,17 +298,11 @@ public class ActivityFormViewModel
 
         return Ends switch
         {
-            RepeatEndChoice.OnDate => rule?.EndingOn(ParseDate(EndDate)!.Value),
+            RepeatEndChoice.OnDate => rule?.EndingOn(FormInput.ParseDate(EndDate)!.Value),
             RepeatEndChoice.AfterCount => rule?.EndingAfter(EndCount!.Value),
             _ => rule,
         };
     }
 
-    private static bool IsPlannable(LocalDate date) => date.Year is >= FirstPlannableYear and <= LastPlannableYear;
-
-    private static LocalDate? ParseDate(string? text) =>
-        text is not null && DateInput.Parse(text.Trim()) is { Success: true } result ? result.Value : null;
-
-    private static LocalTime? ParseTime(string? text) =>
-        text is not null && TimeInput.Parse(text.Trim()) is { Success: true } result ? result.Value : null;
 }
+

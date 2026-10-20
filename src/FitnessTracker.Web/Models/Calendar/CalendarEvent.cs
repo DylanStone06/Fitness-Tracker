@@ -9,10 +9,16 @@ namespace FitnessTracker.Web.Models.Calendar;
 /// <summary>One part of a footprint around the activity (CAL-5): getting ready, travel or changing, as clock times.</summary>
 public sealed record CalendarSegment(string Part, string Start, string End);
 
-/// <summary>What the calendar shows about an occurrence besides its times: FullCalendar's "extendedProps".</summary>
+/// <summary>
+/// What the calendar shows about an occurrence besides its times: FullCalendar's "extendedProps". An occurrence of a
+/// repeating activity (<see cref="Repeats"/>) opens its own page, to change just that one (CAL-4); <see cref="Moved"/>
+/// says it was moved or resized on its own.
+/// </summary>
 public sealed record CalendarEventDetails(
     Guid ActivityId,
     string OccurrenceDate,
+    bool Repeats,
+    bool Moved,
     string? Category,
     string? Place,
     string Starts,
@@ -29,7 +35,7 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
 {
     private static readonly LocalDateTimePattern Clock = LocalDateTimePattern.CreateWithInvariantCulture("uuuu'-'MM'-'dd'T'HH':'mm':'ss");
 
-    public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place)
+    public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place, bool repeats)
     {
         string At(Instant moment) => Clock.Format(moment.InZone(zone).LocalDateTime);
 
@@ -54,6 +60,8 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
             new CalendarEventDetails(
                 item.Activity.Id,
                 LocalDatePattern.Iso.Format(occurrence.Date),
+                repeats,
+                item.Activity.Series.Changes.ContainsKey(occurrence.Date),
                 category is { } named ? ActivityDisplay.CategoryName(named) : null,
                 place,
                 Agenda.Starts(item),

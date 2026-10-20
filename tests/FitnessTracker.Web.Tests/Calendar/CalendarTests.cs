@@ -103,6 +103,36 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
         Assert.Equal("01:30 BST", Details(session).GetProperty("starts").GetString());
     }
 
+    // CAL-4: an occurrence of a repeating activity opens its own page ("just this one"), so the feed says it repeats;
+    // a moved one says so.
+    [Fact]
+    public async Task Events_SayWhetherTheyRepeat_AndWhetherTheyWereMoved()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Dentist", new() { ["StartDate"] = "2026-10-20", ["StartTime"] = "09:00" });
+        var gymTitle = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(gymTitle, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "07:00", ["Repeats"] = "Daily" });
+        var gym = (await StoredData.ActivityTitledAsync(factory, gymTitle))!.Id;
+        await browser.SubmitFormAsync($"/Activities/Occurrence/{gym}?date=2026-10-20", $"/Activities/Occurrence/{gym}", new()
+        {
+            ["Change"] = "Move",
+            ["NewDate"] = "2026-10-20",
+            ["NewStartTime"] = "18:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+        });
+
+        var events = await EventsAsync(browser, "2026-10-20", "2026-10-21");
+
+        var dentist = Details(events.Single(item => item.GetProperty("title").GetString() == "Dentist"));
+        var moved = Details(events.Single(item => item.GetProperty("title").GetString() == gymTitle));
+        Assert.False(dentist.GetProperty("repeats").GetBoolean());
+        Assert.False(dentist.GetProperty("moved").GetBoolean());
+        Assert.True(moved.GetProperty("repeats").GetBoolean());
+        Assert.True(moved.GetProperty("moved").GetBoolean());
+        Assert.Equal("2026-10-20", moved.GetProperty("occurrenceDate").GetString());
+    }
+
     // T19: only the signed-in user's own occurrences.
     [Fact]
     public async Task AnotherUsersActivities_AreNeverSent()

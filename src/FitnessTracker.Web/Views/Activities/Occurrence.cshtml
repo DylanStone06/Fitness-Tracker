@@ -1,0 +1,82 @@
+@model OccurrenceFormViewModel
+@{
+    ViewData["Title"] = "Change one occurrence";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>@Model.Activity.Title</h1>
+        @* CAL-4, P5: what changes here is this occurrence only; the others stay as they are. *@
+        <p class="mb-1"><span class="fw-semibold">This occurrence:</span> @Model.Now</p>
+        <p class="text-body-secondary">Usually: @Model.Usually. Changing this one leaves the others as they are.</p>
+
+        <form asp-action="Occurrence" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="Date" />
+            <input type="hidden" asp-for="Version" />
+            <input type="hidden" asp-for="ReturnToCalendar" />
+
+            <fieldset class="card card-body mb-3">
+                <legend class="h5">Move or resize just this one</legend>
+                <div class="row g-2 mb-3">
+                    <div class="col-sm-6">
+                        <label asp-for="NewDate" class="form-label"></label>
+                        <span asp-validation-for="NewDate" class="d-block text-danger" id="new-date-error"></span>
+                        <input asp-for="NewDate" type="date" class="form-control"
+                               aria-describedby="new-date-error" aria-invalid="@ViewData.ModelState.AriaInvalid("NewDate")" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="NewStartTime" class="form-label"></label>
+                        <span asp-validation-for="NewStartTime" class="d-block text-danger" id="new-time-error"></span>
+                        <input asp-for="NewStartTime" type="time" class="form-control"
+                               aria-describedby="new-time-error" aria-invalid="@ViewData.ModelState.AriaInvalid("NewStartTime")" />
+                    </div>
+                </div>
+                <fieldset class="mb-3">
+                    <legend class="fs-6 mb-1">How long it takes</legend>
+                    <span asp-validation-for="DurationHours" class="d-block text-danger" id="hours-error"></span>
+                    <span asp-validation-for="DurationMinutes" class="d-block text-danger" id="minutes-error"></span>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label asp-for="DurationHours" class="form-label"></label>
+                            <input asp-for="DurationHours" type="number" min="0" max="25" class="form-control" inputmode="numeric"
+                                   aria-describedby="hours-error" aria-invalid="@ViewData.ModelState.AriaInvalid("DurationHours")" />
+                        </div>
+                        <div class="col-6">
+                            <label asp-for="DurationMinutes" class="form-label"></label>
+                            <input asp-for="DurationMinutes" type="number" min="0" max="59" step="5" class="form-control" inputmode="numeric"
+                                   aria-describedby="minutes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("DurationMinutes")" />
+                        </div>
+                    </div>
+                </fieldset>
+
+                <partial name="_ClashBox" model="Model" />
+
+                <div>
+                    <button type="submit" name="Change" value="@OccurrenceChangeChoice.Move" class="btn btn-primary">Move just this one</button>
+                </div>
+            </fieldset>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="submit" name="Change" value="@OccurrenceChangeChoice.Cancel" class="btn btn-outline-danger">Cancel just this one</button>
+                @if (Model.IsChanged)
+                {
+                    <button type="submit" name="Change" value="@OccurrenceChangeChoice.Restore" class="btn btn-outline-secondary">Put it back to the usual time</button>
+                }
+            </div>
+        </form>
+
+        <p>
+            <a asp-action="Edit" asp-route-id="@Model.Activity.Id" asp-route-returnToCalendar="@(Model.ReturnToCalendar ? "true" : null)">Change every occurrence</a>
+            ·
+            @if (Model.ReturnToCalendar)
+            {
+                <a asp-controller="Calendar" asp-action="Index" asp-route-date="@Model.Date">Back to the calendar</a>
+            }
+            else
+            {
+                <a asp-action="Index">Back to activities</a>
+            }
+        </p>
+    </div>
+</div>

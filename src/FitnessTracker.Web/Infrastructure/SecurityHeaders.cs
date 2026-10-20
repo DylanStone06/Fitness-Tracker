@@ -25,7 +25,8 @@ public static class SecurityHeaders
     {
         if (context.Items[StyleNonceKey] is not string nonce)
         {
-            nonce = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+            // Hexadecimal: allowed in a nonce, and nothing in it needs encoding in HTML (base64's "+" would).
+            nonce = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
             context.Items[StyleNonceKey] = nonce;
         }
 

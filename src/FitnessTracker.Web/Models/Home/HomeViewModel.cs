@@ -39,6 +39,9 @@ public sealed class HomeViewModel
     /// <summary>Each of the user's activities' category, for its colour and name (CAL-2).</summary>
     public required IReadOnlyDictionary<Guid, ActivityCategory> Categories { get; init; }
 
+    /// <summary>The repeating ones: an occurrence of one opens its own page, to change just that one (CAL-4).</summary>
+    public required IReadOnlySet<Guid> Repeating { get; init; }
+
     public required Guid? Home { get; init; }
 
     public required IReadOnlyDictionary<Guid, string> PlaceNames { get; init; }
@@ -75,7 +78,12 @@ public sealed class HomeViewModel
             : DayPattern.Format(date);
     }
 
-    public static HomeViewModel From(UserPlanning user, IReadOnlyList<AgendaItem> agenda, IReadOnlyDictionary<Guid, ActivityCategory> categories, IReadOnlyList<string> unreadable)
+    public static HomeViewModel From(
+        UserPlanning user,
+        IReadOnlyList<AgendaItem> agenda,
+        IReadOnlyDictionary<Guid, ActivityCategory> categories,
+        IReadOnlySet<Guid> repeating,
+        IReadOnlyList<string> unreadable)
     {
         var next = Agenda.Next(agenda, user.Now.ToInstant());
         var home = user.Context.Home;
@@ -103,6 +111,7 @@ public sealed class HomeViewModel
             Next = next,
             NextWhen = next is null ? null : When(next, user.Context.Today),
             Categories = categories,
+            Repeating = repeating,
             Home = home,
             PlaceNames = user.Locations.ToDictionary(location => location.Id, location => location.Name),
             Unreadable = unreadable,

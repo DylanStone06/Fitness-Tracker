@@ -18,7 +18,16 @@
         var activity = item.Activity;
         <div class="d-flex flex-wrap align-items-baseline column-gap-2">
             <span class="ft-time">@Agenda.Starts(item)</span>
-            <a class="fw-semibold text-break" asp-controller="Activities" asp-action="Edit" asp-route-id="@activity.Id">@activity.Title</a>
+            @if (Model.Repeating.Contains(activity.Id))
+            {
+                @* CAL-4: this occurrence, to change just this one (or every one from there). *@
+                <a class="fw-semibold text-break" asp-controller="Activities" asp-action="Occurrence" asp-route-id="@activity.Id"
+                   asp-route-date="@item.Occurrence.Date.ToString("uuuu-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">@activity.Title</a>
+            }
+            else
+            {
+                <a class="fw-semibold text-break" asp-controller="Activities" asp-action="Edit" asp-route-id="@activity.Id">@activity.Title</a>
+            }
             @if (CategoryOf(item) is { } category)
             {
                 @* CAL-2: the category's name, in its colour; never the colour alone. *@

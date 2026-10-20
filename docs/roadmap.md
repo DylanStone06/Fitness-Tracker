@@ -34,13 +34,13 @@ the parts fit is in [architecture notes](architecture.md).
 | TRV-1 | Done | 2, 4 | Locations with a home and opening hours (closed days, closing after midnight). |
 | TRV-2 | Done | 4 | Travel times per direction with a mode; footprints use them, a missing one is never zero. |
 | CAL-2 | Done | 4 | Activities page: add, edit, delete with category, place, length, buffers, fixed/movable, priority, notes. Each category has one colour, shown with its name ([design](design.md)). |
-| CAL-1 | Started | 5 | Calendar page: week, day and list views (list on phones, CAL-10), from a data feed scoped to the user, a date range and their timezone; footprints as lighter blocks (CAL-5) and clashes in words (CAL-6). The 12-hour clock and week start from Preferences apply. Selecting an empty time adds an activity there; adding or changing one from the calendar returns to its week. One-occurrence changes and drag and drop are next. |
+| CAL-1 | Started | 5 | Calendar page: week, day and list views (list on phones, CAL-10), from a data feed scoped to the user, a date range and their timezone; footprints as lighter blocks (CAL-5) and clashes in words (CAL-6). The 12-hour clock and week start from Preferences apply. Selecting an empty time adds an activity there; adding or changing one from the calendar returns to its week. Drag and drop is next. |
 | CAL-3 | Done | 3, 4 | Daily, weekly on days, every N, end date or count; stored as RRULE text. One occurrence's changes: Phase 5. |
 | FIT-6 | Done | 4 | The "demanding" flag on activities (used by H5-H7 in Phase 6). |
 | SCH-1 | Started | 4 | One check on every activity save: H1 (clashes, "Save anyway"), H4, H8, travel, never-happening repeats. H3, H5-H7 and other save paths in later phases. |
 | GOL-2 | Started | 4 | Home page: a greeting, what to set up, the next activity (under way until you're back), today and the next 7 days with when to leave and clashes; each activity opens its edit page. |
 | T1, T9, T10, T11, T17 | Covered | 4 | Domain and page tests; names in the `scheduling-rules` skill. |
-| CAL-4 | Domain done | 3 | Cancel, move, restore one occurrence; series edits keep and report one-off changes. Screens in Phase 5. |
+| CAL-4 | Done | 3, 5 | An occurrence of a repeating activity (from the calendar or home page) opens its own page: move or resize just this one, cancel it, put it back, or change every occurrence. Changes are stored with the activity (OccurrenceChangesText); editing the whole activity keeps those still on its days and says how many were kept or removed (T8). Only what a change breaks is reported. |
 | CAL-9 | Started | 3 | A/B week cycles (1-4 weeks, anchor week). Templates themselves in Phases 4-5. |
 | §8 time rules | Domain done | 3 | Clock changes, elapsed durations, crossing midnight, timezone change for series. |
 | §9 privacy and security | Partly done | 2 | Isolation enforced and tested, anti-forgery on every form, Identity password hashing, no secrets committed. Hosting hardening in Phase 9. |

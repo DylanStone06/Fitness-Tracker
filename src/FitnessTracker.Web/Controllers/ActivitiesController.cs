@@ -4,6 +4,7 @@ using System.Text;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Models;
 using FitnessTracker.Web.Models.Activities;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -191,6 +192,136 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             ? RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = model.SavedStartDate })
             : RedirectToAction(nameof(Index));
 
+    // CAL-4: one occurrence of a repeating activity, known by the date its rule puts it on. A one-off has only one, so
+    // it goes to the ordinary form. From the calendar a drag fills in the new time (CAL-8: the form does the same).
+    [HttpGet]
+    public async Task<IActionResult> Occurrence(Guid id, string? date, string? start, int? minutes, bool returnToCalendar = false)
+    {
+        var activity = await FindAsync(id);
+        if (activity is null)
+        {
+            return NotFound();
+        }
+
+        if (activity.RepeatRule is null)
+        {
+            return RedirectToAction(nameof(Edit), new { id, returnToCalendar = returnToCalendar ? "true" : null });
+        }
+
+        if (OccurrenceOf(activity, date) is not { } found)
+        {
+            return NotFound();
+        }
+
+        var model = OccurrenceFormViewModel.For(activity, found.Series, found.Date, returnToCalendar);
+        model.FillDragged(start, minutes);
+        return View(model);
+    }
+
+    // Move, cancel or put back one occurrence, leaving the others alone (P5). Through the check on save (SCH-1), which
+    // reports only what this change breaks: problems and clashes the activity already had stay as they were.
+    [HttpPost]
+    public async Task<IActionResult> Occurrence(Guid id, OccurrenceFormViewModel model)
+    {
+        var activity = await FindAsync(id);
+        if (activity is null)
+        {
+            return NotFound();
+        }
+
+        if (activity.RepeatRule is null)
+        {
+            return RedirectToAction(nameof(Edit), new { id, returnToCalendar = model.ReturnToCalendar ? "true" : null });
+        }
+
+        if (OccurrenceOf(activity, model.Date) is not { } found)
+        {
+            return NotFound();
+        }
+
+        model.Describe(activity, found.Series, found.Date);
+        foreach (var problem in model.ProblemsAcrossTheForm())
+        {
+            foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))
+            {
+                ModelState.AddModelError(field, problem.ErrorMessage ?? "");
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var changed = model.Change switch
+        {
+            OccurrenceChangeChoice.Cancel => found.Series.CancelOccurrence(found.Date),
+            OccurrenceChangeChoice.Restore => found.Series.RestoreOccurrence(found.Date),
+            _ => found.Series.MoveOccurrence(found.Date, model.NewStart, model.NewLength),
+        };
+
+        // Saved only if nobody has saved this activity since the page was opened (requirements §9).
+        db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
+        var before = await checker.CheckAsync(activity);
+        activity.OccurrenceChanges = OccurrenceChangesText.Format(changed.Changes);
+        if (!await PassesTheCheckAsync(activity, model, before, OccurrenceFieldFor))
+        {
+            return View(model);
+        }
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!await db.Activities.AsNoTracking().AnyAsync(saved => saved.Id == id))
+            {
+                return NotFound();
+            }
+
+            ModelState.AddModelError(string.Empty,
+                "This activity was changed in another tab or window after you opened this page, so nothing was saved. " +
+                "Open the occurrence again from the calendar or the list to see it as it is now.");
+            return View(model);
+        }
+
+        if (!model.ReturnToCalendar)
+        {
+            return RedirectToAction(nameof(Index));
+        }
+
+        var shownOn = model.Change == OccurrenceChangeChoice.Move ? model.NewStart.Date : found.Date;
+        return RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = FormInput.Date.Format(shownOn) });
+    }
+
+    // The occurrence on date (as the page sends it), with the series it belongs to; null when the activity doesn't
+    // happen that day, or can't be read (edited by hand: the ordinary form shows it to fix).
+    private static (Series Series, LocalDate Date)? OccurrenceOf(Activity activity, string? date)
+    {
+        if (FormInput.ParseDate(date) is not { } day)
+        {
+            return null;
+        }
+
+        try
+        {
+            var series = activity.ToPlannedActivity().Series;
+            return series.Rule.FallsOn(series.FirstDate, day) ? (series, day) : null;
+        }
+        catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    private static string OccurrenceFieldFor(CheckAspect aspect) => aspect switch
+    {
+        CheckAspect.Time => nameof(OccurrenceFormViewModel.NewStartTime),
+        CheckAspect.Length => nameof(OccurrenceFormViewModel.DurationHours),
+        _ => string.Empty,
+    };
+
     // Only asks; deleting needs the form post below.
     [HttpGet]
     public async Task<IActionResult> Delete(Guid id)
@@ -255,31 +386,41 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         await db.UserPreferences.AsNoTracking().SingleOrDefaultAsync() ?? new UserPreferences();
 
     // SCH-1: the one check, on the activity exactly as it would be saved. Each problem is shown by the field it is
-    // about. Clashes (H1) are listed, and need "Save anyway" (§7.2, Q2). True when it can be saved.
-    private async Task<bool> PassesTheCheckAsync(Activity activity, ActivityFormViewModel model)
+    // about. Clashes (H1) are listed, and need "Save anyway" (§7.2, Q2). True when it can be saved. With before (the
+    // check on the activity as stored), only what the change breaks counts: a change to one occurrence (CAL-4) isn't
+    // held up by clashes kept elsewhere in the series, or by a problem it didn't cause.
+    private async Task<bool> PassesTheCheckAsync(
+        Activity activity, IConfirmsClashes model, ActivityCheckResult? before = null, Func<CheckAspect, string>? fieldFor = null)
     {
         var result = await checker.CheckAsync(activity);
-        foreach (var problem in result.Problems)
+        var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
+        var problems = result.Problems
+            .Where(problem => before is null || !before.Problems.Any(old => old.Message == problem.Message))
+            .ToList();
+        foreach (var problem in problems)
         {
-            ModelState.AddModelError(FieldFor(problem.Aspect), problem.Message);
+            ModelState.AddModelError((fieldFor ?? FieldFor)(problem.Aspect), problem.Message);
         }
 
         // Other activities that could only be checked in part: shown with the clashes, or on the list once saved.
         ViewData[CheckNotes] = result.Notes;
-        if (result.Problems.Count == 0 && result.Notes.Count > 0)
+        if (problems.Count == 0 && result.Notes.Count > 0)
         {
             TempData[CheckNotes] = result.Notes.ToArray();
         }
 
-        if (result.Problems.Count > 0 || result.Clashes.Count == 0)
+        var keptBefore = before?.Clashes.Select(clash => ActivityCheck.Describe(clash, zone)).ToHashSet() ?? [];
+        var clashes = result.Clashes
+            .Select(clash => ActivityCheck.Describe(clash, zone))
+            .Where(clash => !keptBefore.Contains(clash))
+            .ToList();
+        if (problems.Count > 0 || clashes.Count == 0)
         {
             return ModelState.IsValid;
         }
 
         // "Save anyway" only accepts the clashes the page showed: if the activity now clashes differently (it was
         // changed in the same submit, or another activity changed meanwhile), the new clashes are shown and asked about.
-        var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
-        var clashes = result.Clashes.Select(clash => ActivityCheck.Describe(clash, zone)).ToList();
         var fingerprint = FingerprintOf(clashes);
         if (model.ConfirmClashes && model.ShownClashes == fingerprint)
         {

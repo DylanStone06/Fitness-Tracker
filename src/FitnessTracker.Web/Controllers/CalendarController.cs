@@ -60,15 +60,16 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
         var activities = await planning.ActivitiesOnAsync(Agenda.DatesToLoadFor(window, zone), []);
         var items = Agenda.Overlapping(activities, user.Context, window, zone);
 
-        var categories = await db.Activities
-            .Select(activity => new { activity.Id, activity.Category })
-            .ToDictionaryAsync(activity => activity.Id, activity => activity.Category);
+        var kinds = await db.Activities
+            .Select(activity => new { activity.Id, activity.Category, Repeats = activity.RepeatRule != null })
+            .ToDictionaryAsync(activity => activity.Id);
         var places = user.Locations.ToDictionary(location => location.Id, location => location.Name);
         return Json(items.Select(item => CalendarEvent.From(
             item,
             zone,
-            categories.TryGetValue(item.Activity.Id, out var category) ? category : null,
-            item.Activity.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null)));
+            kinds.TryGetValue(item.Activity.Id, out var kind) ? kind.Category : null,
+            item.Activity.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null,
+            kind?.Repeats ?? false)));
     }
 
     private static LocalDateTime? ClockTime(string? text)
