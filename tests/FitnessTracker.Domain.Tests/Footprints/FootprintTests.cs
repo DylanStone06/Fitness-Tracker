@@ -125,7 +125,7 @@ public class FootprintTests
         var problems = Footprint.ProblemsWith(
             Duration.FromHours(25), new Buffers(Preparation: Duration.FromHours(-2), Changing: Duration.Zero), Journeys.None);
 
-        Assert.Equal([FootprintProblem.NegativePreparation, FootprintProblem.LongerThan24Hours], problems);
+        Assert.Equal([FootprintProblem.NegativePreparation, FootprintProblem.LongerThanADay], problems);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class FootprintTests
 
         Assert.Empty(Footprint.ProblemsWith(Duration.FromHours(22), Buffers.None, oneHourEachWay));
         Assert.Equal(
-            [FootprintProblem.LongerThan24Hours],
+            [FootprintProblem.LongerThanADay],
             Footprint.ProblemsWith(Duration.FromHours(22) + Duration.FromMinutes(1), Buffers.None, oneHourEachWay));
     }
 
@@ -146,20 +146,32 @@ public class FootprintTests
         var oneMinuteMore = new Buffers(Preparation: Duration.FromHours(1), Changing: Duration.FromHours(1) + Duration.FromMinutes(1));
 
         Assert.Empty(Footprint.ProblemsWith(Duration.FromHours(22), oneHourEach, Journeys.None));
-        Assert.Equal([FootprintProblem.LongerThan24Hours], Footprint.ProblemsWith(Duration.FromHours(22), oneMinuteMore, Journeys.None));
+        Assert.Equal([FootprintProblem.LongerThanADay], Footprint.ProblemsWith(Duration.FromHours(22), oneMinuteMore, Journeys.None));
     }
 
-    // H8's limit is 24 hours of elapsed time (§8), so midnight to midnight on the day the clocks go back, which
-    // lasts 25 hours (23:00 UTC 24 Oct to 00:00 UTC 26 Oct 2026), is refused. Pinned as built; listed in
-    // docs/known-limitations.md for the owner to decide.
+    // Q7 (owner's decision): H8's limit is 24 hours, or the whole day on a day longer than that. Midnight to midnight
+    // on the day the clocks go back lasts 25 hours (23:00 UTC 24 Oct to 00:00 UTC 26 Oct 2026) and is allowed on that
+    // day, but 25 hours is still too long on an ordinary day.
     [Fact]
-    public void AnAllDayActivityOnTheDayTheClocksGoBack_IsRefused_BecauseItLasts25Hours()
+    public void AnAllDayActivityOnTheDayTheClocksGoBack_IsAllowed_OnThatDayOnly()
     {
         var wholeDay = ClockTimes.ToInterval(
             new LocalDateTime(2026, 10, 25, 0, 0), new LocalDateTime(2026, 10, 26, 0, 0), London);
 
         Assert.Equal(Duration.FromHours(25), wholeDay.Duration);
-        Assert.Equal([FootprintProblem.LongerThan24Hours], Footprint.ProblemsWith(wholeDay.Duration, Buffers.None, Journeys.None));
+        Assert.Empty(Footprint.ProblemsWith(wholeDay.Duration, Buffers.None, Journeys.None, Footprint.LongestOn(new LocalDate(2026, 10, 25), London)));
+        Assert.Equal([FootprintProblem.LongerThanADay], Footprint.ProblemsWith(wholeDay.Duration, Buffers.None, Journeys.None));
+    }
+
+    // The limit on a day: 25 hours on the day the clocks go back, but never less than 24, so the 23-hour day the clocks
+    // go forward still allows 24 (nothing allowed before Q7 is refused now).
+    [Theory]
+    [InlineData(2026, 10, 25, 25)]
+    [InlineData(2027, 3, 28, 24)]
+    [InlineData(2026, 11, 2, 24)]
+    public void LongestOn_IsTheDaysLength_ButAtLeast24Hours(int year, int month, int day, int hours)
+    {
+        Assert.Equal(Duration.FromHours(hours), Footprint.LongestOn(new LocalDate(year, month, day), London));
     }
 
     // The error names the argument that is wrong, not always the activity.

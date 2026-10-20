@@ -127,7 +127,7 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
             ["Mode"] = "Walk",
         });
 
-        Assert.Contains("more than 24 hours", await HomePageAsync(browser));
+        Assert.Contains("more than a whole day", await HomePageAsync(browser));
     }
 
     // A stored activity the app can't use (its length edited by hand to less than zero) is left out with a note,

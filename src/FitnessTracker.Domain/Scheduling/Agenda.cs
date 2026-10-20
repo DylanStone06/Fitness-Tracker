@@ -36,14 +36,15 @@ public static class Agenda
             var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context)}." : null;
             foreach (var occurrence in activity.Series.OccurrencesBetween(from.PlusDays(-MarginDays), through.PlusDays(MarginDays)))
             {
-                if (Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel).Count > 0)
+                var longest = Times.LongestFor(occurrence.Time, activity.Series.Zone);
+                if (Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel, longest).Count > 0)
                 {
                     entries.Add((activity, occurrence, null,
-                        "With its preparation, travel and changing it would take up more than 24 hours, so it isn't checked for clashes."));
+                        "With its preparation, travel and changing it would take up more than a whole day, so it isn't checked for clashes."));
                     continue;
                 }
 
-                entries.Add((activity, occurrence, Footprint.Around(occurrence.Time, activity.Buffers, travel), travelNote));
+                entries.Add((activity, occurrence, Footprint.Around(occurrence.Time, activity.Buffers, travel, longest), travelNote));
             }
         }
 
@@ -158,6 +159,10 @@ internal static class Times
     public static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
 
     public static readonly LocalTimePattern Time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
+
+    /// <summary>H8's limit for an occurrence: 24 hours, or the whole day it starts on if that day is longer (Q7).</summary>
+    public static Duration LongestFor(Interval occurrence, DateTimeZone zone) =>
+        Footprint.LongestOn(occurrence.Start.InZone(zone).Date, zone);
 
     /// <summary>"07:30", or "01:15 BST" for a time the clocks repeat on the night they go back.</summary>
     public static string Clock(ZonedDateTime moment) =>

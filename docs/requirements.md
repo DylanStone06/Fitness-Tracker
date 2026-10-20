@@ -221,7 +221,7 @@ validation errors.
 | H5 | Demanding sessions are at least the configured number of hours apart. |
 | H6 | No more than the configured number of demanding sessions per day. |
 | H7 | No demanding session on a recovery day. |
-| H8 | Durations are positive; a footprint is at most 24 hours. |
+| H8 | Durations are positive; a footprint is at most 24 hours, or the whole day on the 25-hour day the clocks go back (Q7). |
 
 ### 7.3 Soft preferences (scoring)
 

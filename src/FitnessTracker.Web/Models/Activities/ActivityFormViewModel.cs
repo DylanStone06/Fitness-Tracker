@@ -63,8 +63,10 @@ public class ActivityFormViewModel
     [Display(Name = "Start time")]
     public string? StartTime { get; set; }
 
+    // Up to 25: the whole day the clocks go back is allowed (requirements Q7); the check on save refuses 25 hours on
+    // any other day.
     [Display(Name = "Hours")]
-    [Range(0, 24, ErrorMessage = "Enter between {1} and {2} hours.")]
+    [Range(0, 25, ErrorMessage = "Enter between {1} and {2} hours.")]
     public int DurationHours { get; set; } = 1;
 
     [Display(Name = "Minutes")]
@@ -190,9 +192,10 @@ public class ActivityFormViewModel
         }
 
         var length = (DurationHours * 60) + DurationMinutes;
-        if (DurationHours is >= 0 and <= 24 && DurationMinutes is >= 0 and <= 59 && length is < 1 or > 24 * 60)
+        if (DurationHours is >= 0 and <= 25 && DurationMinutes is >= 0 and <= 59 && length is < 1 or > 25 * 60)
         {
-            yield return new ValidationResult("Enter how long it takes: at least 1 minute and at most 24 hours.", [nameof(DurationHours)]);
+            yield return new ValidationResult(
+                "Enter how long it takes: at least 1 minute and at most 24 hours (25 on the day the clocks go back).", [nameof(DurationHours)]);
         }
 
         if (Repeats == RepeatChoice.Never)

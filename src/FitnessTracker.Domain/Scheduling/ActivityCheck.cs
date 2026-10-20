@@ -83,9 +83,10 @@ public static class ActivityCheck
         var travel = journeys ?? Journeys.None;
 
         // A length of zero or less can't even be turned into occurrences, so it is the only thing left to say.
+        var usual = (series.Length, Footprint.LongestOn(series.FirstDate, series.Zone));
         if (series.Length <= Duration.Zero)
         {
-            problems.AddRange(LengthProblems([series.Length], candidate.Buffers, travel));
+            problems.AddRange(LengthProblems([usual], candidate.Buffers, travel));
             return new ActivityCheckResult(problems, [], dates);
         }
 
@@ -93,8 +94,12 @@ public static class ActivityCheck
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
         var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End);
 
-        // H8 on every occurrence, not just the usual length: a moved one can be longer.
-        problems.AddRange(LengthProblems(longerOccurrences.Select(occurrence => occurrence.Time.Duration).Prepend(series.Length), candidate.Buffers, travel));
+        // H8 on every occurrence, not just the usual length: a moved one can be longer, and the limit depends on the day
+        // (the whole 25-hour day the clocks go back is allowed, Q7).
+        problems.AddRange(LengthProblems(
+            longerOccurrences.Select(occurrence => (occurrence.Time.Duration, Times.LongestFor(occurrence.Time, series.Zone))).Prepend(usual),
+            candidate.Buffers,
+            travel));
         if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, longerDates.End) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
@@ -115,7 +120,7 @@ public static class ActivityCheck
             .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
             .ToList();
         var candidateBookings = occurrences
-            .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys)))
+            .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys, Times.LongestFor(occurrence.Time, series.Zone))))
             .ToList();
 
         // H1 also within the activity itself: a very long one can run into its own next occurrence on the night the
@@ -190,10 +195,10 @@ public static class ActivityCheck
         return null;
     }
 
-    // Each H8 problem once, for whichever lengths break it.
-    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<Duration> lengths, Buffers buffers, Journeys journeys) =>
+    // Each H8 problem once, for whichever lengths break their day's limit.
+    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration Longest)> lengths, Buffers buffers, Journeys journeys) =>
         lengths.Distinct()
-            .SelectMany(length => Footprint.ProblemsWith(length, buffers, journeys))
+            .SelectMany(length => Footprint.ProblemsWith(length.Length, buffers, journeys, length.Longest))
             .Distinct()
             .Order()
             .Select(problem => new CheckProblem(CheckAspect.Length, Footprint.Describe(problem)));
@@ -240,14 +245,15 @@ public static class ActivityCheck
         var bookings = new List<Booking>();
         foreach (var occurrence in other.Series.OccurrencesBetween(dates.Start, dates.End))
         {
-            if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys).Count > 0)
+            var longest = Times.LongestFor(occurrence.Time, other.Series.Zone);
+            if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys, longest).Count > 0)
             {
                 notes.Add($"{other.Title} on {Date.Format(occurrence.Time.Start.InZone(zone).Date)} wasn't checked: with its preparation, " +
-                          "travel and changing it would take up more than 24 hours.");
+                          "travel and changing it would take up more than a whole day.");
                 continue;
             }
 
-            bookings.Add(new Booking(other.Title, Footprint.Around(occurrence.Time, other.Buffers, journeys)));
+            bookings.Add(new Booking(other.Title, Footprint.Around(occurrence.Time, other.Buffers, journeys, longest)));
         }
 
         return bookings;

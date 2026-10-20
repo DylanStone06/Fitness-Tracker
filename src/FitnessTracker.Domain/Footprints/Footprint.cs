@@ -20,7 +20,7 @@ public enum FootprintProblem
     NegativeChanging,
     NegativeTravelOut,
     NegativeTravelBack,
-    LongerThan24Hours,
+    LongerThanADay,
 }
 
 /// <summary>One part of a footprint and the exact time it takes up, half-open [start, end).</summary>
@@ -48,7 +48,7 @@ public readonly record struct Journeys(Duration Out, Duration Back)
 /// </summary>
 public sealed class Footprint
 {
-    // H8. Elapsed time, not "a day": the days the clocks change last 23 or 25 hours.
+    // H8. Elapsed time: the days the clocks change last 23 or 25 hours. Longer only on a longer day (LongestOn).
     private static readonly Duration Longest = Duration.FromHours(24);
 
     private Footprint(Interval activity, Interval whole, IReadOnlyList<FootprintSegment> segments)
@@ -67,15 +67,18 @@ public sealed class Footprint
     /// <summary>The parts in time order. Parts of zero length are left out.</summary>
     public IReadOnlyList<FootprintSegment> Segments { get; }
 
-    /// <summary>The footprint around an activity. Refused, with the reasons, if <see cref="ProblemsWith"/> finds any.</summary>
-    public static Footprint Around(Interval activity, Buffers buffers, Journeys journeys)
+    /// <summary>
+    /// The footprint around an activity. Refused, with the reasons, if <see cref="ProblemsWith"/> finds any.
+    /// <paramref name="longest"/>: the most it may take up, 24 hours unless given (see <see cref="LongestOn"/>).
+    /// </summary>
+    public static Footprint Around(Interval activity, Buffers buffers, Journeys journeys, Duration? longest = null)
     {
         if (!activity.HasStart || !activity.HasEnd)
         {
             throw new ArgumentException("An activity needs both a start and an end.", nameof(activity));
         }
 
-        var problems = ProblemsWith(activity.Duration, buffers, journeys);
+        var problems = ProblemsWith(activity.Duration, buffers, journeys, longest);
         if (problems.Count > 0)
         {
             throw new ArgumentException(string.Join(" ", problems.Select(Describe)), ArgumentNameFor(problems[0]));
@@ -103,10 +106,12 @@ public sealed class Footprint
 
     /// <summary>
     /// H8: the activity lasts longer than zero, buffers and journeys aren't negative (zero is fine), and the whole
-    /// footprint is at most 24 hours. Every broken limit is reported, in the order of the enum, each naming its own
-    /// part. A negative part counts as zero towards the 24 hours, so it can't hide a footprint that is too long anyway.
+    /// footprint is at most <paramref name="longest"/>: 24 hours unless given, or the whole day on the 25-hour day the
+    /// clocks go back (<see cref="LongestOn"/>, requirements Q7). Every broken limit is reported, in the order of the
+    /// enum, each naming its own part. A negative part counts as zero towards the limit, so it can't hide a footprint
+    /// that is too long anyway.
     /// </summary>
-    public static IReadOnlyList<FootprintProblem> ProblemsWith(Duration activityLength, Buffers buffers, Journeys journeys)
+    public static IReadOnlyList<FootprintProblem> ProblemsWith(Duration activityLength, Buffers buffers, Journeys journeys, Duration? longest = null)
     {
         (Duration Length, FootprintProblem Problem)[] parts =
         [
@@ -125,12 +130,23 @@ public sealed class Footprint
         problems.AddRange(parts.Where(part => part.Length < Duration.Zero).Select(part => part.Problem));
 
         var whole = parts.Aggregate(NotNegative(activityLength), (total, part) => total + NotNegative(part.Length));
-        if (whole > Longest)
+        if (whole > (longest ?? Longest))
         {
-            problems.Add(FootprintProblem.LongerThan24Hours);
+            problems.Add(FootprintProblem.LongerThanADay);
         }
 
         return problems;
+    }
+
+    /// <summary>
+    /// The most a footprint may take up when its activity starts on <paramref name="day"/> (H8, requirements Q7): the
+    /// length of that day in <paramref name="zone"/>, but never less than 24 hours. So 25 hours on the day the clocks go
+    /// back, and 24 hours on every other day, the 23-hour day included.
+    /// </summary>
+    public static Duration LongestOn(LocalDate day, DateTimeZone zone)
+    {
+        var dayLength = zone.AtStartOfDay(day.PlusDays(1)).ToInstant() - zone.AtStartOfDay(day).ToInstant();
+        return dayLength > Longest ? dayLength : Longest;
     }
 
     /// <summary>A plain-English reason, for forms and explanations.</summary>
@@ -141,7 +157,7 @@ public sealed class Footprint
         FootprintProblem.NegativeChanging => "Changing time can't be less than zero.",
         FootprintProblem.NegativeTravelOut => "Travel time there can't be less than zero.",
         FootprintProblem.NegativeTravelBack => "Travel time back can't be less than zero.",
-        FootprintProblem.LongerThan24Hours => "With preparation, travel and changing, it would take up more than 24 hours.",
+        FootprintProblem.LongerThanADay => "With preparation, travel and changing, it would take up more than a whole day (24 hours, or 25 on the day the clocks go back).",
         _ => throw new ArgumentOutOfRangeException(nameof(problem), problem, null),
     };
 

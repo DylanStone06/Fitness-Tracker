@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -271,6 +271,30 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         var response = await alex.AddActivityAsync(TestBrowser.NewName("Gym"), new() { ["StartTime"] = "07:30" });
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    // Q7: a whole day from midnight is 25 hours on Sunday 25 October 2026, when the clocks go back. It can be entered,
+    // and is saved for that day; the same 25 hours on the 26th is refused next to its length.
+    [Theory]
+    [InlineData("2026-10-25", true)]
+    [InlineData("2026-10-26", false)]
+    public async Task Add_TheWhole25HourDay_IsSaved_OnlyOnTheDayTheClocksGoBack(string date, bool saved)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Festival");
+
+        var response = await browser.AddActivityAsync(title, new() { ["StartDate"] = date, ["StartTime"] = "00:00", ["DurationHours"] = "25" });
+
+        if (saved)
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(25 * 60, (await StoredData.ActivityTitledAsync(factory, title))?.LengthMinutes);
+        }
+        else
+        {
+            Assert.Contains("href=\"#DurationHours\"", await AssertShowsAnErrorAsync(response));
+            Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+        }
     }
 
     // Home, a gym 25 minutes away (45 minutes back, T1), optionally with opening hours every day.

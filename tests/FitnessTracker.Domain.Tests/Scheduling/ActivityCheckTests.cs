@@ -237,6 +237,20 @@ public class ActivityCheckTests
         Assert.Equal(CheckAspect.Length, problem.Aspect);
     }
 
+    // Q7: a whole day at home from midnight is 25 hours on Sunday 25 October 2026, when the clocks go back, and is
+    // allowed then; the same 25 hours on Monday the 26th is too long.
+    [Theory]
+    [InlineData(25, false)]
+    [InlineData(26, true)]
+    public void TheWhole25HourDay_IsAllowed_OnlyOnTheDayTheClocksGoBack(int octoberDay, bool tooLong)
+    {
+        var wholeDay = OneOff("Festival", new LocalDate(2026, 10, octoberDay), new LocalTime(0, 0), minutes: 25 * 60, at: Home);
+
+        var problems = ActivityCheck.Check(wholeDay, [], Context()).Problems;
+
+        Assert.Equal(tooLong, problems.Any(problem => problem.Aspect == CheckAspect.Length));
+    }
+
     // §7.1, P1: travel is never guessed. Without a home, or a travel time in either direction, the save is stopped and
     // the problem says what to add.
     [Fact]

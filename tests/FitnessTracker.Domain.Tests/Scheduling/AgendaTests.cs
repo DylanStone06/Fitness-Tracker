@@ -122,7 +122,7 @@ public class AgendaTests
         var item = Assert.Single(Agenda.Between([long16Hours], Context(travel: slowWayBack), Monday, Monday));
 
         Assert.Null(item.Footprint);
-        Assert.Contains("more than 24 hours", item.Note);
+        Assert.Contains("more than a whole day", item.Note);
     }
 
     // CAL-6: a clash shows on both items. The gym session's walk home runs into dinner at 19:30.

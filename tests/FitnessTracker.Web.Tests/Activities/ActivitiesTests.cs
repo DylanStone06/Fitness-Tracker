@@ -129,6 +129,7 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
     [InlineData("StartTime", "25:00", "StartTime")]
     [InlineData("DurationHours", "0", "DurationHours")]
     [InlineData("DurationHours", "25", "DurationHours")]
+    [InlineData("DurationHours", "26", "DurationHours")]
     [InlineData("DurationMinutes", "60", "DurationMinutes")]
     [InlineData("Priority", "Urgent", "Priority")]
     [InlineData("PreparationMinutes", "-1", "PreparationMinutes")]

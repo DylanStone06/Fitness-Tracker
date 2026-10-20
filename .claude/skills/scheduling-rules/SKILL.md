@@ -73,8 +73,10 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   hours apply to); `Whole` is what conflicts are checked on.
 - H8 (`Footprint.ProblemsWith`): the activity is longer than zero; each buffer and journey is zero or more (each
   negative one is its own problem, so a form can say which field); the whole is at most **24 hours of elapsed
-  time**. A negative part counts as zero towards the 24 hours. So midnight to midnight on the day the clocks go back
-  (25 h) is refused (pinned by a test; listed in known limitations for the owner).
+  time, or the whole day on a longer day** (`LongestOn(day, zone)`, requirements Q7): midnight to midnight on the day
+  the clocks go back (25 h) is allowed, but 25 h on any other day isn't, and the 23-hour day still allows 24. Callers
+  pass the limit for the day each occurrence starts (`Times.LongestFor`); without one it is 24 h. A negative part
+  counts as zero towards the limit.
 - Travel (`TravelTimes.JourneysFor`): **none** when the activity is at base or has no location; otherwise the leg
   base to activity and the leg back, which can differ. A missing leg gives no journeys and names the missing legs:
   it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6, TRV-4).
