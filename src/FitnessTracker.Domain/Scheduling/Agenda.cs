@@ -100,6 +100,34 @@ public static class Agenda
         return next.Item is null ? null : new NextUp(next.Item, UnderWay: next.Time.Start <= now);
     }
 
+    /// <summary>
+    /// CAL-1: every occurrence on screen in the calendar, that is whose footprint (CAL-5), or the activity itself
+    /// without one, overlaps <paramref name="window"/> (half-open). That includes one from the day before running into
+    /// it, such as a night shift. Footprints, notes and clashes are as in <see cref="Between"/>, in the same order.
+    /// </summary>
+    public static IReadOnlyList<AgendaItem> Overlapping(IEnumerable<PlannedActivity> activities, PlanningContext context, Interval window, DateTimeZone zone)
+    {
+        var (from, through) = DatesAround(window, zone);
+        return Between(activities, context, from, through)
+            .Where(item => (item.Footprint?.Whole ?? item.Occurrence.Time) is var time && time.Start < window.End && time.End > window.Start)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The dates whose activities <see cref="Overlapping"/> needs, for callers deciding which to load: its own dates
+    /// and <see cref="MarginDays"/> either side of them, for clashes.
+    /// </summary>
+    public static DateInterval DatesToLoadFor(Interval window, DateTimeZone zone)
+    {
+        var (from, through) = DatesAround(window, zone);
+        return new DateInterval(from.PlusDays(-MarginDays), through.PlusDays(MarginDays));
+    }
+
+    // Two days before: a footprint of up to a day (H8) can start the day before the window's first date, and an activity
+    // in another timezone can be dated a day earlier. Overlap with the window is what decides.
+    private static (LocalDate From, LocalDate Through) DatesAround(Interval window, DateTimeZone zone) =>
+        (window.Start.InZone(zone).Date.PlusDays(-2), window.End.InZone(zone).Date.PlusDays(1));
+
     /// <summary>The time it starts, saying which one when the clocks repeat it ("01:30 BST").</summary>
     public static string Starts(AgendaItem item) => Times.Clock(item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone));
 

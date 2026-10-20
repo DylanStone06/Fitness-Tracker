@@ -309,6 +309,43 @@ public class AgendaTests
         Assert.Equal(underWay, next.UnderWay);
     }
 
+    // CAL-1: the calendar shows what overlaps the days on screen. Monday 2 November 2026 (GMT): Sunday's 22:00 night
+    // shift runs into it, Sunday's 09:00 meeting doesn't.
+    [Fact]
+    public void Overlapping_IncludesWhatRunsIntoTheWindow_FromTheDayBefore()
+    {
+        var nightShift = OneOff("Night shift", Monday.PlusDays(-1), new LocalTime(22, 0), minutes: 8 * 60, at: null);
+        var meeting = OneOff("Meeting", Monday.PlusDays(-1), new LocalTime(9, 0), minutes: 30, at: null);
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+
+        var items = Agenda.Overlapping([nightShift, meeting, gym], Context(), MondayWindow(), London);
+
+        Assert.Equal(["Night shift", "Gym"], items.Select(item => item.Activity.Title));
+    }
+
+    // Half-open (§8): something ending at 00:00 Monday, or starting at 00:00 Tuesday, isn't on Monday.
+    [Fact]
+    public void Overlapping_IsHalfOpen()
+    {
+        var endsAtMidnight = OneOff("Late film", Monday.PlusDays(-1), new LocalTime(22, 0), minutes: 120, at: null);
+        var startsAtMidnight = OneOff("Night swim", Monday.PlusDays(1), new LocalTime(0, 0), minutes: 60, at: null);
+
+        Assert.Empty(Agenda.Overlapping([endsAtMidnight, startsAtMidnight], Context(), MondayWindow(), London));
+    }
+
+    // CAL-5: the footprint counts. A 00:10 Tuesday session at the gym sets off at 23:45 Monday, so Monday shows it.
+    [Fact]
+    public void Overlapping_CountsTheFootprint()
+    {
+        var earlyGym = OneOff("Early gym", Monday.PlusDays(1), new LocalTime(0, 10), minutes: 50, at: Gym);
+
+        var item = Assert.Single(Agenda.Overlapping([earlyGym], Context(), MondayWindow(), London));
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 2, 23, 45), item.Footprint?.Whole.Start);
+    }
+
+    private static Interval MondayWindow() => new(Instant.FromUtc(2026, 11, 2, 0, 0), Instant.FromUtc(2026, 11, 3, 0, 0));
+
     private static PlannedActivity OneOff(string title, LocalDate date, LocalTime start, int minutes, Guid? at, Buffers? buffers = null) =>
         new(Guid.NewGuid(), title,
             new Series(date, start, Duration.FromMinutes(minutes), London, RecurrenceRule.Daily().EndingAfter(1)),
