@@ -24,7 +24,7 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
     [Fact]
     public async Task OnceEverythingIsSetUp_TheGettingStartedStepsAreHidden()
     {
-        var (browser, gym) = await SignedInWithHomeAndGymAsync();
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync();
         await browser.SubmitFormAsync("/Preferences", "/Preferences", PreferencesForm());
         await browser.AddActivityAsync("Gym", new() { ["LocationId"] = gym.Id.ToString() });
 
@@ -35,7 +35,7 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
     [Fact]
     public async Task ATravelTimeMissing_IsStillToDo()
     {
-        var (browser, _) = await SignedInWithHomeAndGymAsync(withTravelBack: false);
+        var (browser, _, _) = await SignedInWithHomeAndGymAsync(withTravelBack: false);
 
         var html = await HomePageAsync(browser);
 
@@ -47,7 +47,7 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
     [Fact]
     public async Task Today_ListsEachActivity_WithWhenToLeaveAndWhenBack()
     {
-        var (browser, gym) = await SignedInWithHomeAndGymAsync();
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync();
         await browser.AddActivityAsync("Evening gym", new()
         {
             ["LocationId"] = gym.Id.ToString(),
@@ -63,6 +63,69 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         Assert.Contains("Today, Mon 19 Oct", html);
         Assert.Contains("Evening gym", html);
         Assert.Contains("Leave home 17:35, back 19:45", html);
+    }
+
+    // Getting ready happens at home before leaving (§7.1), and a late session gets back the next day (§8): leave at
+    // 22:05, back 22:30 + 50 + 10 + 45 minutes = 00:15 the next day (BST).
+    [Theory]
+    [InlineData("18:00", "15", "Leave home 17:35, back 19:45")]
+    [InlineData("22:30", "0", "Leave home 22:05, back 00:15 the next day")]
+    public async Task Today_SaysWhenToLeave_AfterGettingReady_AndWhichDayYouAreBack(string start, string preparation, string expected)
+    {
+        var (browser, gym, _) = await SignedInWithHomeAndGymAsync();
+        await browser.AddActivityAsync("Gym", new()
+        {
+            ["LocationId"] = gym.Id.ToString(),
+            ["StartDate"] = "2026-10-19",
+            ["StartTime"] = start,
+            ["DurationHours"] = "0",
+            ["DurationMinutes"] = "50",
+            ["PreparationMinutes"] = preparation,
+            ["ChangingMinutes"] = "10",
+        });
+
+        Assert.Contains(expected, await HomePageAsync(browser));
+    }
+
+    // P1: travel that can't be worked out is explained. Here home has been un-marked since the activity was saved.
+    [Fact]
+    public async Task AnActivityAwayFromHome_WithNoHomeMarked_SaysWhy()
+    {
+        var (browser, gym, home) = await SignedInWithHomeAndGymAsync();
+        await browser.AddActivityAsync("Gym", new() { ["LocationId"] = gym.Id.ToString(), ["StartDate"] = "2026-10-19", ["StartTime"] = "18:00" });
+        await browser.SubmitFormAsync($"/Locations/Edit/{home.Id}", $"/Locations/Edit/{home.Id}", new()
+        {
+            ["Name"] = home.Name,
+            ["IsHome"] = "false",
+            ["HasOpeningHours"] = "false",
+        });
+
+        Assert.Contains("none of your locations is marked as home", await HomePageAsync(browser));
+    }
+
+    // H8 after the fact: a 16-hour day at the gym was fine with a 45-minute walk home, but the travel time back has
+    // since been changed to 600 minutes. The home page says it can't be checked rather than leaving it out silently.
+    [Fact]
+    public async Task AnActivityNowOver24Hours_SaysSo()
+    {
+        var (browser, gym, home) = await SignedInWithHomeAndGymAsync();
+        await browser.AddActivityAsync("Festival", new()
+        {
+            ["LocationId"] = gym.Id.ToString(),
+            ["StartDate"] = "2026-10-20",
+            ["StartTime"] = "06:00",
+            ["DurationHours"] = "16",
+        });
+        var back = (await StoredData.TravelLegAsync(factory, gym.Id, home.Id))!.Id;
+        await browser.SubmitFormAsync($"/TravelLegs/Edit/{back}", $"/TravelLegs/Edit/{back}", new()
+        {
+            ["FromLocationId"] = gym.Id.ToString(),
+            ["ToLocationId"] = home.Id.ToString(),
+            ["Minutes"] = "600",
+            ["Mode"] = "Walk",
+        });
+
+        Assert.Contains("more than 24 hours", await HomePageAsync(browser));
     }
 
     // The next 7 days: Tuesday 20 to Monday 26 October. A weekly Monday activity shows today and on the 26th; a one-off
@@ -108,7 +171,7 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         Assert.DoesNotContain(alexsTitle, await HomePageAsync(sam));
     }
 
-    private async Task<(TestBrowser Browser, Location Gym)> SignedInWithHomeAndGymAsync(bool withTravelBack = true)
+    private async Task<(TestBrowser Browser, Location Gym, Location Home)> SignedInWithHomeAndGymAsync(bool withTravelBack = true)
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
         var homeName = TestBrowser.NewName("Home");
@@ -123,7 +186,7 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
             await browser.AddTravelLegAsync(gym.Id, home.Id, minutes: 45);
         }
 
-        return (browser, gym);
+        return (browser, gym, home);
     }
 
     private static Dictionary<string, string> PreferencesForm() => new()

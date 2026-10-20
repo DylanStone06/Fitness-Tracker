@@ -1,15 +1,16 @@
 using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Recurrence;
 using NodaTime;
+using NodaTime.Text;
 
 namespace FitnessTracker.Domain.Scheduling;
 
 /// <summary>
-/// One occurrence on the agenda. <see cref="Whole"/> is its footprint, from getting ready to getting back (null if it
-/// would take up more than 24 hours, H8). <see cref="TravelUnknown"/>: its travel couldn't be worked out, so the
-/// footprint is without it (P1: said, never guessed). <see cref="ClashesWith"/>: the titles of what it overlaps.
+/// One occurrence on the agenda. <see cref="Footprint"/> is the time it takes up, from getting ready to getting back
+/// (null if that would be more than 24 hours, H8). <see cref="Note"/> says, in plain English, what couldn't be worked
+/// out (travel, or the footprint): P1, said, never guessed. <see cref="ClashesWith"/>: the titles of what it overlaps.
 /// </summary>
-public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Interval? Whole, bool TravelUnknown, IReadOnlyList<string> ClashesWith);
+public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith);
 
 /// <summary>
 /// GOL-2, first part: every occurrence starting on a run of days, in time order (then by title, SCH-7), for the home
@@ -23,17 +24,22 @@ public static class Agenda
 
     public static IReadOnlyList<AgendaItem> Between(IEnumerable<PlannedActivity> activities, PlanningContext context, LocalDate from, LocalDate through)
     {
-        var entries = new List<(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, bool TravelUnknown)>();
+        var entries = new List<(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note)>();
         foreach (var activity in activities)
         {
             var journeys = Travel.KnownJourneys(activity.LocationId, context);
             var travel = journeys ?? Journeys.None;
+            var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context)}." : null;
             foreach (var occurrence in activity.Series.OccurrencesBetween(from.PlusDays(-MarginDays), through.PlusDays(MarginDays)))
             {
-                var footprint = Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel).Count == 0
-                    ? Footprint.Around(occurrence.Time, activity.Buffers, travel)
-                    : null;
-                entries.Add((activity, occurrence, footprint, journeys is null));
+                if (Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel).Count > 0)
+                {
+                    entries.Add((activity, occurrence, null,
+                        "With its preparation, travel and changing it would take up more than 24 hours, so it isn't checked for clashes."));
+                    continue;
+                }
+
+                entries.Add((activity, occurrence, Footprint.Around(occurrence.Time, activity.Buffers, travel), travelNote));
             }
         }
 
@@ -60,8 +66,45 @@ public static class Agenda
             .Where(item => item.Entry.Occurrence.Time.Start.InZone(item.Entry.Activity.Series.Zone).Date is var date && date >= from && date <= through)
             .OrderBy(item => item.Entry.Occurrence.Time.Start)
             .ThenBy(item => item.Entry.Activity.Title, StringComparer.Ordinal)
-            .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint?.Whole, item.Entry.TravelUnknown, item.ClashesWith))
+            .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith))
             .ToList();
+    }
+
+    /// <summary>The time it starts, saying which one when the clocks repeat it ("01:30 BST").</summary>
+    public static string Starts(AgendaItem item) => Times.Clock(item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone));
+
+    /// <summary>
+    /// When to go and when it's over, from the footprint: "Leave home 17:35, back 19:45" away from home (leaving is when
+    /// the journey out starts, after getting ready at home, §7.1), "With getting ready and changing: 06:55 to 07:40" for
+    /// buffers at home, or null. A time on another day says "the day before" or "the next day" (§8), and a time the
+    /// clocks repeat says which one ("01:15 GMT").
+    /// </summary>
+    public static string? Trip(AgendaItem item)
+    {
+        if (item.Footprint is not { } footprint)
+        {
+            return null;
+        }
+
+        var zone = item.Activity.Series.Zone;
+        var day = item.Occurrence.Time.Start.InZone(zone).Date;
+        string At(Instant moment)
+        {
+            var local = moment.InZone(zone);
+            var otherDay = local.Date < day ? " the day before" : local.Date > day ? " the next day" : "";
+            return Times.Clock(local) + otherDay;
+        }
+
+        var travelOut = footprint.Segments.Where(segment => segment.Part == FootprintPart.TravelOut).Select(segment => (Instant?)segment.Time.Start).FirstOrDefault();
+        var away = footprint.Segments.Any(segment => segment.Part is FootprintPart.TravelOut or FootprintPart.TravelBack);
+        if (away)
+        {
+            return $"Leave home {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
+        }
+
+        return footprint.Whole != footprint.Activity
+            ? $"With getting ready and changing: {At(footprint.Whole.Start)} to {At(footprint.Whole.End)}"
+            : null;
     }
 
     private static void AddOnce(List<string> titles, string title)
@@ -86,4 +129,33 @@ internal static class Travel
 
         return context.Home is { } home ? context.Travel.JourneysFor(at, home).Journeys : null;
     }
+
+    /// <summary>Why <see cref="KnownJourneys"/> is null, to finish a sentence: "none of your locations is marked as home".</summary>
+    public static string WhyUnknown(Guid? locationId, PlanningContext context)
+    {
+        if (context.Home is not { } home || locationId is not { } at)
+        {
+            return "none of your locations is marked as home";
+        }
+
+        var missing = context.Travel.JourneysFor(at, home).MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}");
+        return $"there's no travel time {string.Join(", or ", missing)}";
+    }
+
+    public static string NameOf(Guid location, PlanningContext context) =>
+        context.Places.TryGetValue(location, out var place) ? place.Name : "that location";
+}
+
+/// <summary>Times and dates as the explanations write them.</summary>
+internal static class Times
+{
+    public static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+
+    public static readonly LocalTimePattern Time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
+
+    /// <summary>"07:30", or "01:15 BST" for a time the clocks repeat on the night they go back.</summary>
+    public static string Clock(ZonedDateTime moment) =>
+        moment.Zone.MapLocal(moment.LocalDateTime).Count > 1
+            ? $"{Time.Format(moment.TimeOfDay)} {moment.GetZoneInterval().Name}"
+            : Time.Format(moment.TimeOfDay);
 }

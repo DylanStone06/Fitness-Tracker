@@ -1,11 +1,10 @@
 @model FitnessTracker.Web.Models.Home.HomeViewModel
+@using FitnessTracker.Domain.Scheduling
 @using NodaTime
 @using NodaTime.Text
 @{
     ViewData["Title"] = "Home";
     var dayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
-    var time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
-    string Clock(Instant moment, DateTimeZone zone) => time.Format(moment.InZone(zone).TimeOfDay);
 }
 
 <h1>Fitness Tracker</h1>
@@ -84,29 +83,22 @@
             <ul class="list-group">
                 @foreach (var item in Model.On(day))
                 {
-                    var zone = item.Activity.Series.Zone;
                     var activity = item.Activity;
-                    var awayFromHome = activity.LocationId is { } at && at != Model.Home;
                     <li class="list-group-item">
-                        <span class="fw-bold">@Clock(item.Occurrence.Time.Start, zone)</span>
+                        <span class="fw-bold">@Agenda.Starts(item)</span>
                         <span class="text-break">@activity.Title</span>
                         @if (activity.LocationId is { } place && Model.PlaceNames.TryGetValue(place, out var placeName))
                         {
                             <span class="text-break">at @placeName</span>
                         }
-                        @if (item.TravelUnknown)
+                        @if (Agenda.Trip(item) is { } trip)
                         {
-                            <span class="d-block small">
-                                Travel time unknown, so it isn't counted: add it on the <a asp-controller="TravelLegs" asp-action="Index">Travel times</a> page.
-                            </span>
+                            <span class="d-block small">@trip</span>
                         }
-                        else if (item.Whole is { } whole && awayFromHome)
+                        @if (item.Note is { } note)
                         {
-                            <span class="d-block small">Leave home @Clock(whole.Start, zone), back @Clock(whole.End, zone)</span>
-                        }
-                        else if (item.Whole is { } footprint && footprint != item.Occurrence.Time)
-                        {
-                            <span class="d-block small">With getting ready and changing: @Clock(footprint.Start, zone) to @Clock(footprint.End, zone)</span>
+                            @* P1: what couldn't be worked out is said; "Getting started" above links to where to fix it. *@
+                            <span class="d-block small">@note</span>
                         }
                         @if (item.ClashesWith.Count > 0)
                         {

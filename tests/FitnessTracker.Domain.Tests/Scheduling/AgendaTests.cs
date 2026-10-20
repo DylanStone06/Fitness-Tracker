@@ -37,21 +37,92 @@ public class AgendaTests
 
         var item = Assert.Single(Agenda.Between([gym], Context(), Monday, Monday));
 
-        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 17, 35), Instant.FromUtc(2026, 11, 2, 19, 45)), item.Whole);
-        Assert.False(item.TravelUnknown);
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 17, 35), Instant.FromUtc(2026, 11, 2, 19, 45)), item.Footprint?.Whole);
+        Assert.Null(item.Note);
+        Assert.Equal("Leave home 17:35, back 19:45", Agenda.Trip(item));
     }
 
-    // P1: travel that can't be worked out isn't guessed: the item says so, and its footprint is without travel.
+    // Getting ready happens at home before setting off (§7.1): with 15 minutes' preparation, still leave at 17:35.
     [Fact]
-    public void AnOccurrenceWhoseTravelIsUnknown_SaysSo()
+    public void LeaveHome_IsAfterGettingReady()
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.FromMinutes(15), Duration.FromMinutes(10)));
+
+        Assert.Equal("Leave home 17:35, back 19:45", Agenda.Trip(Assert.Single(Agenda.Between([gym], Context(), Monday, Monday))));
+    }
+
+    // §8, crossing midnight: a late session gets back the next day, and one just after midnight leaves the day before.
+    [Theory]
+    [InlineData(22, 30, "Leave home 22:05, back 00:15 the next day")]
+    [InlineData(0, 10, "Leave home 23:45 the day before, back 01:55")]
+    public void TimesOnAnotherDay_SaySo(int hour, int minute, string expected)
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(hour, minute), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
+
+        Assert.Equal(expected, Agenda.Trip(Assert.Single(Agenda.Between([gym], Context(), Monday, Monday))));
+    }
+
+    // T4: 01:15 happens twice on Sunday 25 October 2026. Gym from 00:30 BST gets back at the second 01:15, so it says
+    // which: the trip is 2 h 10 min, not 1 h 10 min.
+    [Fact]
+    public void ATimeTheClocksRepeat_SaysWhichOne()
+    {
+        var sunday = new LocalDate(2026, 10, 25);
+        var gym = OneOff("Gym", sunday, new LocalTime(0, 30), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
+
+        var item = Assert.Single(Agenda.Between([gym], Context(), sunday, sunday));
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 10, 24, 23, 5), Instant.FromUtc(2026, 10, 25, 1, 15)), item.Footprint?.Whole);
+        Assert.Equal("Leave home 00:05, back 01:15 GMT", Agenda.Trip(item));
+    }
+
+    // Buffers at home: no leaving, but the time it takes up is shown.
+    [Fact]
+    public void AnActivityAtHomeWithBuffers_ShowsTheTimeItTakesUp()
+    {
+        var yoga = OneOff("Yoga", Monday, new LocalTime(7, 0), minutes: 30, at: Home, buffers: new Buffers(Duration.FromMinutes(5), Duration.FromMinutes(10)));
+
+        Assert.Equal("With getting ready and changing: 06:55 to 07:40", Agenda.Trip(Assert.Single(Agenda.Between([yoga], Context(), Monday, Monday))));
+    }
+
+    // P1: travel that can't be worked out isn't guessed: the item says why, and its footprint is without travel.
+    [Fact]
+    public void AnOccurrenceWhoseTravelIsUnknown_SaysWhy()
     {
         var oneWayOnly = new TravelTimes(new Dictionary<Leg, Duration> { [new Leg(Home, Gym)] = Duration.FromMinutes(25) });
         var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
 
         var item = Assert.Single(Agenda.Between([gym], Context(travel: oneWayOnly), Monday, Monday));
 
-        Assert.True(item.TravelUnknown);
-        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 18, 0), Instant.FromUtc(2026, 11, 2, 18, 50)), item.Whole);
+        Assert.Contains("no travel time from Town gym to Home", item.Note);
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 18, 0), Instant.FromUtc(2026, 11, 2, 18, 50)), item.Footprint?.Whole);
+    }
+
+    [Fact]
+    public void AnOccurrenceAwayFromHome_WithNoHomeMarked_SaysSo()
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+
+        var item = Assert.Single(Agenda.Between([gym], Context() with { Home = null }, Monday, Monday));
+
+        Assert.Contains("none of your locations is marked as home", item.Note);
+    }
+
+    // H8: a footprint over 24 hours (a travel time changed since it was saved) is said, not silently left out.
+    [Fact]
+    public void AnOccurrenceOver24Hours_SaysSo()
+    {
+        var long16Hours = OneOff("Festival", Monday, new LocalTime(6, 0), minutes: 16 * 60, at: Gym);
+        var slowWayBack = new TravelTimes(new Dictionary<Leg, Duration>
+        {
+            [new Leg(Home, Gym)] = Duration.FromMinutes(25),
+            [new Leg(Gym, Home)] = Duration.FromMinutes(600),
+        });
+
+        var item = Assert.Single(Agenda.Between([long16Hours], Context(travel: slowWayBack), Monday, Monday));
+
+        Assert.Null(item.Footprint);
+        Assert.Contains("more than 24 hours", item.Note);
     }
 
     // CAL-6: a clash shows on both items. The gym session's walk home runs into dinner at 19:30.
