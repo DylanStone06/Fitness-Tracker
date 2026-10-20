@@ -5,7 +5,6 @@
 @using NodaTime.Text
 @{
     ViewData["Title"] = "Home";
-    var dayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
     var longDayPattern = LocalDatePattern.CreateWithInvariantCulture("dddd d MMMM");
     var comingUp = Enumerable.Range(1, HomeViewModel.DaysAhead).Select(offset => Model.Today.PlusDays(offset)).Where(day => Model.On(day).Any()).ToList();
 
@@ -120,15 +119,10 @@
     <div class="col-lg-5">
         @if (Model.Next is { } next)
         {
-            var date = next.Item.Occurrence.Time.Start.InZone(next.Item.Activity.Series.Zone).Date;
-            var when = next.UnderWay ? "Under way"
-                : date == Model.Today ? "Today"
-                : date == Model.Today.PlusDays(1) ? "Tomorrow"
-                : dayPattern.Format(date);
             @* GOL-2: the next thing to do, first. *@
             <section class="card ft-next ft-stripe @StyleOf(next.Item) mb-4" aria-labelledby="next-up-heading">
                 <div class="card-body">
-                    <h2 class="ft-eyebrow mb-2" id="next-up-heading">Next up <span class="fw-normal">· @when</span></h2>
+                    <h2 class="ft-eyebrow mb-2" id="next-up-heading">Next up <span class="fw-normal">· @Model.NextWhen</span></h2>
                     <div class="ft-next-details">@{ await Details(next.Item); }</div>
                 </div>
             </section>
@@ -136,7 +130,7 @@
 
         @* Today and the next 7 days each have a section, for screen reader navigation. *@
         <section aria-labelledby="day-@Model.Today.ToString("uuuu-MM-dd", null)">
-            <h2 class="h4" id="day-@Model.Today.ToString("uuuu-MM-dd", null)">Today, @dayPattern.Format(Model.Today)</h2>
+            <h2 class="h4" id="day-@Model.Today.ToString("uuuu-MM-dd", null)">Today, @HomeViewModel.DayPattern.Format(Model.Today)</h2>
             @{ await Day(Model.Today, "Nothing planned today."); }
         </section>
     </div>
@@ -151,7 +145,7 @@
             @foreach (var day in comingUp)
             {
                 <section class="mb-3" aria-labelledby="day-@day.ToString("uuuu-MM-dd", null)">
-                    <h3 class="h6 text-body-secondary mb-2" id="day-@day.ToString("uuuu-MM-dd", null)">@dayPattern.Format(day)</h3>
+                    <h3 class="h6 text-body-secondary mb-2" id="day-@day.ToString("uuuu-MM-dd", null)">@HomeViewModel.DayPattern.Format(day)</h3>
                     @{ await Day(day, ""); }
                 </section>
             }

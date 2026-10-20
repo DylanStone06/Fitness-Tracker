@@ -216,6 +216,21 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         Assert.DoesNotContain("Morning meeting", nextUp);
     }
 
+    // The Next up card says when: an hour-long swim from 12:30 BST (11:30 UTC) is under way at 13:00 BST; later ones
+    // say today, tomorrow, or their date.
+    [Theory]
+    [InlineData("2026-10-19", "12:30", "Under way")]
+    [InlineData("2026-10-19", "18:00", "Today")]
+    [InlineData("2026-10-20", "09:00", "Tomorrow")]
+    [InlineData("2026-10-22", "09:00", "Thu 22 Oct")]
+    public async Task NextUp_SaysWhen(string date, string time, string expected)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Swim", new() { ["StartDate"] = date, ["StartTime"] = time });
+
+        Assert.Contains($"· {expected}</span>", Section(await HomePageAsync(browser), "next-up-heading"));
+    }
+
     [Fact]
     public async Task NextUp_IsLeftOut_WhenNothingIsLeft()
     {
