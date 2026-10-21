@@ -71,7 +71,7 @@
             ·
             @if (Model.ReturnToCalendar)
             {
-                <a asp-controller="Calendar" asp-action="Index" asp-route-date="@Model.Date">Back to the calendar</a>
+                <a asp-controller="Calendar" asp-action="Index" asp-route-date="@Model.ShownOn">Back to the calendar</a>
             }
             else
             {

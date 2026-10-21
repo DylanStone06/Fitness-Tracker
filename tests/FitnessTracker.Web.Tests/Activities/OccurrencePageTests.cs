@@ -338,6 +338,21 @@ public sealed class OccurrencePageTests(TestAppFactory factory) : IClassFixture<
         Assert.Equal("/Calendar?date=2026-11-12", response.Headers.Location?.OriginalString);
     }
 
+    // One moved to another week is on the calendar there: going back, or cancelling it, shows that week. (Phase 5 code
+    // review: both went to the week it was moved from.)
+    [Fact]
+    public async Task AnOccurrenceMovedToAnotherWeek_GoesBackToThatWeek()
+    {
+        var (browser, id, _) = await GymAsync();
+        await ChangeAsync(browser, id, "2026-11-04", new() { ["Change"] = "Move", ["NewDate"] = "2026-11-12" });
+
+        var html = await PageAsync(browser, $"/Activities/Occurrence/{id}?date=2026-11-04&returnToCalendar=true");
+        var cancelled = await ChangeAsync(browser, id, "2026-11-04", new() { ["Change"] = "Cancel", ["ReturnToCalendar"] = "true" });
+
+        Assert.Contains("href=\"/Calendar?date=2026-11-12\">Back to the calendar", html);
+        Assert.Equal("/Calendar?date=2026-11-12", cancelled.Headers.Location?.OriginalString);
+    }
+
     private async Task<(TestBrowser Browser, Guid Id, string Title)> GymAsync()
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");

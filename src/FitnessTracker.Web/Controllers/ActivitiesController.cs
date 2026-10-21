@@ -315,8 +315,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return RedirectToAction(nameof(Index));
         }
 
-        var shownOn = model.Change == OccurrenceChangeChoice.Move ? model.NewStart.Date : found.Date;
-        return RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = FormInput.Date.Format(shownOn) });
+        // The week it is now on; for a cancelled one, the week it was on (ShownOn is from before the change).
+        var shownOn = model.Change switch
+        {
+            OccurrenceChangeChoice.Move => FormInput.Date.Format(model.NewStart.Date),
+            OccurrenceChangeChoice.Restore => FormInput.Date.Format(found.Date),
+            _ => model.ShownOn,
+        };
+        return RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = shownOn });
     }
 
     // The occurrence on date (as the page sends it), with the series it belongs to; null when the activity doesn't

@@ -74,6 +74,11 @@ public class OccurrenceFormViewModel : IConfirmsClashes
     [ValidateNever]
     public bool IsChanged { get; set; }
 
+    /// <summary>The date it is on the calendar ("2026-11-12"): where it was moved to, or its own date.</summary>
+    [BindNever]
+    [ValidateNever]
+    public string ShownOn { get; set; } = "";
+
     /// <summary>
     /// The new start, once the form is valid. Never validated: MVC's validation reads every property of a posted model,
     /// and this one has no value until the date and time are right.
@@ -123,6 +128,7 @@ public class OccurrenceFormViewModel : IConfirmsClashes
                 _ => ($"Cancelled (usually {usual})", true),
             }
             : (usual, false);
+        ShownOn = FormInput.Date.Format(change is OccurrenceChange.Moved moved ? moved.Start.Date : date);
         return this;
     }
 
