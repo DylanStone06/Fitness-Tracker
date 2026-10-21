@@ -163,6 +163,10 @@
     height: 'auto',
     slotLabelFormat: time,
     eventTimeFormat: time,
+    // "Mon 19 Oct", as on every other page.
+    dayHeaderFormat: { weekday: 'short', day: 'numeric', month: 'short' },
+    // WCAG 2.5.8: even a ten-minute activity is a target at least 24 pixels tall (FullCalendar takes 1 off for the gap).
+    eventMinHeight: 25,
     events: load,
     eventContent: content,
     editable: true,

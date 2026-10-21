@@ -327,9 +327,15 @@ h2, .h2, h3, .h3, .h4, .h5 {
   display: none;
 }
 
+/* A clash is an inner red ring (and words, CAL-6), leaving the outline free to show focus. */
 .ft-calendar .ft-clash {
-  outline: 2px solid var(--ft-danger-text);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--ft-danger-text);
+}
+
+/* WCAG 2.4.7: a clear focus ring on activities, unlike FullCalendar's faint shadow. */
+.ft-calendar .fc-event:focus-visible {
+  outline: 3px solid var(--bs-link-color);
+  outline-offset: 2px;
 }
 
 .ft-event-time {
