@@ -272,7 +272,7 @@ h2, .h2, h3, .h3, .h4, .h5 {
 
 /* The calendar (CAL-1, FullCalendar): its colours come from the theme, through FullCalendar's own variables.
    Activities use their category's label colours (each at least 6.34:1, docs/design.md) with the stripe colour as a
-   thicker left edge; getting ready, travel and changing are lighter, dashed blocks in the same colour (CAL-5). */
+   thicker left edge; getting ready, travel and changing are lighter, dashed bands in the same colour (CAL-5). */
 .ft-calendar {
   --fc-border-color: var(--bs-border-color);
   --fc-page-bg-color: var(--ft-surface);
@@ -316,15 +316,73 @@ h2, .h2, h3, .h3, .h4, .h5 {
   border-left-width: 4px;
 }
 
-.ft-calendar .ft-segment {
-  --fc-event-bg-color: var(--ft-surface);
-  --fc-event-border-color: var(--ft-cat);
-  --fc-event-text-color: var(--bs-secondary-color);
-  border-style: dashed;
+/* CAL-5: getting ready, travel and changing are bands behind the day, dashed in the activity's colour. */
+.ft-calendar .fc-bg-event.ft-segment {
+  background-color: var(--ft-surface);
+  border: 1px dashed var(--ft-cat);
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  opacity: 1;
 }
 
-.ft-calendar .fc-list .ft-segment {
-  display: none;
+.ft-calendar .fc-bg-event.ft-segment .ft-event-title {
+  margin: 0 0.25rem;
+  font-weight: 400;
+}
+
+/* break-ui: an activity's text stays inside its block, so it never lies over another (the list and the activity's
+   page say everything), and a long word breaks rather than widening the list past a phone's screen (WCAG 1.4.10). */
+.ft-calendar .fc-timegrid-event .fc-event-main {
+  overflow: hidden;
+}
+
+.ft-calendar .fc-event-main,
+.ft-calendar .fc-list-event-title,
+.ft-calendar .fc-bg-event {
+  overflow-wrap: anywhere;
+}
+
+/* "+3 more" opens a box whose close control would be an icon from FullCalendar's font, which the Content-Security-Policy
+   blocks: without this it is empty, 0 pixels wide. Escape closes the box too. */
+.ft-calendar .fc-popover-close {
+  display: inline-block;
+  min-width: 24px;
+  min-height: 24px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.ft-calendar .fc-popover-close::before {
+  content: "×";
+  font-size: 1.25rem;
+}
+
+/* The list's times can be long ("10:00pm – 7:00am the next day"), so they wrap too. */
+.ft-calendar .fc-list-event-time {
+  min-width: 5.5rem;
+  white-space: normal;
+}
+
+/* In the grid the time and the title share a line; a short block (a half hour) has room for one line, so its end is
+   only read out, not shown. */
+.ft-calendar .fc-timegrid-event .ft-event-time,
+.ft-calendar .fc-timegrid-event .ft-event-title {
+  display: inline;
+}
+
+.ft-calendar .fc-timegrid-event .ft-event-time {
+  margin-right: 0.35em;
+}
+
+.ft-calendar .fc-timegrid-event-short .ft-event-end {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 /* A clash is an inner red ring (and words, CAL-6), leaving the outline free to show focus. */

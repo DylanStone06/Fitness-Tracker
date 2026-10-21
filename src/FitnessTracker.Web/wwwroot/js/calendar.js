@@ -47,17 +47,17 @@
         const events = [];
         for (const occurrence of occurrences) {
           events.push({ ...occurrence, url: pageFor(occurrence.extendedProps) });
-          // CAL-5: getting ready, travel and changing, as lighter blocks joined to the activity (not in the list).
+          // CAL-5: getting ready, travel and changing, as lighter bands behind the day, so the activity keeps its full
+          // width (as blocks beside it, they halved it: break-ui). Not in the list, whose "Leave home 17:35, back 19:45"
+          // says the same in words.
           for (const part of occurrence.extendedProps.footprint) {
             events.push({
               id: `${occurrence.id}-${part.part}`,
               title: partNames[part.part] ?? part.part,
               start: part.start,
               end: part.end,
+              display: 'background',
               classNames: ['ft-segment', ...occurrence.classNames.filter((name) => name.startsWith('cat-'))],
-              // Not a link, a tab stop or draggable: there's nothing to do with it on its own.
-              interactive: false,
-              editable: false,
               extendedProps: { partOf: occurrence.title },
             });
           }
@@ -93,12 +93,30 @@
 
     const inList = info.view.type.startsWith('list');
     const nodes = [];
-    // The start with its zone ("01:30 BST") when the clocks repeat that time; otherwise the calendar's own text.
-    const when = props.starts.includes(' ') ? props.starts : info.timeText;
-    if (!inList && when) {
-      nodes.push(line(when, 'ft-event-time'));
+    // In the grid: the times the server wrote, the user's way ("01:30 BST" on the night the clocks go back, "06:00 the
+    // next day" for a night shift). A short block shows its start and title; its end is still read out (site.css).
+    if (!inList) {
+      const time = line(info.isStart ? props.starts : `Until ${props.endsAt}`, 'ft-event-time');
+      if (info.isStart) {
+        const end = document.createElement('span');
+        end.className = 'ft-event-end';
+        end.textContent = ` – ${props.ends}`;
+        time.append(end);
+      }
+      nodes.push(time);
     }
-    nodes.push(line(info.event.title, 'ft-event-title'));
+    // In the list the row isn't a link once its content is replaced, so the title is one: the keyboard and screen
+    // readers can open it too (break-ui). In the grid the whole block is already a link.
+    if (inList) {
+      const title = line('', 'ft-event-title');
+      const link = document.createElement('a');
+      link.href = pageFor(props);
+      link.textContent = info.event.title;
+      title.append(link);
+      nodes.push(title);
+    } else {
+      nodes.push(line(info.event.title, 'ft-event-title'));
+    }
     if (props.moved) {
       nodes.push(line('Moved, this time only', 'ft-event-details'));
     }
@@ -111,11 +129,26 @@
         nodes.push(line(props.note, 'ft-event-details'));
       }
     }
-    // CAL-6: a clash in words and with an icon, not by colour alone.
-    if (props.clashesWith.length > 0) {
-      nodes.push(line(`⚠ Clashes with ${props.clashesWith.join(', ')}`, 'ft-event-clash'));
+    // CAL-6: a clash in words and with an icon, not by colour alone. The grid says how many (the names didn't fit); the
+    // list and the activity's page name them.
+    const clashes = props.clashesWith.length;
+    if (clashes > 0) {
+      nodes.push(line(
+        inList ? `⚠ Clashes with ${props.clashesWith.join(', ')}` : `⚠ Clashes with ${clashes === 1 ? '1 other' : `${clashes} others`}`,
+        'ft-event-clash',
+      ));
     }
     return { domNodes: nodes };
+  };
+
+  // The list's own time column, in the server's words too: "22:00 – 06:00 the next day", not "22:00 – 00:00", and
+  // "Until 06:00" for the part after midnight.
+  const listTimes = (info) => {
+    const props = info.event.extendedProps;
+    const cell = info.el.querySelector('.fc-list-event-time');
+    if (cell && props.starts) {
+      cell.textContent = info.isStart ? `${props.starts} – ${props.ends}` : `Until ${props.endsAt}`;
+    }
   };
 
   // CAL-8: a drag or a resize is never saved by itself. The block goes back, and the occurrence's page (or a one-off's
@@ -134,7 +167,11 @@
 
   // CAL-10: on a phone the list is easier to read than a week of narrow columns.
   const narrow = window.matchMedia('(max-width: 767.98px)').matches;
-  const time = { hour: '2-digit', minute: '2-digit', hour12: twelveHour };
+  // Times as every other page writes them (ACC-3): "18:30", or "6:30pm" with the 12-hour clock.
+  const pad = (number) => String(number).padStart(2, '0');
+  const time = ({ date }) => (twelveHour
+    ? `${date.hour % 12 || 12}:${pad(date.minute)}${date.hour < 12 ? 'am' : 'pm'}`
+    : `${pad(date.hour)}:${pad(date.minute)}`);
 
   const calendar = new FullCalendar.Calendar(element, {
     timeZone: 'UTC',
@@ -170,8 +207,12 @@
     dayHeaderFormat: { weekday: 'short', day: 'numeric', month: 'short' },
     // WCAG 2.5.8: even a ten-minute activity is a target at least 24 pixels tall (FullCalendar takes 1 off for the gap).
     eventMinHeight: 25,
+    // Two side by side, then "+3 more", which opens the rest: six overlapping activities in a column were unreadable
+    // at any width (break-ui). Clashes are rare, and each says so in words.
+    eventMaxStack: 2,
     events: load,
     eventContent: content,
+    eventDidMount: listTimes,
     editable: true,
     eventDrop: dragged,
     eventResize: dragged,

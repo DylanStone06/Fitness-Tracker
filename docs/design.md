@@ -73,9 +73,13 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
   the next 7 days; on phones they stack.
 - **Empty states** say what to do next ("Nothing planned in the next 7 days. Add an activity.").
 - **Calendar** (FullCalendar): a card like the others; activities in their category's label colours with a thicker
-  stripe-coloured edge, and getting ready, travel and changing as dashed, lighter blocks in the same colour, joined to
-  it (hidden in the list view). A clash has a red outline and says "⚠ Clashes with …". Buttons are words, not icons.
-  On phones (under 768 px) it opens on the list. The calendar page alone allows FullCalendar's `<style>` elements, by
-  a one-time code in the policy (`SecurityHeaders.StyleNonce`).
+  stripe-coloured edge, and getting ready, travel and changing as dashed, lighter bands behind the day in the same
+  colour, above and below it, so the activity keeps its full width (not in the list view, which says "Leave home …,
+  back …"). A clash has a red outline and says "⚠ Clashes with 2 others" in the grid and the names in the list. In the
+  grid, an activity's text stays inside its block: a half-hour block shows its start and title on one line. Two
+  overlapping activities sit side by side, then "+N more" opens the rest. Times are written as on every other page
+  ("18:30" or "6:30pm", "06:00 the next day"). Buttons are words, not icons. On phones (under 768 px) it opens on the
+  list, where each title is a link. The calendar page alone allows FullCalendar's `<style>` elements, by a one-time
+  code in the policy (`SecurityHeaders.StyleNonce`). These came from the Phase 5 worst-case data check (`break-ui`).
 - **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
   elements (`<progress>`, not a styled `<div>`).
