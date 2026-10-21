@@ -133,6 +133,31 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
         Assert.Equal("2026-10-20", moved.GetProperty("occurrenceDate").GetString());
     }
 
+    // CAL-1, CAL-4 (scheduling review M-2): an occurrence moved to before its activity's first date shows where it now
+    // is. Mondays from 9 November, the first moved to Friday 30 October.
+    [Fact]
+    public async Task Events_ShowAnOccurrenceMovedToBeforeTheFirstDate()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-09", ["StartTime"] = "07:00", ["Repeats"] = "Weekly", ["RepeatDays[0]"] = "true" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+        var moved = await browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date=2026-11-09", $"/Activities/Occurrence/{id}", new()
+        {
+            ["Date"] = "2026-11-09",
+            ["Change"] = "Move",
+            ["NewDate"] = "2026-10-30",
+            ["NewStartTime"] = "07:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+        });
+        Assert.Equal(HttpStatusCode.Redirect, moved.StatusCode);
+
+        var shown = Assert.Single(await EventsAsync(browser, "2026-10-26T00:00:00", "2026-11-02T00:00:00"));
+
+        Assert.Equal("2026-10-30T07:00:00", shown.GetProperty("start").GetString());
+    }
+
     // T19: only the signed-in user's own occurrences.
     [Fact]
     public async Task AnotherUsersActivities_AreNeverSent()

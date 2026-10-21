@@ -54,14 +54,16 @@ public class PlanningData(AppDbContext db, IClock clock)
 
     /// <summary>
     /// The user's activities that can fall on <paramref name="dates"/>: repeating ones that have started by then, and
-    /// one-offs on those dates. One the app can't read (edited by hand, say) is left out and named in
-    /// <paramref name="unreadable"/>, rather than stopping the page.
+    /// one-offs on those dates. A repeating one with occurrences changed on their own (CAL-4) is loaded whatever its
+    /// first date, as one can have been moved to before it. One the app can't read (edited by hand, say) is left out
+    /// and named in <paramref name="unreadable"/>, rather than stopping the page.
     /// </summary>
     public async Task<List<PlannedActivity>> ActivitiesOnAsync(DateInterval dates, List<string> unreadable, Guid? except = null)
     {
         var stored = await db.Activities.AsNoTracking()
-            .Where(activity => activity.Id != except && activity.StartDate <= dates.End
-                && (activity.RepeatRule != null || activity.StartDate >= dates.Start))
+            .Where(activity => activity.Id != except
+                && (activity.OccurrenceChanges != null
+                    || (activity.StartDate <= dates.End && (activity.RepeatRule != null || activity.StartDate >= dates.Start))))
             .ToListAsync();
         return Planned(stored, unreadable);
     }
