@@ -61,7 +61,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         var preferences = await PreferencesAsync();
         var activity = new Activity { TimeZoneId = preferences.TimeZoneId };
         model.ApplyTo(activity, preferences.WeekStart);
-        if (!await PassesTheCheckAsync(activity, model))
+        if (!await PassesTheCheckAsync(activity, model, await checker.CheckAsync(activity)))
         {
             return View(model);
         }
@@ -132,7 +132,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             activity.OccurrenceChanges = null;
         }
 
-        if (!await PassesTheCheckAsync(activity, model))
+        if (!await PassesTheCheckAsync(activity, model, await checker.CheckAsync(activity)))
         {
             return View(model);
         }
@@ -268,9 +268,10 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 
         // Saved only if nobody has saved this activity since the page was opened (requirements §9).
         db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
-        var before = await checker.CheckAsync(activity);
+        // SCH-1 on that occurrence, where it now is (nothing for a cancelled one): what the rest of the series already
+        // had, accepted clashes included, isn't this change's doing.
         activity.OccurrenceChanges = OccurrenceChangesText.Format(changed.Changes);
-        if (!await PassesTheCheckAsync(activity, model, before, OccurrenceFieldFor))
+        if (!await PassesTheCheckAsync(activity, model, await checker.CheckOccurrenceAsync(activity, found.Date), OccurrenceFieldFor, oneOccurrence: true))
         {
             return View(model);
         }
@@ -393,19 +394,15 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     private async Task<UserPreferences> PreferencesAsync() =>
         await db.UserPreferences.AsNoTracking().SingleOrDefaultAsync() ?? new UserPreferences();
 
-    // SCH-1: the one check, on the activity exactly as it would be saved. Each problem is shown by the field it is
-    // about. Clashes (H1) are listed, and need "Save anyway" (§7.2, Q2). True when it can be saved. With before (the
-    // check on the activity as stored), only what the change breaks counts: a change to one occurrence (CAL-4) isn't
-    // held up by clashes kept elsewhere in the series, or by a problem it didn't cause.
+    // SCH-1: the one check's result, on the activity exactly as it would be saved (the whole activity, or for a change
+    // to one occurrence, CAL-4, that occurrence). Each problem is shown by the field it is about. Clashes (H1) are
+    // listed, and need "Save anyway" (§7.2, Q2). True when it can be saved.
     private async Task<bool> PassesTheCheckAsync(
-        Activity activity, IConfirmsClashes model, ActivityCheckResult? before = null, Func<CheckAspect, string>? fieldFor = null)
+        Activity activity, IConfirmsClashes model, ActivityCheckResult result, Func<CheckAspect, string>? fieldFor = null, bool oneOccurrence = false)
     {
-        var result = await checker.CheckAsync(activity);
         var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
         var clock = (await PreferencesAsync()).TimesShownAs();
-        var problems = result.Problems
-            .Where(problem => before is null || !before.Problems.Any(old => old.Message == problem.Message))
-            .ToList();
+        var problems = result.Problems;
         foreach (var problem in problems)
         {
             ModelState.AddModelError((fieldFor ?? FieldFor)(problem.Aspect), problem.Message);
@@ -418,11 +415,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             TempData[CheckNotes] = result.Notes.ToArray();
         }
 
-        var keptBefore = before?.Clashes.Select(clash => ActivityCheck.Describe(clash, zone, clock)).ToHashSet() ?? [];
-        var clashes = result.Clashes
-            .Select(clash => ActivityCheck.Describe(clash, zone, clock))
-            .Where(clash => !keptBefore.Contains(clash))
-            .ToList();
+        var clashes = result.Clashes.Select(clash => ActivityCheck.Describe(clash, zone, clock)).ToList();
         if (problems.Count > 0 || clashes.Count == 0)
         {
             return ModelState.IsValid;
@@ -442,9 +435,10 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         model.ShownClashes = fingerprint;
         ModelState.Remove(nameof(model.ConfirmClashes));
         model.ConfirmClashes = false;
-        ModelState.AddModelError(nameof(model.ConfirmClashes),
-            $"It clashes with your other activities, listed below (checked from {result.Checked.Start.ToString("d MMMM uuuu", CultureInfo.InvariantCulture)} " +
-            $"for {ActivityCheck.WeeksAhead} weeks). Change it, or tick \"Save anyway\" to keep the clashes.");
+        ModelState.AddModelError(nameof(model.ConfirmClashes), oneOccurrence
+            ? "Where it now is, it clashes with your other activities, listed below. Change it, or tick \"Save anyway\" to keep the clashes."
+            : $"It clashes with your other activities, listed below (checked from {result.Checked.Start.ToString("d MMMM uuuu", CultureInfo.InvariantCulture)} " +
+              $"for {ActivityCheck.WeeksAhead} weeks). Change it, or tick \"Save anyway\" to keep the clashes.");
         return false;
     }
 

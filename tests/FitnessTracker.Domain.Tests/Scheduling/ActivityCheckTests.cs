@@ -140,6 +140,107 @@ public class ActivityCheckTests
         Assert.Equal(CheckAspect.Length, problem.Aspect);
     }
 
+    // CAL-4, H1: a change to one occurrence is checked on that occurrence, where it now is. Gym on Mondays and Wednesdays
+    // 07:00-08:00 at home; Wednesday 4 November moved to Monday 2nd 08:00-09:00 runs into breakfast (07:30-08:30).
+    // Monday's own session ends as it starts (half-open): no clash. (Scheduling review H-2: the old way compared
+    // descriptions, and this clash reads like breakfast's existing one with Monday's session.)
+    [Fact]
+    public void CheckOccurrence_FindsAClashWhereTheOccurrenceNowIs()
+    {
+        var gym = GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 2, 8, 0), Duration.FromHours(1));
+        var breakfast = OneOff("Breakfast", new LocalDate(2026, 11, 2), new LocalTime(7, 30), minutes: 60, at: null);
+
+        var result = ActivityCheck.CheckOccurrence(AtHome(gym), new LocalDate(2026, 11, 4), [breakfast], Context());
+
+        var clash = Assert.Single(result.Clashes);
+        Assert.Equal("Breakfast", clash.Other.Label);
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 8, 0), Instant.FromUtc(2026, 11, 2, 8, 30)), clash.Overlap);
+    }
+
+    // ... and only there: breakfast clashing with Monday's session isn't this change's doing.
+    [Fact]
+    public void CheckOccurrence_LeavesTheRestOfTheSeriesAlone()
+    {
+        var gym = GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 4, 9, 0), Duration.FromHours(1));
+        var breakfast = OneOff("Breakfast", new LocalDate(2026, 11, 2), new LocalTime(7, 30), minutes: 60, at: null);
+
+        var result = ActivityCheck.CheckOccurrence(AtHome(gym), new LocalDate(2026, 11, 4), [breakfast], Context());
+
+        Assert.Empty(result.Problems);
+        Assert.Empty(result.Clashes);
+    }
+
+    // Its own series counts too: moved onto Monday 07:30, it overlaps Monday's own session.
+    [Fact]
+    public void CheckOccurrence_FindsAClashWithItsOwnSeries()
+    {
+        var gym = GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 2, 7, 30), Duration.FromHours(1));
+
+        var clash = Assert.Single(ActivityCheck.CheckOccurrence(AtHome(gym), new LocalDate(2026, 11, 4), [], Context()).Clashes);
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 2, 7, 30), Instant.FromUtc(2026, 11, 2, 8, 0)), clash.Overlap);
+    }
+
+    // A cancelled occurrence takes no time: nothing to check, even where the series has problems (review L-5: it no
+    // longer brings back old clashes either).
+    [Fact]
+    public void CheckOccurrence_OfACancelledOne_HasNothingToCheck()
+    {
+        var gym = GymMondaysAndWednesdays().CancelOccurrence(new LocalDate(2026, 11, 4));
+        var atTheGym = new PlannedActivity(Guid.NewGuid(), "Gym", gym, Buffers.None, Gym);
+
+        var result = ActivityCheck.CheckOccurrence(atTheGym, new LocalDate(2026, 11, 4), [], Context(withHome: false));
+
+        Assert.Empty(result.Problems);
+        Assert.Empty(result.Clashes);
+    }
+
+    // Review H-1: travel that can't be worked out (a travel time deleted since) is a problem for the moved occurrence,
+    // never a reason to skip its clash check.
+    [Fact]
+    public void CheckOccurrence_WhoseTravelIsUnknown_IsAProblem()
+    {
+        var gym = GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 5, 18, 0), Duration.FromMinutes(50));
+        var atTheGym = new PlannedActivity(Guid.NewGuid(), "Gym", gym, Buffers.None, Gym);
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(atTheGym, new LocalDate(2026, 11, 4), [], Context(withHome: false)).Problems);
+
+        Assert.Equal(CheckAspect.Location, problem.Aspect);
+    }
+
+    // H4 on the occurrence where it now is: Sunday, when the gym is closed. (Review H-1: matched by its text, the old way
+    // could mistake this for another date's problem.)
+    [Fact]
+    public void CheckOccurrence_OutsideOpeningHours_IsAProblem()
+    {
+        var weekdays = new OpeningHours(Enum.GetValues<IsoDayOfWeek>()
+            .Where(day => day is not (IsoDayOfWeek.None or IsoDayOfWeek.Sunday))
+            .ToDictionary(day => day, _ => new OpenTimes(new LocalTime(6, 0), new LocalTime(22, 0))));
+        var gym = GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 8, 10, 0), Duration.FromMinutes(50));
+        var atTheGym = new PlannedActivity(Guid.NewGuid(), "Gym", gym, Buffers.None, Gym);
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(atTheGym, new LocalDate(2026, 11, 4), [], Context(gymHours: weekdays)).Problems);
+
+        Assert.Contains("Town gym is closed on Sun 8 Nov 2026", problem.Message);
+    }
+
+    // The other activities a moved occurrence can clash with are those near where it now is.
+    [Fact]
+    public void OthersThatCanClashWithAnOccurrence_AreNearWhereItNowIs()
+    {
+        var gym = GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2027, 3, 4, 8, 0), Duration.FromHours(1));
+
+        var dates = ActivityCheck.OthersThatCanClashWith(gym, new LocalDate(2026, 11, 4));
+
+        Assert.Equal(new DateInterval(new LocalDate(2027, 3, 1), new LocalDate(2027, 3, 7)), dates);
+    }
+
+    // Gym on Mondays and Wednesdays at 07:00 for an hour, from Monday 2 November 2026.
+    private static Series GymMondaysAndWednesdays() =>
+        new(new LocalDate(2026, 11, 2), new LocalTime(7, 0), Duration.FromHours(1), London, RecurrenceRule.Weekly([IsoDayOfWeek.Monday, IsoDayOfWeek.Wednesday]));
+
+    private static PlannedActivity AtHome(Series series) => new(Guid.NewGuid(), "Gym", series, Buffers.None, null);
+
     // A run on Thursdays at 07:00 for 40 minutes from Thursday 22 October 2026, at home, its first one moved.
     private static PlannedActivity MovedRun(LocalDateTime movedTo, int minutes) =>
         new(Guid.NewGuid(), "Run",

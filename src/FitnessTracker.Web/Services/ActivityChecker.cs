@@ -1,6 +1,7 @@
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
+using NodaTime;
 
 namespace FitnessTracker.Web.Services;
 
@@ -27,6 +28,22 @@ public class ActivityChecker(PlanningData planning)
         var others = await planning.ActivitiesOnAsync(ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today), unreadable, except: candidate.Id);
 
         var result = ActivityCheck.Check(plannedCandidate, others, user.Context);
+        return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };
+    }
+
+    /// <summary>
+    /// CAL-4: the check for a change to one occurrence of <paramref name="candidate"/> (as it would be saved), on that
+    /// occurrence alone, where it now is (<see cref="ActivityCheck.CheckOccurrence"/>). <paramref name="occurrenceDate"/>
+    /// is the date its rule puts it on.
+    /// </summary>
+    public async Task<ActivityCheckResult> CheckOccurrenceAsync(Activity candidate, LocalDate occurrenceDate)
+    {
+        var user = await planning.LoadAsync();
+        var plannedCandidate = candidate.ToPlannedActivity();
+        var unreadable = new List<string>();
+        var others = await planning.ActivitiesOnAsync(ActivityCheck.OthersThatCanClashWith(plannedCandidate.Series, occurrenceDate), unreadable, except: candidate.Id);
+
+        var result = ActivityCheck.CheckOccurrence(plannedCandidate, occurrenceDate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };
     }
 }

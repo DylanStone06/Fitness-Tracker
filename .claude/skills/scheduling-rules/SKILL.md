@@ -143,9 +143,15 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   than the first date) or after them (19 weeks, two years on), for H1, H4 and H8, and `OthersThatCanClash` covers
   3 days either side of it, so the Web loads what it can clash with. Tests: `ActivityCheckTests.AnOccurrenceMoved*`,
   web `OccurrencePageTests.AMoveBeforeTheSeriesStarts_IsStillCheckedForClashes`.
-- A change to one occurrence reports only what it breaks: the Web runs the check before and after and leaves out the
-  problems and clash descriptions that were already there. The descriptions include the clock format (ACC-3), so
-  both runs must use the same one (`ActivityChecker.CheckAsync(activity, clock)`).
+- **A change to one occurrence is checked on that occurrence** (`ActivityCheck.CheckOccurrence`, by its rule date):
+  where it now is, its travel (unknown travel is a problem, never a reason to skip its clashes), H8 against its own
+  day, H4, and H1 against the other activities near it (`OthersThatCanClashWith`) and the rest of its own series. A
+  cancelled one has nothing to check. The rest of the series isn't looked at, so clashes kept elsewhere don't hold a
+  change up. (Comparing the whole series' check before and after, by description text, was tried first and had
+  holes: scheduling review H-1, H-2, L-5.) Tests: `ActivityCheckTests.CheckOccurrence_*`, web
+  `OccurrencePageTests`.
+- The Preferences page does compare findings before and after a timezone move, by text; the descriptions include the
+  clock format (ACC-3), so both runs use the same one (`ActivityChecker.CheckAsync(activity, clock)`).
 - **Other activities never stop the check:** the candidate's own stored version is left out (an edit doesn't clash
   with itself); one whose travel can't be worked out is checked without travel; an occurrence whose footprint breaks
   H8 is skipped.

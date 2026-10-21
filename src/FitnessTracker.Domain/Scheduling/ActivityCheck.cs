@@ -140,6 +140,69 @@ public static class ActivityCheck
     }
 
     /// <summary>
+    /// SCH-1, CAL-4: the check for a change to one occurrence (moved, resized or put back), on that occurrence alone,
+    /// wherever it now is: its travel (never guessed, P1), its length against its own day (H8), the opening hours (H4),
+    /// and clashes (H1) with the other activities and with the rest of its own series. A cancelled one takes no time,
+    /// so it has nothing to check. Problems and clashes elsewhere in the series aren't the change's doing, so they
+    /// aren't looked at. <paramref name="occurrenceDate"/> is the date the rule puts it on.
+    /// </summary>
+    public static ActivityCheckResult CheckOccurrence(PlannedActivity candidate, LocalDate occurrenceDate, IEnumerable<PlannedActivity> others, PlanningContext context)
+    {
+        var series = candidate.Series;
+        if (OccurrenceOn(series, occurrenceDate) is not { } occurrence)
+        {
+            return new ActivityCheckResult([], [], new DateInterval(occurrenceDate, occurrenceDate));
+        }
+
+        var day = occurrence.Time.Start.InZone(series.Zone).Date;
+        var dates = new DateInterval(day, day);
+        var problems = new List<CheckProblem>();
+        var journeys = JourneysFor(candidate, context, problems);
+        var longest = Times.LongestFor(occurrence.Time, series.Zone);
+        problems.AddRange(LengthProblems([(occurrence.Time.Duration, longest)], candidate.Buffers, journeys ?? Journeys.None));
+        if (OpeningHoursProblem(candidate, [occurrence], context, series.Zone, day) is { } outsideOpeningHours)
+        {
+            problems.Add(outsideOpeningHours);
+        }
+
+        if (problems.Count > 0 || journeys is not { } knownJourneys)
+        {
+            return new ActivityCheckResult(problems, [], dates);
+        }
+
+        // Its own series is one of the activities it can run into: the others, under its own title.
+        var notes = new List<string>();
+        IReadOnlyList<DateInterval> nearby = [Around(day)];
+        var rest = candidate with { Series = series.CancelOccurrence(occurrenceDate) };
+        var bookings = others
+            .Where(other => other.Id != candidate.Id)
+            .Append(rest)
+            .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
+            .ToList();
+        var booking = new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys, longest));
+        var clashes = Conflicts.Between(booking, bookings).OrderBy(clash => clash.Overlap.Start).ToList();
+        return new ActivityCheckResult(problems, clashes, dates) { Notes = notes };
+    }
+
+    /// <summary>
+    /// The dates on which another activity has to start (or be running) to be able to clash with the occurrence the
+    /// rule puts on <paramref name="occurrenceDate"/>, where it now is: 3 days either side. For <see cref="CheckOccurrence"/>.
+    /// </summary>
+    public static DateInterval OthersThatCanClashWith(Series series, LocalDate occurrenceDate) =>
+        Around(OccurrenceOn(series, occurrenceDate)?.Time.Start.InZone(series.Zone).Date ?? occurrenceDate);
+
+    // The occurrence the rule puts on date, where it now is, or null when it is cancelled or the rule doesn't fall then.
+    private static Occurrence? OccurrenceOn(Series series, LocalDate date)
+    {
+        var lands = series.Changes.TryGetValue(date, out var change) && change is OccurrenceChange.Moved move ? move.Start.Date : date;
+        return series.OccurrencesBetween(lands.PlusDays(-1), lands.PlusDays(1))
+            .Select(occurrence => (Occurrence?)occurrence)
+            .FirstOrDefault(occurrence => occurrence!.Value.Date == date);
+    }
+
+    private static DateInterval Around(LocalDate day) => new(day.PlusDays(-MarginDays), day.PlusDays(MarginDays));
+
+    /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
     /// <paramref name="series"/>: the clash window, and any occurrence moved outside it, 3 days either side. Lets a
     /// caller load only those activities.
