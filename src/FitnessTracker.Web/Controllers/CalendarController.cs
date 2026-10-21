@@ -56,7 +56,14 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
 
         var user = await planning.LoadAsync();
         var zone = user.Now.Zone;
-        var window = new Interval(ClockTimes.ToInstant(from, zone), ClockTimes.ToInstant(to, zone));
+        var (windowStart, windowEnd) = (ClockTimes.ToInstant(from, zone), ClockTimes.ToInstant(to, zone));
+        if (windowEnd <= windowStart)
+        {
+            // §8: inside the hour the clocks skip, 01:30 becomes 02:30, which is after 02:00.
+            return BadRequest(new { error = "The end must be after the start." });
+        }
+
+        var window = new Interval(windowStart, windowEnd);
         var activities = await planning.ActivitiesOnAsync(Agenda.DatesToLoadFor(window, zone), []);
         var items = Agenda.Overlapping(activities, user.Context, window, zone);
 

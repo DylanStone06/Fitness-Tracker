@@ -158,6 +158,34 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
         Assert.Equal("2026-10-30T07:00:00", shown.GetProperty("start").GetString());
     }
 
+    // §8, CAL-8 (scheduling review M-3): 01:45 BST for 30 minutes on 25 October 2026 ends at 01:15 GMT. The event still
+    // ends after it starts (drawn as its elapsed length), and carries the real length for a drag to keep.
+    [Fact]
+    public async Task Events_OnTheNightTheClocksGoBack_NeverEndBeforeTheyStart()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Late swim", new() { ["StartDate"] = "2026-10-25", ["StartTime"] = "01:45", ["DurationHours"] = "0", ["DurationMinutes"] = "30" });
+
+        var swim = Assert.Single(await EventsAsync(browser, "2026-10-25", "2026-10-26"));
+
+        Assert.Equal("2026-10-25T01:45:00", swim.GetProperty("start").GetString());
+        Assert.Equal("2026-10-25T02:15:00", swim.GetProperty("end").GetString());
+        Assert.Equal(30, Details(swim).GetProperty("minutes").GetInt32());
+    }
+
+    // On the night the clocks go forward, 00:30 GMT for 2 hours ends at 03:30 BST: shown so, and still 120 minutes long.
+    [Fact]
+    public async Task Events_OnTheNightTheClocksGoForward_KeepTheirRealLength()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Late film", new() { ["StartDate"] = "2027-03-28", ["StartTime"] = "00:30", ["DurationHours"] = "2", ["DurationMinutes"] = "0" });
+
+        var film = Assert.Single(await EventsAsync(browser, "2027-03-28", "2027-03-29"));
+
+        Assert.Equal("2027-03-28T03:30:00", film.GetProperty("end").GetString());
+        Assert.Equal(120, Details(film).GetProperty("minutes").GetInt32());
+    }
+
     // T19: only the signed-in user's own occurrences.
     [Fact]
     public async Task AnotherUsersActivities_AreNeverSent()
@@ -176,6 +204,8 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
     [InlineData("2026-10-26", "2026-10-19")]
     [InlineData("2026-10-19", "2026-10-19")]
     [InlineData("2026-10-01", "2026-12-03")]
+    // Review L-1: inside the hour the clocks skip, 01:30 becomes 02:30, after 02:00: no window at all.
+    [InlineData("2027-03-28T01:30:00", "2027-03-28T02:00:00")]
     public async Task Events_RefuseAWindowThatCantBeRight(string? start, string? end)
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");

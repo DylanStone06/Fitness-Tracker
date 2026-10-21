@@ -13,7 +13,7 @@ public sealed record CalendarSegment(string Part, string Start, string End);
 /// <summary>
 /// What the calendar shows about an occurrence besides its times: FullCalendar's "extendedProps". An occurrence of a
 /// repeating activity (<see cref="Repeats"/>) opens its own page, to change just that one (CAL-4); <see cref="Moved"/>
-/// says it was moved or resized on its own.
+/// says it was moved or resized on its own. <see cref="Minutes"/> is its real, elapsed length (§8), which a drag keeps.
 /// </summary>
 public sealed record CalendarEventDetails(
     Guid ActivityId,
@@ -23,6 +23,7 @@ public sealed record CalendarEventDetails(
     string? Category,
     string? Place,
     string Starts,
+    int Minutes,
     string? Trip,
     string? Note,
     IReadOnlyList<string> ClashesWith,
@@ -38,7 +39,15 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
 
     public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place, bool repeats, ClockFormat clock)
     {
-        string At(Instant moment) => Clock.Format(moment.InZone(zone).LocalDateTime);
+        // Clock times, drawn as given. On the night the clocks go back an end can read earlier than its start (01:45 BST
+        // for 30 minutes ends 01:15 GMT), which the calendar can't draw: it is drawn as long as it really is instead,
+        // and "starts" and "trip" say the real times (§8).
+        (string Start, string End) Span(Interval time)
+        {
+            var start = time.Start.InZone(zone).LocalDateTime;
+            var end = time.End.InZone(zone).LocalDateTime;
+            return (Clock.Format(start), Clock.Format(end > start ? end : start.PlusTicks(time.Duration.BclCompatibleTicks)));
+        }
 
         var occurrence = item.Occurrence;
         var classNames = new List<string> { "ft-event", ActivityDisplay.CategoryStyle(category ?? ActivityCategory.Other) };
@@ -49,14 +58,19 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
 
         var segments = item.Footprint?.Segments
             .Where(segment => segment.Part != Domain.Footprints.FootprintPart.Activity)
-            .Select(segment => new CalendarSegment(segment.Part.ToString(), At(segment.Time.Start), At(segment.Time.End)))
+            .Select(segment =>
+            {
+                var (start, end) = Span(segment.Time);
+                return new CalendarSegment(segment.Part.ToString(), start, end);
+            })
             .ToList() ?? [];
 
+        var (eventStart, eventEnd) = Span(occurrence.Time);
         return new CalendarEvent(
             $"{item.Activity.Id:N}-{occurrence.Date:uuuu-MM-dd}",
             item.Activity.Title,
-            At(occurrence.Time.Start),
-            At(occurrence.Time.End),
+            eventStart,
+            eventEnd,
             classNames,
             new CalendarEventDetails(
                 item.Activity.Id,
@@ -66,6 +80,7 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
                 category is { } named ? ActivityDisplay.CategoryName(named) : null,
                 place,
                 Agenda.Starts(item, clock),
+                (int)occurrence.Time.Duration.TotalMinutes,
                 Agenda.Trip(item, clock),
                 item.Note,
                 item.ClashesWith,

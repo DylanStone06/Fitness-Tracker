@@ -120,10 +120,13 @@
 
   // CAL-8: a drag or a resize is never saved by itself. The block goes back, and the occurrence's page (or a one-off's
   // form) opens with the new time and length filled in, to check (SCH-1) and confirm: the same page a keyboard reaches.
+  // The length is the real, elapsed one (§8), plus what a resize added: on the nights the clocks change, the clock times
+  // drawn differ from it by an hour.
   const dragged = (info) => {
     const props = info.event.extendedProps;
     const start = clockTime(info.event.start).slice(0, 16);
-    const minutes = Math.round((info.event.end - info.event.start) / 60000);
+    const added = info.endDelta ? (info.endDelta.days * 1440) + Math.round(info.endDelta.milliseconds / 60000) : 0;
+    const minutes = props.minutes + added;
     info.revert();
     const page = pageFor(props);
     window.location.assign(`${page}&start=${encodeURIComponent(start)}&minutes=${minutes}`);
