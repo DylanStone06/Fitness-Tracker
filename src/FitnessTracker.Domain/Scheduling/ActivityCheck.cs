@@ -99,7 +99,14 @@ public static class ActivityCheck
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
         // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands, as well as these dates; one moved
         // into the past only when the whole series is (MovedOutside).
-        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End).Concat(MovedOutside(series, longerDates, context.Today)).ToList();
+        // In time order, so explanations name the earliest first, and up to the last date checked.
+        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End)
+            .Concat(MovedOutside(series, longerDates, context.Today))
+            .OrderBy(occurrence => occurrence.Time.Start)
+            .ToList();
+        var checkedUpTo = longerOccurrences.Count == 0
+            ? longerDates.End
+            : LocalDate.Max(longerDates.End, longerOccurrences[^1].Time.Start.InZone(series.Zone).Date);
 
         // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
         // clocks go back is allowed (Q7). The usual length is also checked against an ordinary day whenever the rule
@@ -107,7 +114,7 @@ public static class ActivityCheck
         // lands on an ordinary Sunday next time). When every date left is inside them, each has been checked already.
         var lengths = longerOccurrences.Select(occurrence => (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone)));
         problems.AddRange(LengthProblems(FallsAfter(series, longerDates.End) ? lengths.Prepend(usual) : lengths, candidate.Buffers, travel));
-        if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, longerDates.End) is { } outsideOpeningHours)
+        if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, checkedUpTo) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
         }

@@ -379,6 +379,31 @@ public class ActivityCheckTests
         Assert.Contains("52 more", problem.Message);
     }
 
+    // Moved occurrences are named in date order with the rest, and counted up to the last date checked: Mondays from
+    // 2 November at a gym closed on Sundays, the first three moved to Sundays: 1 November (before it starts), 8 November,
+    // and 4 June 2028 (after the year checked). (Scheduling review, Phase 5: the first named was 8 November, and the
+    // count said "up to Sun 7 Nov 2027".)
+    [Fact]
+    public void MovedOccurrencesOutsideOpeningHours_AreNamedInDateOrder_UpToTheLastChecked()
+    {
+        var exceptSunday = new OpeningHours(Enum.GetValues<IsoDayOfWeek>()
+            .Where(day => day is not (IsoDayOfWeek.None or IsoDayOfWeek.Sunday))
+            .ToDictionary(day => day, _ => new OpenTimes(new LocalTime(6, 0), new LocalTime(22, 0))));
+        var mondays = Weekly(new LocalDate(2026, 11, 2), [IsoDayOfWeek.Monday], new LocalTime(10, 0), at: Gym);
+        var gym = mondays with
+        {
+            Series = mondays.Series
+                .MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 11, 1, 10, 0), Duration.FromMinutes(50))
+                .MoveOccurrence(new LocalDate(2026, 11, 9), new LocalDateTime(2026, 11, 8, 10, 0), Duration.FromMinutes(50))
+                .MoveOccurrence(new LocalDate(2026, 11, 16), new LocalDateTime(2028, 6, 4, 10, 0), Duration.FromMinutes(50)),
+        };
+
+        var problem = Assert.Single(ActivityCheck.Check(gym, [], Context(gymHours: exceptSunday)).Problems);
+
+        Assert.Contains("Town gym is closed on Sun 1 Nov 2026", problem.Message);
+        Assert.Contains("2 more dates up to Sun 4 Jun 2028", problem.Message);
+    }
+
     // H4 can't be broken by a date the 8 weeks of clash checking don't reach (scheduling review): every 10 days from
     // Monday 2 November first lands on a Friday on 1 January 2027, when this gym is closed.
     [Fact]
