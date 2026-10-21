@@ -246,6 +246,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         }
 
         model.Describe(activity, found.Series, found.Date, (await PreferencesAsync()).TimesShownAs());
+        if (model.Change != OccurrenceChangeChoice.Move)
+        {
+            foreach (var box in OccurrenceFormViewModel.MoveBoxes)
+            {
+                ModelState.Remove(box);
+            }
+        }
+
         foreach (var problem in model.ProblemsAcrossTheForm())
         {
             foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))

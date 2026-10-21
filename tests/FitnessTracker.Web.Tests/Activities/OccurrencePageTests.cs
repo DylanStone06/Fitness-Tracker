@@ -38,6 +38,26 @@ public sealed class OccurrencePageTests(TestAppFactory factory) : IClassFixture<
         Assert.Equal("""[{"date":"2026-11-04","cancelled":true}]""", (await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
     }
 
+    // Cancelling and putting back use nothing typed in the move's boxes, so what is in them can't stop either. (Phase 5
+    // code review: the length boxes' own checks did.)
+    [Theory]
+    [InlineData("30", "0")]
+    [InlineData("", "")]
+    [InlineData("one", "half")]
+    public async Task CancellingOrPuttingBack_IgnoresTheMoveBoxes(string hours, string minutes)
+    {
+        var (browser, id, title) = await GymAsync();
+        var boxes = new Dictionary<string, string> { ["NewDate"] = "", ["NewStartTime"] = "", ["DurationHours"] = hours, ["DurationMinutes"] = minutes };
+
+        var cancelled = await ChangeAsync(browser, id, "2026-11-04", new(boxes) { ["Change"] = "Cancel" });
+        Assert.Equal(HttpStatusCode.Redirect, cancelled.StatusCode);
+        Assert.NotNull((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
+
+        var restored = await ChangeAsync(browser, id, "2026-11-04", new(boxes) { ["Change"] = "Restore" });
+        Assert.Equal(HttpStatusCode.Redirect, restored.StatusCode);
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
+    }
+
     [Fact]
     public async Task MovingJustThisOne_StoresItsNewTimeAndLength()
     {
