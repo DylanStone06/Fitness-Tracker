@@ -14,6 +14,9 @@ public sealed record CalendarSegment(string Part, string Start, string End);
 /// What the calendar shows about an occurrence besides its times: FullCalendar's "extendedProps". An occurrence of a
 /// repeating activity (<see cref="Repeats"/>) opens its own page, to change just that one (CAL-4); <see cref="Moved"/>
 /// says it was moved or resized on its own. <see cref="Minutes"/> is its real, elapsed length (§8), which a drag keeps.
+/// <see cref="Starts"/> and <see cref="Ends"/> ("22:00", "06:00 the next day") are what the calendar writes, rather than
+/// its own times, which would end a night shift's first part at midnight; <see cref="EndsAt"/> is the end without the day,
+/// for that next day's part.
 /// </summary>
 public sealed record CalendarEventDetails(
     Guid ActivityId,
@@ -23,6 +26,8 @@ public sealed record CalendarEventDetails(
     string? Category,
     string? Place,
     string Starts,
+    string Ends,
+    string EndsAt,
     int Minutes,
     string? Trip,
     string? Note,
@@ -80,6 +85,8 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
                 category is { } named ? ActivityDisplay.CategoryName(named) : null,
                 place,
                 Agenda.Starts(item, clock),
+                Agenda.Ends(item, clock),
+                Agenda.Ends(item, clock, sayTheDay: false),
                 (int)occurrence.Time.Duration.TotalMinutes,
                 Agenda.Trip(item, clock),
                 item.Note,

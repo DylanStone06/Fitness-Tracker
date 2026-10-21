@@ -32,7 +32,7 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
         Assert.Equal("Work", Details(meeting).GetProperty("category").GetString());
     }
 
-    // T1 and CAL-5: the footprint's parts, to draw as lighter blocks joined to the activity. Gym 18:00-18:50 at Town gym:
+    // T1 and CAL-5: the footprint's parts, to draw as lighter bands above and below the activity. Gym 18:00-18:50 at Town gym:
     // 25 min there, 10 min changing, 45 min back.
     [Fact]
     public async Task Events_CarryTheFootprint_AndWhenToLeave()
@@ -88,6 +88,10 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
 
         Assert.Equal("2026-10-18T22:00:00", shift.GetProperty("start").GetString());
         Assert.Equal("2026-10-19T06:00:00", shift.GetProperty("end").GetString());
+        // What the calendar writes: the day it ends, not the midnight a day's part of it stops at (break-ui, Phase 5).
+        Assert.Equal("22:00", Details(shift).GetProperty("starts").GetString());
+        Assert.Equal("06:00 the next day", Details(shift).GetProperty("ends").GetString());
+        Assert.Equal("06:00", Details(shift).GetProperty("endsAt").GetString());
     }
 
     // T4, §8: on the night the clocks go back, 01:30 is the first one (BST), and the event says which.
@@ -171,6 +175,7 @@ public sealed class CalendarTests(TestAppFactory factory) : IClassFixture<TestAp
         Assert.Equal("2026-10-25T01:45:00", swim.GetProperty("start").GetString());
         Assert.Equal("2026-10-25T02:15:00", swim.GetProperty("end").GetString());
         Assert.Equal(30, Details(swim).GetProperty("minutes").GetInt32());
+        Assert.Equal(("01:45 BST", "01:15 GMT"), (Details(swim).GetProperty("starts").GetString(), Details(swim).GetProperty("ends").GetString()));
     }
 
     // On the night the clocks go forward, 00:30 GMT for 2 hours ends at 03:30 BST: shown so, and still 120 minutes long.

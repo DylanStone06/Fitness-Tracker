@@ -133,6 +133,18 @@ public static class Agenda
     public static string Starts(AgendaItem item, ClockFormat clock = ClockFormat.TwentyFourHour) => Times.Clock(item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone), clock);
 
     /// <summary>
+    /// The time it ends, saying "the next day" when that isn't the day it starts (a night shift: "06:00 the next day")
+    /// unless <paramref name="sayTheDay"/> is false, and which one when the clocks repeat it ("01:15 GMT"), the way the
+    /// user chose (ACC-3).
+    /// </summary>
+    public static string Ends(AgendaItem item, ClockFormat clock = ClockFormat.TwentyFourHour, bool sayTheDay = true)
+    {
+        var zone = item.Activity.Series.Zone;
+        var end = item.Occurrence.Time.End.InZone(zone);
+        return Times.Clock(end, clock) + (sayTheDay ? Times.RelativeTo(end.Date, item.Occurrence.Time.Start.InZone(zone).Date) : "");
+    }
+
+    /// <summary>
     /// When to go and when it's over, from the footprint: "Leave home 17:35, back 19:45" away from home (leaving is when
     /// the journey out starts, after getting ready at home, §7.1), "With getting ready and changing: 06:55 to 07:40" for
     /// buffers at home, or null. A time on another day says "the day before" or "the next day" (§8), and a time the
