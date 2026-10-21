@@ -234,11 +234,8 @@ public static class ActivityCheck
         var from = dates.Start < today ? LocalDate.MinIsoValue : today;
         return series.Changes
             .Where(change => change.Value is OccurrenceChange.Moved move && move.Start.Date >= from && !dates.Contains(move.Start.Date))
-            .SelectMany(change =>
-            {
-                var lands = ((OccurrenceChange.Moved)change.Value).Start.Date;
-                return series.OccurrencesBetween(lands.PlusDays(-1), lands.PlusDays(1)).Where(occurrence => occurrence.Date == change.Key);
-            });
+            .Select(change => OccurrenceOn(series, change.Key))
+            .OfType<Occurrence>();
     }
 
     // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
