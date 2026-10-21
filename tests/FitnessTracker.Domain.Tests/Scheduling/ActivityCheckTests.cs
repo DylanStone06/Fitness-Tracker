@@ -103,6 +103,50 @@ public class ActivityCheckTests
         Assert.Equal(new LocalDate(2026, 10, 12), result.Checked.Start);
     }
 
+    // SCH-1, CAL-4: a moved occurrence is checked wherever it lands, not only on the dates a series is checked on. Here the
+    // run starts on Thursday 22 October, so the series is checked from then, and its first one is moved to Tuesday 20th,
+    // into a call. (Found in the browser: the move was saved without the clash being shown.)
+    [Fact]
+    public void AnOccurrenceMovedBeforeTheDatesChecked_IsStillCheckedForClashes()
+    {
+        var run = MovedRun(new LocalDateTime(2026, 10, 20, 18, 20), minutes: 40);
+        var call = OneOff("Call", new LocalDate(2026, 10, 20), new LocalTime(18, 30), minutes: 20, at: null);
+
+        var clash = Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes);
+
+        Assert.Equal("Call", clash.Other.Label);
+        Assert.True(ActivityCheck.OthersThatCanClash(run.Series, Today).Contains(new LocalDate(2026, 10, 20)));
+    }
+
+    // ... and beyond the 8 weeks (to Thursday 4 March 2027, 19 weeks on).
+    [Fact]
+    public void AnOccurrenceMovedBeyondTheWeeksChecked_IsStillCheckedForClashes()
+    {
+        var run = MovedRun(new LocalDateTime(2027, 3, 4, 18, 20), minutes: 40);
+        var call = OneOff("Call", new LocalDate(2027, 3, 4), new LocalTime(18, 30), minutes: 20, at: null);
+
+        Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes);
+        Assert.True(ActivityCheck.OthersThatCanClash(run.Series, Today).Contains(new LocalDate(2027, 3, 4)));
+    }
+
+    // H8 too: moved two years on with a length of 25 hours, on an ordinary day.
+    [Fact]
+    public void AnOccurrenceMovedBeyondTheYearChecked_IsStillCheckedForItsLength()
+    {
+        var run = MovedRun(new LocalDateTime(2028, 6, 1, 6, 0), minutes: 25 * 60);
+
+        var problem = Assert.Single(ActivityCheck.Check(run, [], Context()).Problems);
+
+        Assert.Equal(CheckAspect.Length, problem.Aspect);
+    }
+
+    // A run on Thursdays at 07:00 for 40 minutes from Thursday 22 October 2026, at home, its first one moved.
+    private static PlannedActivity MovedRun(LocalDateTime movedTo, int minutes) =>
+        new(Guid.NewGuid(), "Run",
+            new Series(new LocalDate(2026, 10, 22), new LocalTime(7, 0), Duration.FromMinutes(40), London, RecurrenceRule.Weekly([IsoDayOfWeek.Thursday]))
+                .MoveOccurrence(new LocalDate(2026, 10, 22), movedTo, Duration.FromMinutes(minutes)),
+            Buffers.None, null);
+
     // ACC-3: with the 12-hour clock chosen, the check's explanations use it too.
     [Fact]
     public void WithTheTwelveHourClock_ExplanationsReadThatWay()

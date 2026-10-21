@@ -80,11 +80,28 @@ public sealed class OccurrencePageTests(TestAppFactory factory) : IClassFixture<
         Assert.Equal(HttpStatusCode.OK, shown.StatusCode);
         var html = await shown.Content.ReadAsStringAsync();
         Assert.Contains("Dentist", html);
+        Assert.Contains("Save anyway, with these clashes</label>", html);
         Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
 
         var confirmed = await browser.SubmitAsync(TestBrowser.FormIn(html), $"/Activities/Occurrence/{id}", new(Form(id, "2026-11-04", move)) { ["ConfirmClashes"] = "true" });
         Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
         Assert.NotNull((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
+    }
+
+    // SCH-1: a move is checked wherever it lands. The series starts on Monday 2 November, so its own checks start then;
+    // its first occurrence moved to Wednesday 21 October, into a dentist visit, is still caught. (Found in the browser:
+    // a move before the series' first date was saved without the clash being shown.)
+    [Fact]
+    public async Task AMoveBeforeTheSeriesStarts_IsStillCheckedForClashes()
+    {
+        var (browser, id, title) = await GymAsync();
+        await browser.AddActivityAsync("Dentist", new() { ["StartDate"] = "2026-10-21", ["StartTime"] = "18:00" });
+
+        var response = await ChangeAsync(browser, id, "2026-11-02", new() { ["Change"] = "Move", ["NewDate"] = "2026-10-21", ["NewStartTime"] = "18:30" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Dentist", await response.Content.ReadAsStringAsync());
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
     }
 
     // Only what this change breaks is reported: Mondays already clash with a team meeting (kept with "Save anyway"), and

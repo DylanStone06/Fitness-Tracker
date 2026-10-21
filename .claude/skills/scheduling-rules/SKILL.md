@@ -139,11 +139,19 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   H4 and H8: `WeeksAheadForHoursAndLength` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
   every weekday and both clock changes are reached; H8 on every occurrence (a moved one can be longer), and a
   length of zero or less is reported before any occurrence is worked out.
+- **A moved occurrence (CAL-4) is checked wherever it lands** (`MovedOutside`): before the windows (moved earlier
+  than the first date) or after them (19 weeks, two years on), for H1, H4 and H8, and `OthersThatCanClash` covers
+  3 days either side of it, so the Web loads what it can clash with. Tests: `ActivityCheckTests.AnOccurrenceMoved*`,
+  web `OccurrencePageTests.AMoveBeforeTheSeriesStarts_IsStillCheckedForClashes`.
+- A change to one occurrence reports only what it breaks: the Web runs the check before and after and leaves out the
+  problems and clash descriptions that were already there. The descriptions include the clock format (ACC-3), so
+  both runs must use the same one (`ActivityChecker.CheckAsync(activity, clock)`).
 - **Other activities never stop the check:** the candidate's own stored version is left out (an edit doesn't clash
   with itself); one whose travel can't be worked out is checked without travel; an occurrence whose footprint breaks
   H8 is skipped.
-- `ActivityCheck.Describe(clash, zone)`: "On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 19:30 to
-  20:30)." Spans past midnight say "the next day".
+- `ActivityCheck.Describe(clash, zone, clock)`: "On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 19:30 to
+  20:30)", or "7:30pm to 8:30pm" with the 12-hour clock (`ClockText`, `PlanningContext.Clock`). Spans past midnight
+  say "the next day".
 
 ## The agenda (`Domain/Scheduling/Agenda`, GOL-2, first part)
 

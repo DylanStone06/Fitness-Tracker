@@ -97,7 +97,8 @@ public static class ActivityCheck
 
         var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
-        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End);
+        // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands, as well as these dates.
+        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End).Concat(MovedOutside(series, longerDates)).ToList();
 
         // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
         // clocks go back is allowed (Q7). The usual length is also checked against an ordinary day whenever the rule
@@ -115,11 +116,11 @@ public static class ActivityCheck
             return new ActivityCheckResult(problems, [], dates);
         }
 
-        var occurrences = series.OccurrencesBetween(dates.Start, dates.End);
+        var occurrences = series.OccurrencesBetween(dates.Start, dates.End).Concat(MovedOutside(series, dates)).ToList();
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
         var notes = new List<string>();
-        var nearby = OthersThatCanClash(series, context.Today);
+        var nearby = NearbyDates(series, context.Today);
         var otherBookings = others
             .Where(other => other.Id != candidate.Id)
             .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
@@ -140,13 +141,37 @@ public static class ActivityCheck
 
     /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
-    /// <paramref name="series"/>: the clash window and 3 days either side. Lets a caller load only those activities.
+    /// <paramref name="series"/>: the clash window, and any occurrence moved outside it, 3 days either side. Lets a
+    /// caller load only those activities.
     /// </summary>
     public static DateInterval OthersThatCanClash(Series series, LocalDate today)
     {
-        var firstChecked = FirstCheckedDate(series, today);
-        return new DateInterval(firstChecked.PlusDays(-MarginDays), firstChecked.PlusWeeks(WeeksAhead).PlusDays(MarginDays - 1));
+        var nearby = NearbyDates(series, today);
+        return new DateInterval(nearby.Min(dates => dates.Start), nearby.Max(dates => dates.End));
     }
+
+    // The clash window with MarginDays either side, and the same around each occurrence moved outside it.
+    private static List<DateInterval> NearbyDates(Series series, LocalDate today)
+    {
+        var firstChecked = FirstCheckedDate(series, today);
+        var window = new DateInterval(firstChecked, firstChecked.PlusWeeks(WeeksAhead).PlusDays(-1));
+        return MovedOutside(series, window)
+            .Select(occurrence => occurrence.Time.Start.InZone(series.Zone).Date)
+            .Select(date => new DateInterval(date.PlusDays(-MarginDays), date.PlusDays(MarginDays)))
+            .Prepend(new DateInterval(window.Start.PlusDays(-MarginDays), window.End.PlusDays(MarginDays)))
+            .ToList();
+    }
+
+    // CAL-4: occurrences moved to a date outside dates, which those dates alone would miss (OccurrencesBetween finds a
+    // moved one by the date it now starts).
+    private static IEnumerable<Occurrence> MovedOutside(Series series, DateInterval dates) =>
+        series.Changes
+            .Where(change => change.Value is OccurrenceChange.Moved move && !dates.Contains(move.Start.Date))
+            .SelectMany(change =>
+            {
+                var lands = ((OccurrenceChange.Moved)change.Value).Start.Date;
+                return series.OccurrencesBetween(lands.PlusDays(-1), lands.PlusDays(1)).Where(occurrence => occurrence.Date == change.Key);
+            });
 
     // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
     // today on, within the year H4 and H8 look at (a one-off in the past, a series that has ended), is checked from its
@@ -274,10 +299,10 @@ public static class ActivityCheck
         return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date, context.Clock)}.{more}");
     }
 
-    // Another activity's occurrences as bookings. Stored activities can't stop this check, but what can't be worked
-    // out is said in a note, never assumed (P1): travel that can't be worked out (a travel time deleted since) is left
-    // out, and an occurrence whose footprint breaks H8 is skipped.
-    private static List<Booking> BookingsOf(PlannedActivity other, DateInterval dates, PlanningContext context, List<string> notes, DateTimeZone zone)
+    // Another activity's occurrences on any of the dates as bookings, each once. Stored activities can't stop this
+    // check, but what can't be worked out is said in a note, never assumed (P1): travel that can't be worked out (a
+    // travel time deleted since) is left out, and an occurrence whose footprint breaks H8 is skipped.
+    private static List<Booking> BookingsOf(PlannedActivity other, IReadOnlyList<DateInterval> nearby, PlanningContext context, List<string> notes, DateTimeZone zone)
     {
         var known = Travel.KnownJourneys(other.LocationId, context);
         if (known is null)
@@ -287,7 +312,7 @@ public static class ActivityCheck
 
         var journeys = known ?? Journeys.None;
         var bookings = new List<Booking>();
-        foreach (var occurrence in other.Series.OccurrencesBetween(dates.Start, dates.End))
+        foreach (var occurrence in nearby.SelectMany(dates => other.Series.OccurrencesBetween(dates.Start, dates.End)).Distinct())
         {
             var longest = Times.LongestFor(occurrence.Time, other.Series.Zone);
             if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys, longest).Count > 0)
