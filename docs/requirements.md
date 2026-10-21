@@ -338,3 +338,9 @@ Decided by the owner on 20 October 2026, at the end of Phase 4:
 | Q9 | Default getting-ready and changing times per category (ACC-6)? | Built in Phase 4. |
 | Q10 | Back-to-back activities at the same place (the office gym straight after work)? | After the MVP, with location chaining (SCH-8). |
 | Q11 | Does a day's load count overlapping footprints each in full? | Yes, as §7.3's "total footprint minutes": an overlap there is a clash the user chose to keep. |
+
+Decided by the owner on 21 October 2026, during Phase 5:
+
+| # | Question | Decision |
+|---|---|---|
+| Q12 | What does accepting a "Plan my week" suggestion (SCH-4) add? | Either, chosen each time: the main button adds it every week at that day and time, from that week on (building a routine, since the owner plans a routine before knowing set times); a second button adds it for that week only. One week can then be changed on the calendar as any occurrence (CAL-4). Weekly targets (GOL-1) have no time of their own: the planner finds it. |
