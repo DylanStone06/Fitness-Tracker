@@ -97,8 +97,8 @@ public static class ActivityCheck
 
         var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
-        // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands, as well as these dates.
-        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End).Concat(MovedOutside(series, longerDates)).ToList();
+        // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands (from today), as well as these dates.
+        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End).Concat(MovedOutside(series, longerDates, context.Today)).ToList();
 
         // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
         // clocks go back is allowed (Q7). The usual length is also checked against an ordinary day whenever the rule
@@ -116,7 +116,7 @@ public static class ActivityCheck
             return new ActivityCheckResult(problems, [], dates);
         }
 
-        var occurrences = series.OccurrencesBetween(dates.Start, dates.End).Concat(MovedOutside(series, dates)).ToList();
+        var occurrences = series.OccurrencesBetween(dates.Start, dates.End).Concat(MovedOutside(series, dates, context.Today)).ToList();
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
         var notes = new List<string>();
@@ -218,23 +218,28 @@ public static class ActivityCheck
     {
         var firstChecked = FirstCheckedDate(series, today);
         var window = new DateInterval(firstChecked, firstChecked.PlusWeeks(WeeksAhead).PlusDays(-1));
-        return MovedOutside(series, window)
+        return MovedOutside(series, window, today)
             .Select(occurrence => occurrence.Time.Start.InZone(series.Zone).Date)
             .Select(date => new DateInterval(date.PlusDays(-MarginDays), date.PlusDays(MarginDays)))
             .Prepend(new DateInterval(window.Start.PlusDays(-MarginDays), window.End.PlusDays(MarginDays)))
             .ToList();
     }
 
-    // CAL-4: occurrences moved to a date outside dates, which those dates alone would miss (OccurrencesBetween finds a
-    // moved one by the date it now starts).
-    private static IEnumerable<Occurrence> MovedOutside(Series series, DateInterval dates) =>
-        series.Changes
-            .Where(change => change.Value is OccurrenceChange.Moved move && !dates.Contains(move.Start.Date))
+    // CAL-4: occurrences moved to a date outside dates (which start on the first date checked), which those dates alone
+    // would miss (OccurrencesBetween finds a moved one by the date it now starts). One moved to before today is history,
+    // not re-checked, like the rest of the series' past; but a series entirely in the past is checked from its own first
+    // date (FirstCheckedDate), and so are all its moved ones.
+    private static IEnumerable<Occurrence> MovedOutside(Series series, DateInterval dates, LocalDate today)
+    {
+        var from = dates.Start < today ? LocalDate.MinIsoValue : today;
+        return series.Changes
+            .Where(change => change.Value is OccurrenceChange.Moved move && move.Start.Date >= from && !dates.Contains(move.Start.Date))
             .SelectMany(change =>
             {
                 var lands = ((OccurrenceChange.Moved)change.Value).Start.Date;
                 return series.OccurrencesBetween(lands.PlusDays(-1), lands.PlusDays(1)).Where(occurrence => occurrence.Date == change.Key);
             });
+    }
 
     // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
     // today on, within the year H4 and H8 look at (a one-off in the past, a series that has ended), is checked from its

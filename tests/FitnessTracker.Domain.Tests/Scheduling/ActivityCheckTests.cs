@@ -140,6 +140,41 @@ public class ActivityCheckTests
         Assert.Equal(CheckAspect.Length, problem.Aspect);
     }
 
+    // But one moved into the past is history, like a clash last week (above): Mondays from 5 October, the 12 October
+    // session moved to Tuesday 13th for 25 hours, into a call. Editing the series today isn't refused for that day's
+    // length, or asked about its clash. (Phase 5 code review.)
+    [Fact]
+    public void AnOccurrenceMovedIntoThePast_IsHistory_NotChecked()
+    {
+        var weekly = Weekly(new LocalDate(2026, 10, 5), [IsoDayOfWeek.Monday], new LocalTime(18, 0));
+        var moved = weekly with
+        {
+            Series = weekly.Series.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 13, 18, 0), Duration.FromHours(25)),
+        };
+        var call = OneOff("Call", new LocalDate(2026, 10, 13), new LocalTime(18, 30), minutes: 20, at: null);
+
+        var result = ActivityCheck.Check(moved, [call], Context());
+
+        Assert.Empty(result.Problems);
+        Assert.Empty(result.Clashes);
+        Assert.False(ActivityCheck.OthersThatCanClash(moved.Series, Today).Contains(new LocalDate(2026, 10, 13)));
+    }
+
+    // A series entirely in the past is checked on its own dates (above), so its moved ones are too.
+    [Fact]
+    public void AnOccurrenceMovedWithinASeriesEntirelyInThePast_IsChecked()
+    {
+        var weekly = Weekly(new LocalDate(2026, 9, 7), [IsoDayOfWeek.Monday], new LocalTime(18, 0));
+        var ended = weekly with
+        {
+            Series = new Series(weekly.Series.FirstDate, weekly.Series.StartTime, weekly.Series.Length, London, RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingAfter(2))
+                .MoveOccurrence(new LocalDate(2026, 9, 14), new LocalDateTime(2026, 9, 1, 18, 0), Duration.FromMinutes(50)),
+        };
+        var call = OneOff("Call", new LocalDate(2026, 9, 1), new LocalTime(18, 30), minutes: 20, at: null);
+
+        Assert.Equal("Call", Assert.Single(ActivityCheck.Check(ended, [call], Context()).Clashes).Other.Label);
+    }
+
     // CAL-4, H1: a change to one occurrence is checked on that occurrence, where it now is. Gym on Mondays and Wednesdays
     // 07:00-08:00 at home; Wednesday 4 November moved to Monday 2nd 08:00-09:00 runs into breakfast (07:30-08:30).
     // Monday's own session ends as it starts (half-open): no clash. (Scheduling review H-2: the old way compared
