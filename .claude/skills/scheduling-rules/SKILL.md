@@ -132,17 +132,24 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - **Clashes** (H1) are only looked for when there are no problems (they depend on travel and length). The user can
   save them with "Save anyway" (Q2), asked on each save; acceptance isn't stored yet.
 - **Windows**, from the later of today and the first date (`FirstCheckedDate`), or from the first date when nothing
-  of the activity falls from today on (a past one-off, an ended series), so nothing is saved unchecked. The Web
+  of the activity falls from today on (a past one-off, an ended series), so nothing is saved unchecked. "From today
+  on" means at all (`HappensFrom`): in the year looked at, by the rule after it (every 60 weeks can skip a whole
+  year), or moved there; not only within the year (scheduling review M-1, Phase 5). The Web
   loads only the other activities in `OthersThatCanClash`. Clashes: `WeeksAhead` (8) weeks, others' occurrences 3
   days either side (two footprints of up to a day each reach 49 h apart, a third date across a 23-hour day). Rules like every 98
   and every 99 weeks can't be proved clash-free in any practical window, so it is a window, said in the message.
   H4 and H8: `WeeksAheadForHoursAndLength` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
   every weekday and both clock changes are reached; H8 on every occurrence (a moved one can be longer), and a
   length of zero or less is reported before any occurrence is worked out.
-- **A moved occurrence (CAL-4) is checked wherever it lands** (`MovedOutside`): before the windows (moved earlier
-  than the first date) or after them (19 weeks, two years on), for H1, H4 and H8, and `OthersThatCanClash` covers
-  3 days either side of it, so the Web loads what it can clash with. Tests: `ActivityCheckTests.AnOccurrenceMoved*`,
-  web `OccurrencePageTests.AMoveBeforeTheSeriesStarts_IsStillCheckedForClashes`.
+- **A moved occurrence (CAL-4) is checked wherever it lands from today on** (`MovedOutside`): before the windows
+  (moved earlier than the first date, but not before today) or after them (19 weeks, two years on), for H1, H4 and
+  H8, and `OthersThatCanClash` covers 3 days either side of it, so the Web loads what it can clash with. One moved
+  into the past is history, like the rest of the series' past (Phase 5 code review), unless it is still running at
+  the start of today (a shift moved to last night that runs into this morning's: the home page shows that clash, so
+  the check does too; scheduling review L-1). A series with nothing from today on has all its moves checked. Moving
+  an occurrence on its own page (`CheckOccurrence`, below) checks it wherever it goes, past included. Tests:
+  `ActivityCheckTests.AnOccurrenceMoved*`, `AMovedOccurrenceStillRunningToday_*`, web
+  `OccurrencePageTests.AMoveBeforeTheSeriesStarts_IsStillCheckedForClashes`.
 - **A change to one occurrence is checked on that occurrence** (`ActivityCheck.CheckOccurrence`, by its rule date):
   where it now is, its travel (unknown travel is a problem, never a reason to skip its clashes), H8 against its own
   day, H4, and H1 against the other activities near it (`OthersThatCanClashWith`) and the rest of its own series. A

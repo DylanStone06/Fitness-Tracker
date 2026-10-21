@@ -97,7 +97,8 @@ public static class ActivityCheck
 
         var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
-        // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands (from today), as well as these dates.
+        // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands, as well as these dates; one moved
+        // into the past only when the whole series is (MovedOutside).
         var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End).Concat(MovedOutside(series, longerDates, context.Today)).ToList();
 
         // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
@@ -204,8 +205,8 @@ public static class ActivityCheck
 
     /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
-    /// <paramref name="series"/>: the clash window, and any occurrence moved outside it, 3 days either side. Lets a
-    /// caller load only those activities.
+    /// <paramref name="series"/>: the clash window, and any occurrence moved outside it that is checked (not one moved
+    /// into the past), 3 days either side. Lets a caller load only those activities.
     /// </summary>
     public static DateInterval OthersThatCanClash(Series series, LocalDate today)
     {
@@ -227,26 +228,36 @@ public static class ActivityCheck
 
     // CAL-4: occurrences moved to a date outside dates (which start on the first date checked), which those dates alone
     // would miss (OccurrencesBetween finds a moved one by the date it now starts). One moved to before today is history,
-    // not re-checked, like the rest of the series' past; but a series entirely in the past is checked from its own first
-    // date (FirstCheckedDate), and so are all its moved ones.
+    // not re-checked, like the rest of the series' past, unless it is still running today (a night shift moved to
+    // yesterday evening can run into this morning's); but a series with nothing from today on is checked from its own
+    // first date (FirstCheckedDate), and so are all its moved ones.
     private static IEnumerable<Occurrence> MovedOutside(Series series, DateInterval dates, LocalDate today)
     {
-        var from = dates.Start < today ? LocalDate.MinIsoValue : today;
+        var from = dates.Start < today ? Instant.MinValue : today.AtStartOfDayInZone(series.Zone).ToInstant();
         return series.Changes
-            .Where(change => change.Value is OccurrenceChange.Moved move && move.Start.Date >= from && !dates.Contains(move.Start.Date))
+            .Where(change => change.Value is OccurrenceChange.Moved move && !dates.Contains(move.Start.Date))
             .Select(change => OccurrenceOn(series, change.Key))
-            .OfType<Occurrence>();
+            .OfType<Occurrence>()
+            .Where(occurrence => occurrence.Time.End > from);
     }
 
     // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
-    // today on, within the year H4 and H8 look at (a one-off in the past, a series that has ended), is checked from its
-    // own first date, so nothing is saved unchecked.
+    // today on (a one-off in the past, a series that has ended) is checked from its own first date, so nothing is saved
+    // unchecked.
     private static LocalDate FirstCheckedDate(Series series, LocalDate today)
     {
         var fromToday = LocalDate.Max(series.FirstDate, today);
-        return fromToday > series.FirstDate && series.OccurrencesBetween(fromToday, fromToday.PlusWeeks(WeeksAheadForHoursAndLength)).Count == 0
-            ? series.FirstDate
-            : fromToday;
+        return fromToday > series.FirstDate && !HappensFrom(series, fromToday) ? series.FirstDate : fromToday;
+    }
+
+    // Whether any of the series is on date or later: in the year H4 and H8 look at, by its rule after that (a rule every
+    // 60 weeks can skip the whole year), or moved there.
+    private static bool HappensFrom(Series series, LocalDate date)
+    {
+        var yearEnd = date.PlusWeeks(WeeksAheadForHoursAndLength);
+        return series.OccurrencesBetween(date, yearEnd).Count > 0
+            || FallsAfter(series, yearEnd)
+            || series.Changes.Values.Any(change => change is OccurrenceChange.Moved move && move.Start.Date >= date);
     }
 
     /// <summary>

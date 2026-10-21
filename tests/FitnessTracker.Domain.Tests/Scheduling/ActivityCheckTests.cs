@@ -173,6 +173,44 @@ public class ActivityCheckTests
         var call = OneOff("Call", new LocalDate(2026, 9, 1), new LocalTime(18, 30), minutes: 20, at: null);
 
         Assert.Equal("Call", Assert.Single(ActivityCheck.Check(ended, [call], Context()).Clashes).Other.Label);
+        Assert.True(ActivityCheck.OthersThatCanClash(ended.Series, Today).Contains(new LocalDate(2026, 9, 1)));
+    }
+
+    // A series that next happens more than a year away isn't over: Mondays every 60 weeks from Monday 5 October next
+    // fall on 29 November 2027. Its 5 October session, moved to Sunday 4th for 25 hours, is history. (Scheduling
+    // review M-1: "nothing in the year looked at" was taken to mean "entirely in the past".)
+    [Fact]
+    public void AnOccurrenceMovedIntoThePast_OfASeriesNextHappeningOverAYearAway_IsHistory()
+    {
+        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(18, 0), Duration.FromMinutes(50), London, RecurrenceRule.Weekly([IsoDayOfWeek.Monday], everyWeeks: 60))
+            .MoveOccurrence(new LocalDate(2026, 10, 5), new LocalDateTime(2026, 10, 4, 18, 0), Duration.FromHours(25));
+
+        Assert.Empty(ActivityCheck.Check(AtHome(series), [], Context()).Problems);
+    }
+
+    // ... but one moved to start yesterday and still running today is checked, as the home page shows its clash: Work
+    // daily at 07:30 for 8 hours, Sunday 18 October's moved to 22:00 for 10 hours, runs into today's from 07:30 to
+    // 08:00. (Scheduling review L-1.)
+    [Fact]
+    public void AMovedOccurrenceStillRunningToday_ClashesWithTodaysOccurrence()
+    {
+        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 30), Duration.FromHours(8), London, RecurrenceRule.Daily())
+            .MoveOccurrence(new LocalDate(2026, 10, 18), new LocalDateTime(2026, 10, 18, 22, 0), Duration.FromHours(10));
+        var work = new PlannedActivity(Guid.NewGuid(), "Work", series, Buffers.None, null);
+
+        Assert.Equal(["Work"], Assert.Single(Agenda.Between([work], Context(), Today, Today)).ClashesWith);
+        var clash = Assert.Single(ActivityCheck.Check(work, [], Context()).Clashes);
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 10, 19, 6, 30), Instant.FromUtc(2026, 10, 19, 7, 0)), clash.Overlap);
+    }
+
+    // Today counts as from today: the first run moved onto Monday 19th 18:20, into a call. (Scheduling review L-3.)
+    [Fact]
+    public void AnOccurrenceMovedOntoToday_IsChecked()
+    {
+        var run = MovedRun(new LocalDateTime(2026, 10, 19, 18, 20), minutes: 40);
+        var call = OneOff("Call", new LocalDate(2026, 10, 19), new LocalTime(18, 30), minutes: 20, at: null);
+
+        Assert.Equal("Call", Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes).Other.Label);
     }
 
     // CAL-4, H1: a change to one occurrence is checked on that occurrence, where it now is. Gym on Mondays and Wednesdays
