@@ -17,7 +17,7 @@
     {
         var activity = item.Activity;
         <div class="d-flex flex-wrap align-items-baseline column-gap-2">
-            <span class="ft-time">@Agenda.Starts(item)</span>
+            <span class="ft-time">@Agenda.Starts(item, Model.Clock)</span>
             @if (Model.Repeating.Contains(activity.Id))
             {
                 @* CAL-4: this occurrence, to change just this one (or every one from there). *@
@@ -38,7 +38,7 @@
         {
             <span class="d-block small text-body-secondary text-break">at @placeName</span>
         }
-        @if (Agenda.Trip(item) is { } trip)
+        @if (Agenda.Trip(item, Model.Clock) is { } trip)
         {
             <span class="d-block small">@trip</span>
         }

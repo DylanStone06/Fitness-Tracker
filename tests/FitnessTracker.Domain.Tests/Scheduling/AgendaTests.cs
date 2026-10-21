@@ -2,6 +2,7 @@ using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Locations;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 
 namespace FitnessTracker.Domain.Tests.Scheduling;
@@ -342,6 +343,23 @@ public class AgendaTests
         var item = Assert.Single(Agenda.Overlapping([earlyGym], Context(), MondayWindow(), London));
 
         Assert.Equal(Instant.FromUtc(2026, 11, 2, 23, 45), item.Footprint?.Whole.Start);
+    }
+
+    // ACC-3: with the 12-hour clock chosen, when to leave and the start read that way, including which 01:30 on the
+    // night the clocks go back (T4).
+    [Fact]
+    public void WithTheTwelveHourClock_TimesReadThatWay()
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
+        var sunday = new LocalDate(2026, 10, 25);
+        var late = OneOff("Late swim", sunday, new LocalTime(1, 30), minutes: 20, at: null);
+
+        var item = Assert.Single(Agenda.Between([gym], Context(), Monday, Monday));
+        var repeated = Assert.Single(Agenda.Between([late], Context(), sunday, sunday));
+
+        Assert.Equal("Leave home 5:35pm, back 7:45pm", Agenda.Trip(item, ClockFormat.TwelveHour));
+        Assert.Equal("6:00pm", Agenda.Starts(item, ClockFormat.TwelveHour));
+        Assert.Equal("1:30am BST", Agenda.Starts(repeated, ClockFormat.TwelveHour));
     }
 
     private static Interval MondayWindow() => new(Instant.FromUtc(2026, 11, 2, 0, 0), Instant.FromUtc(2026, 11, 3, 0, 0));

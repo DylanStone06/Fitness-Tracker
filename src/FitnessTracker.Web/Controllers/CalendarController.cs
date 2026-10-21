@@ -69,7 +69,8 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
             zone,
             kinds.TryGetValue(item.Activity.Id, out var kind) ? kind.Category : null,
             item.Activity.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null,
-            kind?.Repeats ?? false)));
+            kind?.Repeats ?? false,
+            user.Context.Clock)));
     }
 
     private static LocalDateTime? ClockTime(string? text)

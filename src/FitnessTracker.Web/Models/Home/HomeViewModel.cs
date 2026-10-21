@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Services;
 using NodaTime;
@@ -22,6 +23,9 @@ public sealed class HomeViewModel
     public static readonly LocalDatePattern DayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
 
     public required string Greeting { get; init; }
+
+    /// <summary>How the page writes times (ACC-3).</summary>
+    public required ClockFormat Clock { get; init; }
 
     public required IReadOnlyList<SetupStep> Steps { get; init; }
 
@@ -106,6 +110,7 @@ public sealed class HomeViewModel
                 new("Add an activity", categories.Count > 0, "Activities", "Create"),
             ],
             Greeting = GreetingAt(user.Now.TimeOfDay),
+            Clock = user.Context.Clock,
             Today = user.Context.Today,
             Items = agenda,
             Next = next,

@@ -12,8 +12,6 @@ public static class ActivityDisplay
 {
     private static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
 
-    private static readonly LocalTimePattern Time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
-
     public static string CategoryName(ActivityCategory category) => category switch
     {
         ActivityCategory.OtherExercise => "Other exercise",
@@ -43,10 +41,12 @@ public static class ActivityDisplay
 
     /// <summary>
     /// For example "Fri 20 Nov 2026 at 09:15 for 30 min", or "Every 2 weeks on Mon, Wed at 07:00 for 1 h, from
-    /// Mon 2 Nov 2026, 10 times".
+    /// Mon 2 Nov 2026, 10 times", with times as the user chose (ACC-3: "7:00am").
     /// </summary>
-    public static string When(Activity activity)
+    public static string When(Activity activity, ClockFormat clock = ClockFormat.TwentyFourHour)
     {
+        string Time(LocalTime time) => ClockText.Format(time, clock);
+
         var length = Length(activity.LengthMinutes);
         if (activity.RepeatRule is null)
         {
@@ -58,12 +58,12 @@ public static class ActivityDisplay
             }
 
             var skipped = start.TimeOfDay != activity.StartTime
-                ? $" ({Time.Format(activity.StartTime)} doesn't exist that night: the clocks go forward)"
+                ? $" ({Time(activity.StartTime)} doesn't exist that night: the clocks go forward)"
                 : "";
-            return $"{Date.Format(start.Date)} at {Time.Format(start.TimeOfDay)} for {length}{skipped}";
+            return $"{Date.Format(start.Date)} at {Time(start.TimeOfDay)} for {length}{skipped}";
         }
 
-        var at = $"at {Time.Format(activity.StartTime)} for {length}";
+        var at = $"at {Time(activity.StartTime)} for {length}";
         RecurrenceRule rule;
         try
         {

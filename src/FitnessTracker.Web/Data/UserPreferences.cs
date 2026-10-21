@@ -1,3 +1,4 @@
+using FitnessTracker.Domain.Time;
 using NodaTime;
 
 namespace FitnessTracker.Web.Data;
@@ -66,6 +67,9 @@ public class UserPreferences : IOwnedByUser, IVersioned
     public IsoDayOfWeek WeekStart { get; set; } = IsoDayOfWeek.Monday;
 
     public bool Use24HourClock { get; set; } = true;
+
+    /// <summary>How pages and explanations write times ("18:30" or "6:30pm").</summary>
+    public ClockFormat TimesShownAs() => Use24HourClock ? ClockFormat.TwentyFourHour : ClockFormat.TwelveHour;
 
     public DistanceUnit DistanceUnit { get; set; } = DistanceUnit.Kilometres;
 

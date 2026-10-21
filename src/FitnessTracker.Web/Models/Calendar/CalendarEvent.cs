@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Activities;
 using NodaTime;
@@ -35,7 +36,7 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
 {
     private static readonly LocalDateTimePattern Clock = LocalDateTimePattern.CreateWithInvariantCulture("uuuu'-'MM'-'dd'T'HH':'mm':'ss");
 
-    public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place, bool repeats)
+    public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place, bool repeats, ClockFormat clock)
     {
         string At(Instant moment) => Clock.Format(moment.InZone(zone).LocalDateTime);
 
@@ -64,8 +65,8 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
                 item.Activity.Series.Changes.ContainsKey(occurrence.Date),
                 category is { } named ? ActivityDisplay.CategoryName(named) : null,
                 place,
-                Agenda.Starts(item),
-                Agenda.Trip(item),
+                Agenda.Starts(item, clock),
+                Agenda.Trip(item, clock),
                 item.Note,
                 item.ClashesWith,
                 segments));

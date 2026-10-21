@@ -2,6 +2,7 @@ using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Locations;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 
 namespace FitnessTracker.Domain.Tests.Scheduling;
@@ -100,6 +101,22 @@ public class ActivityCheckTests
 
         Assert.Equal("Team meeting", Assert.Single(result.Clashes).Other.Label);
         Assert.Equal(new LocalDate(2026, 10, 12), result.Checked.Start);
+    }
+
+    // ACC-3: with the 12-hour clock chosen, the check's explanations use it too.
+    [Fact]
+    public void WithTheTwelveHourClock_ExplanationsReadThatWay()
+    {
+        var hours = Daily(new OpenTimes(new LocalTime(6, 0), new LocalTime(22, 0)));
+        var early = GymSession(new LocalDate(2026, 11, 2), new LocalTime(5, 30));
+        var dinner = OneOff("Dinner", new LocalDate(2026, 11, 2), new LocalTime(19, 30), minutes: 60, at: Home);
+        var twelveHour = Context(gymHours: hours) with { Clock = ClockFormat.TwelveHour };
+
+        var problem = Assert.Single(ActivityCheck.Check(early, [], twelveHour).Problems);
+        var clash = Assert.Single(ActivityCheck.Check(GymSession(new LocalDate(2026, 11, 2)), [dinner], Context() with { Clock = ClockFormat.TwelveHour }).Clashes);
+
+        Assert.Contains("Town gym is open 6:00am to 10:00pm on Mon 2 Nov 2026", problem.Message);
+        Assert.Equal("On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 7:30pm to 8:30pm).", ActivityCheck.Describe(clash, London, ClockFormat.TwelveHour));
     }
 
     // H4: the activity must be inside the opening hours, and the problem says when the place is open.

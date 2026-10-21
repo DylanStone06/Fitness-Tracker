@@ -1,6 +1,7 @@
 using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Locations;
 using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 using NodaTime.Text;
 
@@ -12,8 +13,12 @@ public sealed record PlannedActivity(Guid Id, string Title, Series Series, Buffe
 /// <summary>One of the user's locations: its name, for explanations, and its opening hours (H4).</summary>
 public sealed record Place(string Name, OpeningHours OpeningHours);
 
-/// <summary>What the check needs besides the activities: today, home (the base for travel, §7.1), travel times and places.</summary>
-public sealed record PlanningContext(LocalDate Today, Guid? Home, TravelTimes Travel, IReadOnlyDictionary<Guid, Place> Places);
+/// <summary>
+/// What the check needs besides the activities: today, home (the base for travel, §7.1), travel times and places, and
+/// how the user wants times written in its explanations (ACC-3).
+/// </summary>
+public sealed record PlanningContext(
+    LocalDate Today, Guid? Home, TravelTimes Travel, IReadOnlyDictionary<Guid, Place> Places, ClockFormat Clock = ClockFormat.TwentyFourHour);
 
 /// <summary>What a problem is about, so a form can show it next to the right field.</summary>
 public enum CheckAspect
@@ -62,7 +67,6 @@ public static class ActivityCheck
 
     private static readonly LocalDatePattern Date = Times.Date;
 
-    private static readonly LocalTimePattern Time = Times.Time;
 
     public static ActivityCheckResult Check(PlannedActivity candidate, IEnumerable<PlannedActivity> others, PlanningContext context)
     {
@@ -159,12 +163,12 @@ public static class ActivityCheck
     /// A clash in plain English, for example "On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 19:30 to
     /// 20:30)." Times are in <paramref name="zone"/>, the checked activity's.
     /// </summary>
-    public static string Describe(Clash clash, DateTimeZone zone)
+    public static string Describe(Clash clash, DateTimeZone zone, ClockFormat clock = ClockFormat.TwentyFourHour)
     {
         var date = clash.Candidate.Footprint.Activity.Start.InZone(zone).Date;
         var other = clash.Other.Label;
         return $"On {Date.Format(date)}, {CandidatePart(clash.CandidatePart)} overlaps {OtherPart(clash.OtherPart, other)} " +
-               $"({other} is {Span(clash.Other.Footprint.Activity, zone, onDate: date)}).";
+               $"({other} is {Span(clash.Other.Footprint.Activity, zone, onDate: date, clock)}).";
     }
 
     // Null, with a problem added, when travel can't be worked out. None at home or at no particular place (§7.1).
@@ -262,12 +266,12 @@ public static class ActivityCheck
 
         var (time, problem) = outside[0];
         var when = problem!.Hours is { } hours
-            ? $"{place.Name} is open {Time.Format(hours.Opens)} to {Time.Format(hours.Closes)}{(hours.Closes <= hours.Opens ? " the next day" : "")} on {Date.Format(problem.Date)}"
+            ? $"{place.Name} is open {ClockText.Format(hours.Opens, context.Clock)} to {ClockText.Format(hours.Closes, context.Clock)}{(hours.Closes <= hours.Opens ? " the next day" : "")} on {Date.Format(problem.Date)}"
             : $"{place.Name} is closed on {Date.Format(problem.Date)}";
         var more = outside.Count > 1
             ? $" The same happens on {outside.Count - 1} more {(outside.Count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}."
             : "";
-        return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date)}.{more}");
+        return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date, context.Clock)}.{more}");
     }
 
     // Another activity's occurrences as bookings. Stored activities can't stop this check, but what can't be worked
@@ -304,12 +308,12 @@ public static class ActivityCheck
     // "19:30 to 20:30", or "22:00 to 06:00 the next day". The start's own date is given when it isn't the date the
     // message is about (an overnight activity from the day before), and a time the clocks repeat says which one it
     // is ("01:15 BST to 01:15 GMT" on the night they go back).
-    private static string Span(Interval time, DateTimeZone zone, LocalDate onDate)
+    private static string Span(Interval time, DateTimeZone zone, LocalDate onDate, ClockFormat clock)
     {
         var start = time.Start.InZone(zone);
         var end = time.End.InZone(zone);
         var startDate = start.Date == onDate ? "" : $"on {Date.Format(start.Date)} ";
-        return $"{startDate}{Times.Clock(start)} to {Times.Clock(end)}{Times.RelativeTo(end.Date, start.Date)}";
+        return $"{startDate}{Times.Clock(start, clock)} to {Times.Clock(end, clock)}{Times.RelativeTo(end.Date, start.Date)}";
     }
 
     private static string CandidatePart(FootprintPart part) => part switch

@@ -1,5 +1,6 @@
 using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 using NodaTime.Text;
 
@@ -128,8 +129,8 @@ public static class Agenda
     private static (LocalDate From, LocalDate Through) DatesAround(Interval window, DateTimeZone zone) =>
         (window.Start.InZone(zone).Date.PlusDays(-2), window.End.InZone(zone).Date.PlusDays(1));
 
-    /// <summary>The time it starts, saying which one when the clocks repeat it ("01:30 BST").</summary>
-    public static string Starts(AgendaItem item) => Times.Clock(item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone));
+    /// <summary>The time it starts, saying which one when the clocks repeat it ("01:30 BST"), the way the user chose (ACC-3).</summary>
+    public static string Starts(AgendaItem item, ClockFormat clock = ClockFormat.TwentyFourHour) => Times.Clock(item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone), clock);
 
     /// <summary>
     /// When to go and when it's over, from the footprint: "Leave home 17:35, back 19:45" away from home (leaving is when
@@ -137,7 +138,7 @@ public static class Agenda
     /// buffers at home, or null. A time on another day says "the day before" or "the next day" (§8), and a time the
     /// clocks repeat says which one ("01:15 GMT").
     /// </summary>
-    public static string? Trip(AgendaItem item)
+    public static string? Trip(AgendaItem item, ClockFormat clock = ClockFormat.TwentyFourHour)
     {
         if (item.Footprint is not { } footprint)
         {
@@ -149,7 +150,7 @@ public static class Agenda
         string At(Instant moment)
         {
             var local = moment.InZone(zone);
-            return Times.Clock(local) + Times.RelativeTo(local.Date, day);
+            return Times.Clock(local, clock) + Times.RelativeTo(local.Date, day);
         }
 
         var travelOut = footprint.Segments.Where(segment => segment.Part == FootprintPart.TravelOut).Select(segment => (Instant?)segment.Time.Start).FirstOrDefault();
@@ -208,8 +209,6 @@ internal static class Times
 {
     public static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
 
-    public static readonly LocalTimePattern Time = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
-
     /// <summary>H8's limit for an occurrence: 24 hours, or the whole day it starts on if that day is longer (Q7).</summary>
     public static Duration LongestFor(Interval occurrence, DateTimeZone zone) =>
         Footprint.LongestOn(occurrence.Start.InZone(zone).Date, zone);
@@ -236,9 +235,12 @@ internal static class Times
         };
     }
 
-    /// <summary>"07:30", or "01:15 BST" for a time the clocks repeat on the night they go back.</summary>
-    public static string Clock(ZonedDateTime moment) =>
+    /// <summary>
+    /// "07:30" (or "7:30am" with the 12-hour clock, ACC-3), or "01:15 BST" for a time the clocks repeat on the night
+    /// they go back.
+    /// </summary>
+    public static string Clock(ZonedDateTime moment, ClockFormat clock = ClockFormat.TwentyFourHour) =>
         moment.Zone.MapLocal(moment.LocalDateTime).Count > 1
-            ? $"{Time.Format(moment.TimeOfDay)} {moment.GetZoneInterval().Name}"
-            : Time.Format(moment.TimeOfDay);
+            ? $"{ClockText.Format(moment.TimeOfDay, clock)} {moment.GetZoneInterval().Name}"
+            : ClockText.Format(moment.TimeOfDay, clock);
 }

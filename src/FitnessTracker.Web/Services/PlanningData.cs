@@ -36,7 +36,8 @@ public class PlanningData(AppDbContext db, IClock clock)
             now.Date,
             locations.FirstOrDefault(location => location.IsHome)?.Id,
             TravelLeg.ToTravelTimes(legs),
-            locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())));
+            locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())),
+            preferences.TimesShownAs());
         return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
     }
 

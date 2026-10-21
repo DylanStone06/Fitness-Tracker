@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Activities";
     var names = (IReadOnlyDictionary<Guid, string>)ViewData["Names"]!;
+    var clock = ViewData["Clock"] as FitnessTracker.Domain.Time.ClockFormat? ?? FitnessTracker.Domain.Time.ClockFormat.TwentyFourHour;
 }
 
 <h1>Activities</h1>
@@ -43,7 +44,7 @@ else
             <li class="list-group-item ft-stripe @ActivityDisplay.CategoryStyle(activity.Category) d-flex flex-wrap align-items-center gap-2">
                 <span class="flex-grow-1 text-break">
                     <span class="fw-semibold">@activity.Title</span>
-                    <span class="d-block small">@ActivityDisplay.When(activity)</span>
+                    <span class="d-block small">@ActivityDisplay.When(activity, clock)</span>
                     <span class="d-block small text-body-secondary mt-1">
                         <span class="ft-chip">@ActivityDisplay.CategoryName(activity.Category)</span>@if (activity.LocationId is { } where && names.TryGetValue(where, out var place))
                         {

@@ -24,11 +24,15 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     /// <summary>TempData: what an edit of the whole activity did to its one-off changes, shown on the list or calendar.</summary>
     public const string SeriesEdit = "SeriesEdit";
 
+    /// <summary>ViewData: how the list and the delete page write times (ACC-3).</summary>
+    public const string Clock = "Clock";
+
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         ViewData[CheckNotes] = TempData[CheckNotes] as string[] ?? [];
         ViewData[SeriesEdit] = TempData[SeriesEdit] as string;
+        ViewData[Clock] = (await PreferencesAsync()).TimesShownAs();
         var activities = await db.Activities.AsNoTracking().ToListAsync();
         ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
         return View(activities
@@ -215,7 +219,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return NotFound();
         }
 
-        var model = OccurrenceFormViewModel.For(activity, found.Series, found.Date, returnToCalendar);
+        var model = OccurrenceFormViewModel.For(activity, found.Series, found.Date, returnToCalendar, (await PreferencesAsync()).TimesShownAs());
         model.FillDragged(start, minutes);
         return View(model);
     }
@@ -241,7 +245,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return NotFound();
         }
 
-        model.Describe(activity, found.Series, found.Date);
+        model.Describe(activity, found.Series, found.Date, (await PreferencesAsync()).TimesShownAs());
         foreach (var problem in model.ProblemsAcrossTheForm())
         {
             foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))
@@ -329,6 +333,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     public async Task<IActionResult> Delete(Guid id)
     {
         var activity = await FindAsync(id);
+        ViewData[Clock] = (await PreferencesAsync()).TimesShownAs();
         return activity is null ? NotFound() : View(activity);
     }
 
@@ -361,6 +366,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             ModelState.AddModelError(string.Empty,
                 $"This activity was changed in another tab or window after you opened this page. It's now called " +
                 $"{current.Title}. Delete it anyway?");
+            ViewData[Clock] = (await PreferencesAsync()).TimesShownAs();
             return View(nameof(Delete), current);
         }
 
@@ -396,6 +402,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     {
         var result = await checker.CheckAsync(activity);
         var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
+        var clock = (await PreferencesAsync()).TimesShownAs();
         var problems = result.Problems
             .Where(problem => before is null || !before.Problems.Any(old => old.Message == problem.Message))
             .ToList();
@@ -411,9 +418,9 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             TempData[CheckNotes] = result.Notes.ToArray();
         }
 
-        var keptBefore = before?.Clashes.Select(clash => ActivityCheck.Describe(clash, zone)).ToHashSet() ?? [];
+        var keptBefore = before?.Clashes.Select(clash => ActivityCheck.Describe(clash, zone, clock)).ToHashSet() ?? [];
         var clashes = result.Clashes
-            .Select(clash => ActivityCheck.Describe(clash, zone))
+            .Select(clash => ActivityCheck.Describe(clash, zone, clock))
             .Where(clash => !keptBefore.Contains(clash))
             .ToList();
         if (problems.Count > 0 || clashes.Count == 0)

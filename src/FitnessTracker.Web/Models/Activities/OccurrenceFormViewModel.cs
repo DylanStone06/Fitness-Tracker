@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
@@ -84,7 +85,7 @@ public class OccurrenceFormViewModel : IConfirmsClashes
     /// The page for the occurrence on <paramref name="date"/>, its boxes filled with where it is now (or, if it is
     /// cancelled, where it usually is).
     /// </summary>
-    public static OccurrenceFormViewModel For(Activity activity, Series series, LocalDate date, bool returnToCalendar)
+    public static OccurrenceFormViewModel For(Activity activity, Series series, LocalDate date, bool returnToCalendar, ClockFormat clock)
     {
         var model = new OccurrenceFormViewModel
         {
@@ -96,19 +97,19 @@ public class OccurrenceFormViewModel : IConfirmsClashes
             ? (move.Start, move.Length)
             : (date.At(series.StartTime), series.Length);
         model.FillBoxes(start, length);
-        return model.Describe(activity, series, date);
+        return model.Describe(activity, series, date, clock);
     }
 
-    /// <summary>Fills in the details shown with the form, which aren't posted.</summary>
-    public OccurrenceFormViewModel Describe(Activity activity, Series series, LocalDate date)
+    /// <summary>Fills in the details shown with the form, which aren't posted, with times as the user chose (ACC-3).</summary>
+    public OccurrenceFormViewModel Describe(Activity activity, Series series, LocalDate date, ClockFormat clock)
     {
         Activity = activity;
-        Usually = ActivityDisplay.When(activity);
-        var usual = $"{Named.Format(date)} at {FormInput.Time.Format(series.StartTime)} for {Length(series.Length)}";
+        Usually = ActivityDisplay.When(activity, clock);
+        var usual = $"{Named.Format(date)} at {ClockText.Format(series.StartTime, clock)} for {Length(series.Length)}";
         (Now, IsChanged) = series.Changes.TryGetValue(date, out var change)
             ? change switch
             {
-                OccurrenceChange.Moved move => ($"Moved to {Named.Format(move.Start.Date)} at {FormInput.Time.Format(move.Start.TimeOfDay)} for {Length(move.Length)} (usually {usual})", true),
+                OccurrenceChange.Moved move => ($"Moved to {Named.Format(move.Start.Date)} at {ClockText.Format(move.Start.TimeOfDay, clock)} for {Length(move.Length)} (usually {usual})", true),
                 _ => ($"Cancelled (usually {usual})", true),
             }
             : (usual, false);
