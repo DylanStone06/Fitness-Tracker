@@ -30,6 +30,10 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Activities/Delete/{id}" },
         { "GET", "/Activities/Occurrence/{id}" },
         { "POST", "/Activities/Occurrence/{id}" },
+        { "GET", "/Goals/Edit/{id}" },
+        { "POST", "/Goals/Edit/{id}" },
+        { "GET", "/Goals/Delete/{id}" },
+        { "POST", "/Goals/Delete/{id}" },
     };
 
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
@@ -85,6 +89,22 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         await sam.AddActivityAsync(samsTitle);
 
         var html = await (await sam.GetAsync("/Activities")).Content.ReadAsStringAsync();
+
+        Assert.Contains(samsTitle, html);
+        Assert.DoesNotContain(alexsTitle, html);
+    }
+
+    [Fact]
+    public async Task GoalsList_ShowsOnlyTheSignedInUsersOwn()
+    {
+        var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var alexsTitle = TestBrowser.NewName("Alex gym");
+        await alex.AddGoalAsync(alexsTitle);
+        var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
+        var samsTitle = TestBrowser.NewName("Sam run");
+        await sam.AddGoalAsync(samsTitle);
+
+        var html = await (await sam.GetAsync("/Goals")).Content.ReadAsStringAsync();
 
         Assert.Contains(samsTitle, html);
         Assert.DoesNotContain(alexsTitle, html);
@@ -165,6 +185,14 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
             return (await StoredData.ActivityTitledAsync(factory, title))!.Id;
         }
 
+        if (path.StartsWith("/Goals/", StringComparison.Ordinal))
+        {
+            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+            var title = TestBrowser.NewName("Alex gym");
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.AddGoalAsync(title)).StatusCode);
+            return (await StoredData.GoalTitledAsync(factory, title))!.Id;
+        }
+
         throw new ArgumentOutOfRangeException(nameof(path), path, "Add a way to create Alex's record for this controller.");
     }
 
@@ -174,7 +202,7 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
     private static Task<HttpResponseMessage> SendAsync(TestBrowser browser, string method, string url) => method switch
     {
         "GET" => browser.GetAsync(url),
-        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam"))
+        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam").Concat(TestBrowser.GoalForm("Changed by Sam")).DistinctBy(field => field.Key).ToDictionary())
         {
             ["Name"] = "Changed by Sam",
             ["Minutes"] = "5",

@@ -1,0 +1,131 @@
+@model GoalFormViewModel
+@using FitnessTracker.Web.Data
+@* The fields shared by the add and edit forms (GOL-1). Each session is described as an activity is, without a time.
+   Checked on the server only. *@
+@{
+    var categories = Enum.GetValues<ActivityCategory>().Select(category => new SelectListItem(ActivityDisplay.CategoryName(category), category.ToString())).ToList();
+    var priorities = Enum.GetValues<ActivityPriority>().Select(priority => new SelectListItem(priority.ToString(), priority.ToString())).ToList();
+    var places = Model.Locations.Select(location => new SelectListItem(location.Name, location.Id.ToString())).ToList();
+    var times = new List<SelectListItem>
+    {
+        new("Any time", nameof(PreferredTimeOfDay.Any)),
+        new("Morning", nameof(PreferredTimeOfDay.Morning)),
+        new("Around midday", nameof(PreferredTimeOfDay.Midday)),
+        new("Afternoon", nameof(PreferredTimeOfDay.Afternoon)),
+        new("Evening", nameof(PreferredTimeOfDay.Evening)),
+    };
+    // ACC-6: each category's default buffers, for the empty boxes' hint (site.js updates it when the category changes).
+    var buffers = System.Text.Json.JsonSerializer.Serialize(Model.DefaultBuffers.ToDictionary(pair => pair.Key.ToString(), pair => new[] { pair.Value.Preparation, pair.Value.Changing }));
+    var (defaultPreparation, defaultChanging) = Model.DefaultBuffers.TryGetValue(Model.Category, out var selected) ? selected : (0, 0);
+}
+<div class="mb-3">
+    <label asp-for="Title" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="title-hint">What each time is called on your calendar, such as "Gym" or "Long run".</div>
+    <span asp-validation-for="Title" class="d-block text-danger" id="title-error"></span>
+    <input asp-for="Title" class="form-control" aria-describedby="title-hint title-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Title")" />
+</div>
+
+<div class="mb-3">
+    <label asp-for="Category" class="form-label"></label>
+    <span asp-validation-for="Category" class="d-block text-danger" id="category-error"></span>
+    <select asp-for="Category" class="form-select" asp-items="categories" data-buffers="@buffers"
+            aria-describedby="category-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Category")"></select>
+</div>
+
+<div class="mb-3">
+    <label asp-for="SessionsPerWeek" class="form-label"></label>
+    <span asp-validation-for="SessionsPerWeek" class="d-block text-danger" id="sessions-error"></span>
+    <input asp-for="SessionsPerWeek" type="number" step="1" class="form-control" inputmode="numeric"
+           aria-describedby="sessions-error" aria-invalid="@ViewData.ModelState.AriaInvalid("SessionsPerWeek")" />
+</div>
+
+<fieldset class="mb-3">
+    <legend class="fs-6 mb-1">How long each time takes</legend>
+    <div class="row g-2">
+        <div class="col-6">
+            <label asp-for="DurationHours" class="form-label mb-0"></label>
+            <span asp-validation-for="DurationHours" class="d-block text-danger" id="hours-error"></span>
+            <input asp-for="DurationHours" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="hours-error" aria-invalid="@ViewData.ModelState.AriaInvalid("DurationHours")" />
+        </div>
+        <div class="col-6">
+            <label asp-for="DurationMinutes" class="form-label mb-0"></label>
+            <span asp-validation-for="DurationMinutes" class="d-block text-danger" id="minutes-error"></span>
+            <input asp-for="DurationMinutes" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="minutes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("DurationMinutes")" />
+        </div>
+    </div>
+</fieldset>
+
+<div class="mb-3">
+    <label asp-for="LocationId" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="where-hint">
+        Travel to and from it is added when it's away from home, using your <a asp-controller="TravelLegs" asp-action="Index">travel times</a>,
+        and it's only planned when the place is open.
+    </div>
+    <span asp-validation-for="LocationId" class="d-block text-danger" id="where-error"></span>
+    <select asp-for="LocationId" class="form-select" asp-items="places"
+            aria-describedby="where-hint where-error" aria-invalid="@ViewData.ModelState.AriaInvalid("LocationId")">
+        <option value="">Nowhere in particular</option>
+    </select>
+</div>
+
+<fieldset class="mb-3" aria-describedby="buffers-hint">
+    <legend class="fs-6 mb-1">Time around it</legend>
+    <div class="form-text mt-0 mb-1" id="buffers-hint">
+        Counted in the time it takes up, so nothing else is planned then. Leave a box blank to use your
+        <a asp-controller="CategoryBuffers" asp-action="Index">default for the category</a>, shown in grey.
+    </div>
+    <div class="mb-2">
+        <label asp-for="PreparationMinutes" class="form-label mb-0"></label>
+        <span asp-validation-for="PreparationMinutes" class="d-block text-danger" id="preparation-error"></span>
+        <input asp-for="PreparationMinutes" type="number" step="1" class="form-control" inputmode="numeric" placeholder="@defaultPreparation"
+               aria-describedby="buffers-hint preparation-error" aria-invalid="@ViewData.ModelState.AriaInvalid("PreparationMinutes")" />
+    </div>
+    <div>
+        <label asp-for="ChangingMinutes" class="form-label mb-0"></label>
+        <span asp-validation-for="ChangingMinutes" class="d-block text-danger" id="changing-error"></span>
+        <input asp-for="ChangingMinutes" type="number" step="1" class="form-control" inputmode="numeric" placeholder="@defaultChanging"
+               aria-describedby="buffers-hint changing-error" aria-invalid="@ViewData.ModelState.AriaInvalid("ChangingMinutes")" />
+    </div>
+</fieldset>
+
+<fieldset class="mb-3 border rounded p-2" aria-describedby="preferred-hint">
+    <legend class="fs-5 float-none w-auto px-1 mb-1">When you'd prefer</legend>
+    <div class="form-text mt-0 mb-2" id="preferred-hint">
+        The planner tries these first but can choose other times if they don't fit. Leave the days blank for any day.
+    </div>
+    <fieldset class="mb-2" aria-describedby="days-error">
+        <legend class="fs-6 mb-1">Days</legend>
+        <span asp-validation-for="PreferredDays[0]" class="d-block text-danger" id="days-error"></span>
+        <div class="d-flex flex-wrap column-gap-3">
+            @for (var i = 0; i < Week.Days.Count; i++)
+            {
+                <div class="form-check">
+                    <input asp-for="PreferredDays[i]" class="form-check-input" />
+                    <label asp-for="PreferredDays[i]" class="form-check-label">@Week.Days[i]</label>
+                </div>
+            }
+        </div>
+    </fieldset>
+    <div>
+        <label asp-for="PreferredTimeOfDay" class="form-label mb-0"></label>
+        <span asp-validation-for="PreferredTimeOfDay" class="d-block text-danger" id="time-of-day-error"></span>
+        <select asp-for="PreferredTimeOfDay" class="form-select" asp-items="times"
+                aria-describedby="time-of-day-error" aria-invalid="@ViewData.ModelState.AriaInvalid("PreferredTimeOfDay")"></select>
+    </div>
+</fieldset>
+
+<div class="mb-3">
+    <label asp-for="Priority" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="priority-hint">Higher-priority goals are fitted in first when the week is busy.</div>
+    <span asp-validation-for="Priority" class="d-block text-danger" id="priority-error"></span>
+    <select asp-for="Priority" class="form-select" asp-items="priorities"
+            aria-describedby="priority-hint priority-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Priority")"></select>
+</div>
+
+<div class="mb-3 form-check">
+    <input asp-for="IsDemanding" class="form-check-input" aria-describedby="demanding-hint" />
+    <label asp-for="IsDemanding" class="form-check-label"></label>
+    <div class="form-text" id="demanding-hint">The planner keeps demanding sessions apart, as set in your preferences.</div>
+</div>

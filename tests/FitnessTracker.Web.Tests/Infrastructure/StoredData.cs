@@ -29,13 +29,17 @@ public static class StoredData
     public static Task<int> ActivityCountAsync(TestAppFactory factory) =>
         ReadAsync(factory, db => db.Activities.IgnoreQueryFilters().CountAsync());
 
-    /// <summary>The stored version of any record with this id (a location, travel leg or activity), or null if there is
-    /// none. Every save changes it, so an unchanged version means the record was left alone.</summary>
+    public static Task<WeeklyGoal?> GoalTitledAsync(TestAppFactory factory, string title) =>
+        ReadAsync(factory, db => db.WeeklyGoals.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(goal => goal.Title == title));
+
+    /// <summary>The stored version of any record with this id (a location, travel leg, activity or weekly goal), or null
+    /// if there is none. Every save changes it, so an unchanged version means the record was left alone.</summary>
     public static Task<Guid?> VersionOfAsync(TestAppFactory factory, Guid id) =>
         ReadAsync(factory, async db =>
             await db.Locations.IgnoreQueryFilters().Where(location => location.Id == id).Select(location => (Guid?)location.Version).SingleOrDefaultAsync()
             ?? await db.TravelLegs.IgnoreQueryFilters().Where(leg => leg.Id == id).Select(leg => (Guid?)leg.Version).SingleOrDefaultAsync()
-            ?? await db.Activities.IgnoreQueryFilters().Where(activity => activity.Id == id).Select(activity => (Guid?)activity.Version).SingleOrDefaultAsync());
+            ?? await db.Activities.IgnoreQueryFilters().Where(activity => activity.Id == id).Select(activity => (Guid?)activity.Version).SingleOrDefaultAsync()
+            ?? await db.WeeklyGoals.IgnoreQueryFilters().Where(goal => goal.Id == id).Select(goal => (Guid?)goal.Version).SingleOrDefaultAsync());
 
     public static Task<List<LocationOpeningTime>> OpeningTimesOfAsync(TestAppFactory factory, Guid locationId) =>
         ReadAsync(factory, db => db.LocationOpeningTimes.IgnoreQueryFilters().AsNoTracking()

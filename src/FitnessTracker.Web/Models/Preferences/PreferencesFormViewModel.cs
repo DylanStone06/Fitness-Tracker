@@ -173,12 +173,7 @@ public class PreferencesFormViewModel
 
     private static int Minutes(decimal hours) => (int)Math.Round(hours * 60, MidpointRounding.AwayFromZero);
 
-    private static List<IsoDayOfWeek> DaysIn(DaysOfWeek days) =>
-        Week.Days.Where(day => days.HasFlag(FlagFor(day))).ToList();
+    private static List<IsoDayOfWeek> DaysIn(DaysOfWeek days) => Week.DaysIn(days).ToList();
 
-    private static DaysOfWeek SetOf(IEnumerable<IsoDayOfWeek> days) =>
-        days.Where(day => day != IsoDayOfWeek.None).Aggregate(DaysOfWeek.None, (set, day) => set | FlagFor(day));
-
-    // Monday is 1 in both IsoDayOfWeek and ISO-8601, so Monday's flag is 1, Tuesday's 2, and so on.
-    private static DaysOfWeek FlagFor(IsoDayOfWeek day) => (DaysOfWeek)(1 << ((int)day - 1));
+    private static DaysOfWeek SetOf(IEnumerable<IsoDayOfWeek> days) => Week.SetOf(days);
 }

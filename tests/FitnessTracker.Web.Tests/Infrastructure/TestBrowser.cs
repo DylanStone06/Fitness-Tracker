@@ -154,6 +154,38 @@ public sealed partial class TestBrowser
     }
 
     /// <summary>
+    /// GOL-1: adds a weekly goal: three one-hour gym sessions a week, nowhere in particular, unless
+    /// <paramref name="changes"/> says otherwise.
+    /// </summary>
+    public Task<HttpResponseMessage> AddGoalAsync(string title, Dictionary<string, string>? changes = null) =>
+        SubmitFormAsync("/Goals/Create", "/Goals/Create", GoalForm(title, changes));
+
+    /// <summary>Every field of the weekly goal form, filled in as for <see cref="AddGoalAsync"/>, with the given changes.</summary>
+    public static Dictionary<string, string> GoalForm(string title, Dictionary<string, string>? changes = null)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["Title"] = title,
+            ["Category"] = "Gym",
+            ["LocationId"] = "",
+            ["SessionsPerWeek"] = "3",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+            ["PreparationMinutes"] = "",
+            ["ChangingMinutes"] = "",
+            ["Priority"] = "Normal",
+            ["IsDemanding"] = "false",
+            ["PreferredTimeOfDay"] = "Any",
+        };
+        foreach (var (name, value) in changes ?? [])
+        {
+            form[name] = value;
+        }
+
+        return form;
+    }
+
+    /// <summary>
     /// Every row of the default-buffers form (ACC-6) as a new user's page fills it (the built-in defaults), with the
     /// given changes. Rows are in ActivityCategory order: Gym is row 2, Run row 3.
     /// </summary>
