@@ -100,16 +100,23 @@ public class OccurrenceFormViewModel : IConfirmsClashes
         return model.Describe(activity, series, date, clock);
     }
 
-    /// <summary>Fills in the details shown with the form, which aren't posted, with times as the user chose (ACC-3).</summary>
+    /// <summary>
+    /// Fills in the details shown with the form, which aren't posted: when it really happens (§8: 01:30 on the night the
+    /// clocks go forward is 02:30, and on the night they go back it says which 01:30), with times as the user chose
+    /// (ACC-3).
+    /// </summary>
     public OccurrenceFormViewModel Describe(Activity activity, Series series, LocalDate date, ClockFormat clock)
     {
+        string At(LocalDateTime clockTime) =>
+            $"{Named.Format(ClockTimes.ToInstant(clockTime, series.Zone).InZone(series.Zone).Date)} at {ClockText.At(clockTime, series.Zone, clock)}";
+
         Activity = activity;
         Usually = ActivityDisplay.When(activity, clock);
-        var usual = $"{Named.Format(date)} at {ClockText.Format(series.StartTime, clock)} for {Length(series.Length)}";
+        var usual = $"{At(date.At(series.StartTime))} for {Length(series.Length)}";
         (Now, IsChanged) = series.Changes.TryGetValue(date, out var change)
             ? change switch
             {
-                OccurrenceChange.Moved move => ($"Moved to {Named.Format(move.Start.Date)} at {ClockText.Format(move.Start.TimeOfDay, clock)} for {Length(move.Length)} (usually {usual})", true),
+                OccurrenceChange.Moved move => ($"Moved to {At(move.Start)} for {Length(move.Length)} (usually {usual})", true),
                 _ => ($"Cancelled (usually {usual})", true),
             }
             : (usual, false);

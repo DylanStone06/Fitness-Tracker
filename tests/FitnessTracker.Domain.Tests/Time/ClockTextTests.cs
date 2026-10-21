@@ -20,4 +20,19 @@ public class ClockTextTests
         Assert.Equal(twentyFourHour, ClockText.Format(time, ClockFormat.TwentyFourHour));
         Assert.Equal(twelveHour, ClockText.Format(time, ClockFormat.TwelveHour));
     }
+
+    // §8, T4, T5: a clock time as it really happens. 01:30 on the night the clocks go forward is 02:30; on the night they
+    // go back it is the first 01:30, so it says which.
+    [Theory]
+    [InlineData(2027, 3, 28, "02:30", "2:30am")]
+    [InlineData(2026, 10, 25, "01:30 BST", "1:30am BST")]
+    [InlineData(2026, 11, 2, "01:30", "1:30am")]
+    public void AClockTime_IsWrittenAsItReallyHappens(int year, int month, int day, string twentyFourHour, string twelveHour)
+    {
+        var london = DateTimeZoneProviders.Tzdb["Europe/London"];
+        var clockTime = new LocalDateTime(year, month, day, 1, 30);
+
+        Assert.Equal(twentyFourHour, ClockText.At(clockTime, london, ClockFormat.TwentyFourHour));
+        Assert.Equal(twelveHour, ClockText.At(clockTime, london, ClockFormat.TwelveHour));
+    }
 }

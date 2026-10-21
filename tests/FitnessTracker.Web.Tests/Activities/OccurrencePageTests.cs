@@ -252,6 +252,18 @@ public sealed class OccurrencePageTests(TestAppFactory factory) : IClassFixture<
         Assert.Equal("""[{"date":"2026-11-09","cancelled":true}]""", (await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
     }
 
+    // §8 (scheduling review L-2): the page says when a moved occurrence really happens: 01:30 on the night the clocks go
+    // forward is 02:30, as the calendar shows it.
+    [Fact]
+    public async Task AMoveIntoTheSkippedHour_SaysWhenItReallyHappens()
+    {
+        var (browser, id, _) = await GymAsync();
+
+        await ChangeAsync(browser, id, "2027-03-29", new() { ["Change"] = "Move", ["NewDate"] = "2027-03-28", ["NewStartTime"] = "01:30" });
+
+        Assert.Contains("Moved to Sun 28 Mar 2027 at 02:30", await PageAsync(browser, $"/Activities/Occurrence/{id}?date=2027-03-29"));
+    }
+
     // A date the activity doesn't fall on has no occurrence to change.
     [Fact]
     public async Task ADateItDoesntHappenOn_IsNotFound()

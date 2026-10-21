@@ -29,4 +29,15 @@ public static class ClockText
         var hour = time.Hour % 12 == 0 ? 12 : time.Hour % 12;
         return string.Create(CultureInfo.InvariantCulture, $"{hour}:{time.Minute:00}{(time.Hour < 12 ? "am" : "pm")}");
     }
+
+    /// <summary>
+    /// When <paramref name="clockTime"/> really happens in <paramref name="zone"/>, written the user's way (§8): on the
+    /// night the clocks go forward 01:30 is "02:30"; on the night they go back it is the first 01:30, "01:30 BST".
+    /// </summary>
+    public static string At(LocalDateTime clockTime, DateTimeZone zone, ClockFormat clock)
+    {
+        var moment = ClockTimes.ToInstant(clockTime, zone).InZone(zone);
+        var time = Format(moment.TimeOfDay, clock);
+        return zone.MapLocal(moment.LocalDateTime).Count > 1 ? $"{time} {moment.GetZoneInterval().Name}" : time;
+    }
 }
