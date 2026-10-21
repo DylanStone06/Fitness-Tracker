@@ -55,8 +55,9 @@
               start: part.start,
               end: part.end,
               classNames: ['ft-segment', ...occurrence.classNames.filter((name) => name.startsWith('cat-'))],
-              // Not a link and not a tab stop: there's nothing to do with it on its own.
+              // Not a link, a tab stop or draggable: there's nothing to do with it on its own.
               interactive: false,
+              editable: false,
               extendedProps: { partOf: occurrence.title },
             });
           }
@@ -117,6 +118,17 @@
     return { domNodes: nodes };
   };
 
+  // CAL-8: a drag or a resize is never saved by itself. The block goes back, and the occurrence's page (or a one-off's
+  // form) opens with the new time and length filled in, to check (SCH-1) and confirm: the same page a keyboard reaches.
+  const dragged = (info) => {
+    const props = info.event.extendedProps;
+    const start = clockTime(info.event.start).slice(0, 16);
+    const minutes = Math.round((info.event.end - info.event.start) / 60000);
+    info.revert();
+    const page = pageFor(props);
+    window.location.assign(`${page}&start=${encodeURIComponent(start)}&minutes=${minutes}`);
+  };
+
   // CAL-10: on a phone the list is easier to read than a week of narrow columns.
   const narrow = window.matchMedia('(max-width: 767.98px)').matches;
   const time = { hour: '2-digit', minute: '2-digit', hour12: twelveHour };
@@ -153,6 +165,9 @@
     eventTimeFormat: time,
     events: load,
     eventContent: content,
+    editable: true,
+    eventDrop: dragged,
+    eventResize: dragged,
   });
   calendar.render();
 })();

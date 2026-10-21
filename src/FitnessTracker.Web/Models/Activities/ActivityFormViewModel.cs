@@ -137,6 +137,17 @@ public class ActivityFormViewModel : IConfirmsClashes
         ReturnToCalendar = returnToCalendar,
     };
 
+    /// <summary>CAL-8: a one-off dragged on the calendar: its new start and length in the boxes, to check and save.</summary>
+    public void FillDragged(string? start, int? minutes)
+    {
+        if (FormInput.Dragged(start, minutes) is { } dragged)
+        {
+            StartDate = FormInput.Date.Format(dragged.Start.Date);
+            StartTime = FormInput.Time.Format(dragged.Start.TimeOfDay);
+            (DurationHours, DurationMinutes) = (dragged.Minutes / 60, dragged.Minutes % 60);
+        }
+    }
+
     public static ActivityFormViewModel From(Activity activity)
     {
         var model = new ActivityFormViewModel

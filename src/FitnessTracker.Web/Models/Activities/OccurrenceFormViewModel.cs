@@ -118,10 +118,9 @@ public class OccurrenceFormViewModel : IConfirmsClashes
     /// <summary>CAL-8: a time dragged to on the calendar ("2026-11-05T18:30" for 45 minutes), when it can be read.</summary>
     public void FillDragged(string? start, int? minutes)
     {
-        if (start is not null && LocalDateTimePattern.CreateWithInvariantCulture("uuuu'-'MM'-'dd'T'HH':'mm").Parse(start) is { Success: true } parsed
-            && FormInput.IsPlannable(parsed.Value.Date) && minutes is >= 1 and <= 25 * 60)
+        if (FormInput.Dragged(start, minutes) is { } dragged)
         {
-            FillBoxes(parsed.Value, Duration.FromMinutes(minutes.Value));
+            FillBoxes(dragged.Start, Duration.FromMinutes(dragged.Minutes));
         }
     }
 

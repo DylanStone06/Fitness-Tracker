@@ -61,6 +61,39 @@ public sealed class FromTheCalendarTests(TestAppFactory factory) : IClassFixture
         Assert.Equal("/Calendar?date=2026-11-05", response.Headers.Location?.OriginalString);
     }
 
+    // CAL-8: a one-off dragged on the calendar opens its form with the new time and length filled in, to check and save.
+    [Fact]
+    public async Task ADraggedOneOff_OpensItsFormWithTheNewTime()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Swim");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-04" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var html = await PageAsync(browser, $"/Activities/Edit/{id}?start=2026-11-05T18:30&minutes=45&returnToCalendar=true");
+
+        Assert.Equal("2026-11-05", InputValue(html, "StartDate"));
+        Assert.Equal("18:30", InputValue(html, "StartTime"));
+        Assert.Equal("0", InputValue(html, "DurationHours"));
+        Assert.Equal("45", InputValue(html, "DurationMinutes"));
+    }
+
+    // A dragged time that can't be read (a link edited by hand) is ignored: the form shows the activity as saved.
+    [Fact]
+    public async Task ADraggedTimeThatCantBeRead_IsIgnored()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Swim");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-04" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var html = await PageAsync(browser, $"/Activities/Edit/{id}?start=soon&minutes=-5");
+
+        Assert.Equal("2026-11-04", InputValue(html, "StartDate"));
+        Assert.Equal("07:00", InputValue(html, "StartTime"));
+        Assert.Equal("1", InputValue(html, "DurationHours"));
+    }
+
     // From the activities list, saving still goes back to the list.
     [Fact]
     public async Task Adding_FromTheList_GoesBackToTheList()

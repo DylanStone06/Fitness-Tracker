@@ -67,8 +67,9 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         return AfterSaving(model);
     }
 
+    // From the calendar, a drag fills in the new start and length (CAL-8): saved only once checked and confirmed here.
     [HttpGet]
-    public async Task<IActionResult> Edit(Guid id, bool returnToCalendar = false)
+    public async Task<IActionResult> Edit(Guid id, bool returnToCalendar = false, string? start = null, int? minutes = null)
     {
         var activity = await FindAsync(id);
         if (activity is null)
@@ -78,6 +79,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 
         var model = ActivityFormViewModel.From(activity);
         model.ReturnToCalendar = returnToCalendar;
+        model.FillDragged(start, minutes);
         await FillListsAsync(model);
         return View(model);
     }
