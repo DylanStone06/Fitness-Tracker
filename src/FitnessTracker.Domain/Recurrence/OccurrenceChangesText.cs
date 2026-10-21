@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 using NodaTime.Text;
 
@@ -19,7 +20,7 @@ public static class OccurrenceChangesText
 
     private static readonly LocalDateTimePattern StartPattern = LocalDateTimePattern.CreateWithInvariantCulture("uuuu'-'MM'-'dd'T'HH':'mm");
 
-    private static readonly LocalDatePattern Named = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+    private static readonly LocalDatePattern Named = DateText.Named;
 
     private static readonly string[] CancelledFields = ["date", "cancelled"];
 

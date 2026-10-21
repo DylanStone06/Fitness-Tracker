@@ -26,7 +26,7 @@ public class OccurrenceFormViewModel : IConfirmsClashes
     /// <summary>The boxes only a move uses: cancelling and putting back ignore what is in them, even what can't be read.</summary>
     public static readonly IReadOnlyList<string> MoveBoxes = [nameof(NewDate), nameof(NewStartTime), nameof(DurationHours), nameof(DurationMinutes)];
 
-    private static readonly LocalDatePattern Named = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+    private static readonly LocalDatePattern Named = DateText.Named;
 
     /// <summary>The occurrence's own date ("2026-11-04"), carried by the page.</summary>
     public string? Date { get; set; }

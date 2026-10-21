@@ -10,7 +10,7 @@ namespace FitnessTracker.Web.Models.Activities;
 /// <summary>How an activity is described on the pages: its category's name, and when it happens in plain English.</summary>
 public static class ActivityDisplay
 {
-    private static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+    private static readonly LocalDatePattern Date = DateText.Named;
 
     public static string CategoryName(ActivityCategory category) => category switch
     {

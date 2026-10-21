@@ -207,7 +207,7 @@ internal static class Travel
 /// <summary>Times and dates as the explanations write them.</summary>
 internal static class Times
 {
-    public static readonly LocalDatePattern Date = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
+    public static readonly LocalDatePattern Date = DateText.Named;
 
     /// <summary>H8's limit for an occurrence: 24 hours, or the whole day it starts on if that day is longer (Q7).</summary>
     public static Duration LongestFor(Interval occurrence, DateTimeZone zone) =>
