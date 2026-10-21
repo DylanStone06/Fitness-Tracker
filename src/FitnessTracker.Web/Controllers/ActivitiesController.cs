@@ -111,21 +111,17 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             : (await PreferencesAsync()).WeekStart;
 
         // CAL-4, T8: occurrences changed on their own keep their changes where the edited activity still falls on
-        // their dates. Changes that can't be read (edited by hand) can't be kept.
-        Series? before = null;
-        try
-        {
-            before = activity.ToPlannedActivity().Series;
-        }
-        catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
-        {
-        }
+        // their dates.
+        var before = SeriesOf(activity);
 
         // Saved only if nobody has saved this activity since the form was opened (requirements §9). If the check
         // stops it, the changed activity is simply never saved.
         db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
-        var unreadableChanges = before is null && activity.OccurrenceChanges is not null;
         model.ApplyTo(activity, weekStart);
+        // An activity that couldn't be read as it was (edited by hand: a length of 0, say) keeps changes that can be
+        // read with it as it is now. Others can't be kept.
+        before ??= activity.OccurrenceChanges is null ? null : SeriesOf(activity);
+        var unreadableChanges = before is null && activity.OccurrenceChanges is not null;
         var (kept, removed) = before is null ? (0, 0) : activity.KeepChangesFrom(before);
         if (unreadableChanges)
         {
@@ -186,10 +182,23 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 
         if (unreadable)
         {
-            parts.Add("its changes to single occurrences couldn't be read, so they were removed");
+            parts.Add("the activity as it was couldn't be read, so its changes to single occurrences were removed");
         }
 
         return parts.Count == 0 ? null : $"Saved. {string.Join("; ", parts)}.";
+    }
+
+    // The activity's series with its one-off changes, or null when it can't be read (edited by hand).
+    private static Series? SeriesOf(Activity activity)
+    {
+        try
+        {
+            return activity.ToPlannedActivity().Series;
+        }
+        catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
+        {
+            return null;
+        }
     }
 
     // Back where the form was opened from: the calendar, on the activity's week, or the list.
@@ -314,20 +323,9 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     // happen that day, or can't be read (edited by hand: the ordinary form shows it to fix).
     private static (Series Series, LocalDate Date)? OccurrenceOf(Activity activity, string? date)
     {
-        if (FormInput.ParseDate(date) is not { } day)
-        {
-            return null;
-        }
-
-        try
-        {
-            var series = activity.ToPlannedActivity().Series;
-            return series.Rule.FallsOn(series.FirstDate, day) ? (series, day) : null;
-        }
-        catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
-        {
-            return null;
-        }
+        return FormInput.ParseDate(date) is { } day && SeriesOf(activity) is { } series && series.Rule.FallsOn(series.FirstDate, day)
+            ? (series, day)
+            : null;
     }
 
     private static string OccurrenceFieldFor(CheckAspect aspect) => aspect switch

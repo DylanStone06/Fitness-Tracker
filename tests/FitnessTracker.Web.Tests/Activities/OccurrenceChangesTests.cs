@@ -79,6 +79,40 @@ public sealed class OccurrenceChangesTests(TestAppFactory factory) : IClassFixtu
         Assert.Contains($"{title} couldn&#x27;t be read", html);
     }
 
+    // An activity that couldn't be read as it was (a length of 0, edited by hand) keeps changes that can be read with
+    // the activity as saved now; it doesn't lose them for something else's sake. (Phase 5 code review.)
+    [Fact]
+    public async Task EditingAnUnreadableActivity_KeepsChangesThatCanBeRead()
+    {
+        var (browser, title) = await GymWithChangesAsync(CancelWednesdayMoveNextMonday);
+        await SetLengthAsync(title, 0);
+
+        await EditAsync(browser, title, []);
+
+        Assert.Equal(CancelWednesdayMoveNextMonday, (await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
+        Assert.Contains("2 occurrences you changed on their own keep their changes", await ListAsync(browser));
+    }
+
+    // ... and when they can't be (Thursday 5 November isn't a gym day), they are removed, saying why.
+    [Fact]
+    public async Task EditingAnActivityWhoseChangesCantBeRead_RemovesThem_SayingWhy()
+    {
+        var (browser, title) = await GymWithChangesAsync("""[{"date":"2026-11-05","cancelled":true}]""");
+
+        await EditAsync(browser, title, []);
+
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
+        Assert.Contains("the activity as it was couldn&#x27;t be read, so its changes to single occurrences were removed", await ListAsync(browser));
+    }
+
+    private async Task SetLengthAsync(string title, int minutes)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Activities.IgnoreQueryFilters()
+            .Where(activity => activity.Title == title)
+            .ExecuteUpdateAsync(set => set.SetProperty(activity => activity.LengthMinutes, minutes));
+    }
+
     private async Task<(TestBrowser Browser, string Title)> GymWithChangesAsync(string changes)
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
