@@ -67,7 +67,10 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
         var activities = await planning.ActivitiesOnAsync(Agenda.DatesToLoadFor(window, zone), []);
         var items = Agenda.Overlapping(activities, user.Context, window, zone);
 
+        // Two columns of only the activities shown, for each one's colour and whether it repeats.
+        var shown = items.Select(item => item.Activity.Id).Distinct().ToList();
         var kinds = await db.Activities
+            .Where(activity => shown.Contains(activity.Id))
             .Select(activity => new { activity.Id, activity.Category, Repeats = activity.RepeatRule != null })
             .ToDictionaryAsync(activity => activity.Id);
         var places = user.Locations.ToDictionary(location => location.Id, location => location.Name);

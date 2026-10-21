@@ -30,6 +30,7 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 | Opening hours | When an activity runs through two openings that touch (a place open midnight to midnight on consecutive days) and then past a closing time, the explanation names the opening it started in rather than the one that closed. Only very long activities are affected. | Not fixed by the check on save (it uses the same naming); with the planner's explanations (Phase 6) |
 | Time | A span that would end before it starts once the clocks change (01:45 to 02:00 on the night they go forward) is refused rather than shifted. Chosen as the cautious option; can be revisited. | Owner's choice |
 | Series | Working out occurrences walks from each series' first date, so long-running series cost more each query. | Measured against the 1-second target in Phase 9 |
+| Series | A repeating activity with any occurrence changed on its own (CAL-4) is loaded for every calendar week, home page and check on save, whatever the dates, because a moved one can land anywhere. Activities that ended long ago are loaded too, so the cost grows with history. Storing the earliest and latest dates the changes land on would let the query skip them. | Measured against the 1-second target in Phase 9 (found by the Phase 5 code review) |
 | T6 | Only the series half is tested; "logged sleep unchanged" needs the sleep log. | Phase 8 |
 
 ## Hosting and security
