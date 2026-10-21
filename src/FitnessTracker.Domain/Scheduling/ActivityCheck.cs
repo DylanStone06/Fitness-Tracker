@@ -8,7 +8,14 @@ using NodaTime.Text;
 namespace FitnessTracker.Domain.Scheduling;
 
 /// <summary>One activity as the check sees it: a series (a one-off is a series that happens once), its buffers and place.</summary>
-public sealed record PlannedActivity(Guid Id, string Title, Series Series, Buffers Buffers, Guid? LocationId);
+public sealed record PlannedActivity(Guid Id, string Title, Series Series, Buffers Buffers, Guid? LocationId)
+{
+    /// <summary>GOL-1: the weekly goal it was planned for, whose sessions it counts towards, or null.</summary>
+    public Guid? GoalId { get; init; }
+
+    /// <summary>FIT-6: a hard session that needs recovery afterwards (H5-H7).</summary>
+    public bool IsDemanding { get; init; }
+}
 
 /// <summary>One of the user's locations: its name, for explanations, and its opening hours (H4).</summary>
 public sealed record Place(string Name, OpeningHours OpeningHours);
