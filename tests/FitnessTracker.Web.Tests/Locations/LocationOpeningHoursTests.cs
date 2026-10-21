@@ -45,6 +45,22 @@ public sealed class LocationOpeningHoursTests(TestAppFactory factory) : IClassFi
         Assert.Empty(await StoredData.OpeningTimesOfAsync(factory, location.Id));
     }
 
+    // A new location starts with no set opening hours (always open), so the days only show once "Set opening hours" is
+    // chosen; on the form, Monday's hours can be copied to the weekdays or every day (an office open the same hours).
+    [Fact]
+    public async Task TheAddForm_StartsAlwaysOpen_AndOffersToCopyMondaysHours()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        var html = await (await browser.GetAsync("/Locations/Create")).Content.ReadAsStringAsync();
+
+        Assert.Matches("""<input[^>]*id="HasOpeningHours"[^>]*checked="checked"|<input[^>]*checked="checked"[^>]*id="HasOpeningHours" """.TrimEnd(), html);
+        Assert.DoesNotMatch("""<input[^>]*id="HasOpeningHours-set"[^>]*checked""", html);
+        Assert.Contains("class=\"ft-opening-days\"", html);
+        Assert.Contains("data-copy-monday=\"weekdays\"", html);
+        Assert.Contains("data-copy-monday=\"every-day\"", html);
+    }
+
     // An open day needs both times; the problem links to the field to fix.
     [Fact]
     public async Task Add_ShowsAnError_LinkedToTheField_WhenAnOpenDayHasNoTimes()

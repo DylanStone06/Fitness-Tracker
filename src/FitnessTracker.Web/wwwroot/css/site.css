@@ -363,6 +363,12 @@ h2, .h2, h3, .h3, .h4, .h5 {
   color: inherit;
 }
 
+/* TRV-1: a location's days only show once "Set opening hours" is chosen. A browser without :has() shows them always,
+   as before. */
+.ft-hours:has(#HasOpeningHours:checked) .ft-opening-days {
+  display: none;
+}
+
 /* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it
    (WCAG 2.4.11). */
 html {

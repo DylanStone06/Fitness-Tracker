@@ -49,6 +49,7 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 |---|---|
 | A real screen reader (pages were checked against WCAG 2.2 AA by reading their markup and in the built-in browser). | Phase 9 accessibility pass |
 | Visual Studio's Test Explorer (tests are run with `dev\ft-dev.ps1`). | Owner's choice |
+| Copying Monday's opening hours to other days on the location form (`wwwroot/js/site.js`) has no automated test, for the same reason; it was checked by hand in the built-in browser. | Phase 9, with the other browser checks |
 | The double-submit guard in `wwwroot/js/site.js` (a second click on a form's button is ignored; the button works again after 10 seconds without a new page) has no automated test, because the test suite doesn't run a browser. | Phase 9, with the other browser checks |
 
 ## Harmless, by choice

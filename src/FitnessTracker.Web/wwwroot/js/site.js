@@ -46,6 +46,26 @@ window.addEventListener('pageshow', (event) => {
   }
 });
 
+// TRV-1: on a location's form, Monday's opening hours (or "closed") copied to Tuesday to Friday, or to every day, for a
+// place open the same hours all week. The days are listed Monday first. The buttons are hidden until this runs.
+document.querySelectorAll('[data-copy-monday]').forEach((button) => {
+  const form = button.form;
+  const status = form?.querySelector('[data-copy-monday-status]');
+  const field = (day, name, type = '') => form.querySelector(`input${type}[name="OpeningDays[${day}].${name}"]`);
+  button.hidden = false;
+  button.addEventListener('click', () => {
+    const everyDay = button.dataset.copyMonday === 'every-day';
+    for (let day = 1; day <= (everyDay ? 6 : 4); day += 1) {
+      field(day, 'Closed', '[type="checkbox"]').checked = field(0, 'Closed', '[type="checkbox"]').checked;
+      field(day, 'Opens').value = field(0, 'Opens').value;
+      field(day, 'Closes').value = field(0, 'Closes').value;
+    }
+    if (status) {
+      status.textContent = `Monday's hours copied to ${everyDay ? 'every day' : 'Tuesday to Friday'}.`;
+    }
+  });
+});
+
 // ACC-6: on the activity form, the empty getting-ready and changing boxes show the chosen category's defaults (the
 // server fills a blank box with them when it saves). The page sets them for the category it opens with; this keeps
 // them right when the category changes.
