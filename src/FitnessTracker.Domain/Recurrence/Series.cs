@@ -109,13 +109,26 @@ public sealed class Series
 
     /// <summary>
     /// The whole series with a new first date, clock time, length or rule. One-off changes are kept for every date
-    /// the edited series still falls on (T8); the result says how many were kept and how many were removed.
+    /// the edited series still falls on (T8); the result says how many were kept and how many were removed. A move to
+    /// what is now the usual time and length is no longer a change, so it is neither: the occurrence simply follows
+    /// the series, where it already was.
     /// </summary>
     public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule)
     {
         var edited = new Series(firstDate, startTime, length, Zone, rule);
-        var kept = Changes.Where(change => edited.FallsOn(change.Key)).ToFrozenDictionary();
-        return new SeriesEdit(edited.WithChanges(kept), KeptChanges: kept.Count, RemovedChanges: Changes.Count - kept.Count);
+        var removed = 0;
+        foreach (var (date, change) in Changes)
+        {
+            if (!edited.FallsOn(date))
+            {
+                removed++;
+                continue;
+            }
+
+            edited = edited.WithChange(date, change);
+        }
+
+        return new SeriesEdit(edited, KeptChanges: edited.Changes.Count, RemovedChanges: removed);
     }
 
     /// <summary>

@@ -61,11 +61,30 @@ public class OccurrenceChangesTextTests
     [InlineData("""[{"date":"2026-11-04","start":"8am","minutes":60}]""", "start")]
     [InlineData("""[{"date":"2026-11-04","cancelled":true},{"date":"2026-11-04","cancelled":true}]""", "twice")]
     [InlineData("""[{"date":"2026-11-05","cancelled":true}]""", "Thu 5 Nov 2026")]
+    // Scheduling review L-4: nothing else either, so nothing is quietly ignored.
+    [InlineData("""[{"date":"2026-11-04","cancelled":true,"minutes":90}]""", "minutes")]
+    [InlineData("""[{"date":"2026-11-04","cancelled":true,"note":"ill"}]""", "note")]
+    [InlineData("""[{"date":"2026-11-04","cancelled":false}]""", "cancelled")]
     public void TextTheAppDidntWrite_IsRefused_WithTheReason(string text, string reason)
     {
         var error = Assert.Throws<FormatException>(() => OccurrenceChangesText.Apply(Gym, text));
 
         Assert.Contains(reason, error.Message);
+    }
+
+    // §8: moves into the hour the clocks skip and the hour they repeat read back as the series' own rules say: 01:30 on
+    // 28 March 2027 is 02:30 BST (01:30 UTC); 01:30 on 25 October 2026 is the first, BST (00:30 UTC).
+    [Theory]
+    [InlineData("2027-03-28T01:30", 2027, 3, 28, 1, 30)]
+    [InlineData("2026-10-25T01:30", 2026, 10, 25, 0, 30)]
+    public void AMoveOnAClockChangeNight_ReadsBackAsTheSeriesResolvesIt(string start, int year, int month, int day, int hour, int minute)
+    {
+        var text = $$"""[{"date":"2026-11-04","start":"{{start}}","minutes":30}]""";
+
+        var occurrence = Assert.Single(OccurrenceChangesText.Apply(Gym, text).OccurrencesBetween(new LocalDate(year, month, day), new LocalDate(year, month, day)));
+
+        Assert.Equal(Instant.FromUtc(year, month, day, hour, minute), occurrence.Time.Start);
+        Assert.Equal(text, OccurrenceChangesText.Format(OccurrenceChangesText.Apply(Gym, text).Changes));
     }
 
     [Fact]

@@ -21,6 +21,10 @@ public static class OccurrenceChangesText
 
     private static readonly LocalDatePattern Named = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM uuuu");
 
+    private static readonly string[] CancelledFields = ["date", "cancelled"];
+
+    private static readonly string[] MovedFields = ["date", "start", "minutes"];
+
     /// <summary>The changes as text, or null when there are none. Times and lengths must be whole minutes.</summary>
     public static string? Format(IReadOnlyDictionary<LocalDate, OccurrenceChange> changes)
     {
@@ -104,13 +108,23 @@ public static class OccurrenceChangesText
 
                 var cancelled = item.TryGetProperty("cancelled", out var flag) && flag.ValueKind == JsonValueKind.True;
                 var moved = item.TryGetProperty("start", out _);
-                series = (cancelled, moved) switch
+                if (cancelled == moved)
                 {
-                    (true, true) => throw new FormatException($"{Named.Format(date)} is both cancelled and moved."),
-                    (false, false) => throw new FormatException($"{Named.Format(date)} is neither cancelled nor moved."),
-                    (true, false) => Change(date, () => series.CancelOccurrence(date)),
-                    _ => Change(date, () => series.MoveOccurrence(date, StartOf(item, date), LengthOf(item, date))),
-                };
+                    throw new FormatException(cancelled
+                        ? $"{Named.Format(date)} is both cancelled and moved."
+                        : $"{Named.Format(date)} is neither cancelled nor moved.");
+                }
+
+                // Nothing else is quietly ignored: a field the app doesn't write means it wasn't the app that wrote it.
+                var fields = cancelled ? CancelledFields : MovedFields;
+                if (item.EnumerateObject().Select(property => property.Name).FirstOrDefault(name => !fields.Contains(name)) is { } extra)
+                {
+                    throw new FormatException($"{Named.Format(date)} has \"{extra}\", which a {(cancelled ? "cancelled" : "moved")} occurrence doesn't.");
+                }
+
+                series = cancelled
+                    ? Change(date, () => series.CancelOccurrence(date))
+                    : Change(date, () => series.MoveOccurrence(date, StartOf(item, date), LengthOf(item, date)));
             }
         }
 
