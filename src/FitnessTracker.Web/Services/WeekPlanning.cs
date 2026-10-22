@@ -72,11 +72,14 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         var first = CalendarWeeks.StartOf(start.Date, user.Preferences.WeekStart);
         var week = new DateInterval(first, first.PlusDays(6));
         var unreadable = new List<string>();
+        // Its other sessions count as the goal's, its goal's or (with none) its own, so the planner's one session of a
+        // goal a day and its spread over the week (§7.3) apply to them too.
+        var goalId = activity.GoalId ?? activity.Id;
         var activities = (await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, user.Context.Rest.BetweenDemanding), unreadable))
-            .Select(other => other.Id == activity.Id ? other with { Series = other.Series.CancelOccurrence(date) } : other)
+            .Select(other => other.Id == activity.Id ? other with { Series = other.Series.CancelOccurrence(date), GoalId = goalId } : other)
             .ToList();
         var asGoal = new PlanGoal(
-            activity.Id,
+            goalId,
             activity.Title,
             1,
             occurrence.Time.Duration,

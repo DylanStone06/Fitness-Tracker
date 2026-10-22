@@ -26,6 +26,23 @@ public sealed partial class ReschedulePageTests(TestAppFactory factory) : IClass
         Assert.DoesNotContain(moves, move => move.Contains("start=2026-11-02T18:00", StringComparison.Ordinal));
     }
 
+    // SCH-6, §7.3: one session of a goal a day, as the planner keeps: a missed session of a daily series isn't offered
+    // on a day that already has one of its sessions (scheduling review, Phase 6: its own series wasn't counted).
+    [Fact]
+    public async Task OtherTimes_AreNotOnADayThatAlreadyHasTheSession()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-02", ["StartTime"] = "18:00", ["Repeats"] = "Daily" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var html = await PageAsync(browser, $"/Activities/Reschedule/{id}?date=2026-11-02");
+
+        var moves = MoveLinks().Matches(html).Select(match => Uri.UnescapeDataString(WebUtility.HtmlDecode(match.Groups[1].Value))).ToList();
+        Assert.NotEmpty(moves);
+        Assert.All(moves, move => Assert.Contains("start=2026-11-02T", move, StringComparison.Ordinal));
+    }
+
     // A one-off is moved on its own form.
     [Fact]
     public async Task AOneOff_GetsOtherTimes_ThatOpenItsFormFilledIn()

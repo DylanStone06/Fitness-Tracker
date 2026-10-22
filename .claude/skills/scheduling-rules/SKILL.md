@@ -250,7 +250,10 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - **Other times for one session** (SCH-6, T16, `Planner.Options`): the same rules and scores, for one session (a
   missed or skipped occurrence, or one to move) in its week from `Now` on: the best time on each day that has one,
   best first, at most `most`. The caller passes the activities with that occurrence cancelled, so it isn't in its own
-  way, and nothing else moves. The Web prefers the part of the day it was in and leaves out the time it has now. None
+  way, and nothing else moves. The Web prefers the part of the day it was in and leaves out the time it has now. It
+  plans it as its goal (`Activity.GoalId`, or the activity's own id when it has none) and gives the activity's other
+  occurrences that `GoalId`, so one session a day and the spread count them (review M-2: a daily series was offered
+  days that already had one; test `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`). None
   fitting gives the same day reasons as a shortfall.
 - Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
   T16, T22.
