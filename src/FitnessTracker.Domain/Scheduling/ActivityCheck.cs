@@ -255,7 +255,8 @@ public static class ActivityCheck
             .Concat(candidate.Series.OccurrencesBetween(from, through).Select(occurrence => (candidate.Title, Occurrence: occurrence, Own: true)))
             .ToList();
 
-        var tooClose = new List<(Occurrence Mine, string Title, Instant Other)>();
+        // Each by date: two of its own occurrences on one date (one moved there) are one date, not two.
+        var tooClose = new List<(LocalDate Date, Occurrence Mine, string Title, Instant Other)>();
         var crowded = new List<(LocalDate Date, List<string> Titles)>();
         var recovery = new List<LocalDate>();
         foreach (var mine in occurrences.OrderBy(occurrence => occurrence.Time.Start))
@@ -266,10 +267,11 @@ public static class ActivityCheck
             if (near.Where(other => Abs(other.Occurrence.Time.Start - start) < rest.BetweenDemanding)
                     .OrderBy(other => Abs(other.Occurrence.Time.Start - start))
                     .ThenBy(other => other.Occurrence.Time.Start)
+                    .ThenBy(other => other.Title, StringComparer.Ordinal)
                     .Select(other => (other.Title, (Instant?)other.Occurrence.Time.Start))
                     .FirstOrDefault() is (var title, { } closest))
             {
-                tooClose.Add((mine, title, closest));
+                tooClose.Add((date, mine, title, closest));
             }
 
             var sameDay = near.Where(other => other.Occurrence.Time.Start.InZone(zone).Date == date).Select(other => other.Title).ToList();
@@ -287,12 +289,12 @@ public static class ActivityCheck
         var problems = new List<CheckProblem>();
         if (tooClose.Count > 0)
         {
-            var (mine, title, other) = tooClose[0];
+            var (_, mine, title, other) = tooClose[0];
             var at = other.InZone(zone);
             var hours = (int)rest.BetweenDemanding.TotalHours;
             problems.Add(new CheckProblem(CheckAspect.Time,
                 $"It's {Times.Length(Abs(other - mine.Time.Start))} from {title}, a demanding session on {Date.Format(at.Date)} at {Times.Clock(at, context.Clock)}; " +
-                $"your preferences keep demanding sessions at least {hours} {(hours == 1 ? "hour" : "hours")} apart.{More(tooClose.Count, checkedUpTo)}"));
+                $"your preferences keep demanding sessions at least {hours} {(hours == 1 ? "hour" : "hours")} apart.{More(tooClose.Select(each => each.Date), checkedUpTo)}"));
         }
 
         if (crowded.Count > 0)
@@ -300,21 +302,24 @@ public static class ActivityCheck
             var (date, titles) = crowded[0];
             var already = titles.Count == 1 ? $"there's already a demanding session, {titles[0]}" : $"there are already {titles.Count} demanding sessions";
             problems.Add(new CheckProblem(CheckAspect.Time,
-                $"On {Date.Format(date)} {already}; your preferences allow {rest.MostDemandingPerDay} a day.{More(crowded.Count, checkedUpTo)}"));
+                $"On {Date.Format(date)} {already}; your preferences allow {rest.MostDemandingPerDay} a day.{More(crowded.Select(each => each.Date), checkedUpTo)}"));
         }
 
         if (recovery.Count > 0)
         {
             problems.Add(new CheckProblem(CheckAspect.Time,
-                $"{Date.Format(recovery[0])} is one of your recovery days, and this is a demanding session.{More(recovery.Count, checkedUpTo)}"));
+                $"{Date.Format(recovery[0])} is one of your recovery days, and this is a demanding session.{More(recovery, checkedUpTo)}"));
         }
 
         return problems;
     }
 
-    // " The same happens on 7 more dates up to Tue 29 Dec 2026." after the first of several, or nothing.
-    private static string More(int count, LocalDate checkedUpTo) =>
-        count > 1 ? $" The same happens on {count - 1} more {(count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}." : "";
+    // " The same happens on 7 more dates up to Tue 29 Dec 2026." after the first of several dates, or nothing.
+    private static string More(IEnumerable<LocalDate> dates, LocalDate checkedUpTo)
+    {
+        var count = dates.Distinct().Count();
+        return count > 1 ? $" The same happens on {count - 1} more {(count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}." : "";
+    }
 
     private static Duration Abs(Duration duration) => duration < Duration.Zero ? -duration : duration;
 

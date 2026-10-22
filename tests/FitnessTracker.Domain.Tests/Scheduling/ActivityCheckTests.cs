@@ -809,6 +809,33 @@ public class ActivityCheckTests
             problem.Message);
     }
 
+    // H6: two of its own sessions on one day (Wednesday's moved to Monday evening) are one date, not "1 more date"
+    // (scheduling review, Phase 6: occurrences were counted).
+    [Fact]
+    public void TwoOfItsOwnOnOneDay_AreOneDate()
+    {
+        var gym = AtHome(GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 2, 18, 0), Duration.FromHours(1))) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(gym, [], WithRest(hours: 0)).Problems);
+
+        Assert.Equal("On Mon 2 Nov 2026 there's already a demanding session, Gym; your preferences allow 1 a day.", problem.Message);
+    }
+
+    // H5, SCH-7: of two demanding sessions equally near, the one named is the same whatever order they are loaded in.
+    [Fact]
+    public void TheNearestDemandingSession_IsNamedTheSame_WhateverTheOrder()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(20, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var swim = OneOff("Swim", new LocalDate(2026, 11, 2), new LocalTime(20, 0), minutes: 45, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 3), new LocalTime(18, 0), minutes: 45, at: null) with { IsDemanding = true };
+
+        var oneWay = Assert.Single(ActivityCheck.Check(intervals, [ride, swim], WithRest(hours: 24)).Problems).Message;
+        var otherWay = Assert.Single(ActivityCheck.Check(intervals, [swim, ride], WithRest(hours: 24)).Problems).Message;
+
+        Assert.StartsWith("It's 22 h from Hard ride", oneWay);
+        Assert.Equal(oneWay, otherWay);
+    }
+
     // H7: a rule every 10 days reaches Friday first on 1 January 2027, past the 8-week clash window (scheduling review,
     // Phase 6: the rest rules were only checked that far, unlike H4 and H8, which depend on the weekday too).
     [Fact]
