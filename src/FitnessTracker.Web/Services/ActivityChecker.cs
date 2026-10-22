@@ -27,7 +27,7 @@ public class ActivityChecker(PlanningData planning)
         // ever had; one that can't be read is left out with a note, not allowed to stop every save.
         var plannedCandidate = candidate.ToPlannedActivity();
         var unreadable = new List<string>();
-        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today, user.Context.Rest.BetweenDemanding, plannedCandidate.IsDemanding);
+        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate, user.Context.Today, user.Context.Rest.BetweenDemanding);
         var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.Check(plannedCandidate, others, user.Context);

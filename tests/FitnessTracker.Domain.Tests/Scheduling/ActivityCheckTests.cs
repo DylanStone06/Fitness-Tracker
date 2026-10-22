@@ -115,7 +115,7 @@ public class ActivityCheckTests
         var clash = Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes);
 
         Assert.Equal("Call", clash.Other.Label);
-        Assert.True(ActivityCheck.OthersThatCanClash(run.Series, Today).Contains(new LocalDate(2026, 10, 20)));
+        Assert.True(ActivityCheck.OthersThatCanClash(run, Today).Contains(new LocalDate(2026, 10, 20)));
     }
 
     // ... and beyond the 8 weeks (to Thursday 4 March 2027, 19 weeks on).
@@ -126,7 +126,7 @@ public class ActivityCheckTests
         var call = OneOff("Call", new LocalDate(2027, 3, 4), new LocalTime(18, 30), minutes: 20, at: null);
 
         Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes);
-        Assert.True(ActivityCheck.OthersThatCanClash(run.Series, Today).Contains(new LocalDate(2027, 3, 4)));
+        Assert.True(ActivityCheck.OthersThatCanClash(run, Today).Contains(new LocalDate(2027, 3, 4)));
     }
 
     // H8 too: moved two years on with a length of 25 hours, on an ordinary day.
@@ -157,7 +157,7 @@ public class ActivityCheckTests
 
         Assert.Empty(result.Problems);
         Assert.Empty(result.Clashes);
-        Assert.False(ActivityCheck.OthersThatCanClash(moved.Series, Today).Contains(new LocalDate(2026, 10, 13)));
+        Assert.False(ActivityCheck.OthersThatCanClash(moved, Today).Contains(new LocalDate(2026, 10, 13)));
     }
 
     // A series entirely in the past is checked on its own dates (above), so its moved ones are too.
@@ -173,7 +173,7 @@ public class ActivityCheckTests
         var call = OneOff("Call", new LocalDate(2026, 9, 1), new LocalTime(18, 30), minutes: 20, at: null);
 
         Assert.Equal("Call", Assert.Single(ActivityCheck.Check(ended, [call], Context()).Clashes).Other.Label);
-        Assert.True(ActivityCheck.OthersThatCanClash(ended.Series, Today).Contains(new LocalDate(2026, 9, 1)));
+        Assert.True(ActivityCheck.OthersThatCanClash(ended, Today).Contains(new LocalDate(2026, 9, 1)));
     }
 
     // A series that next happens more than a year away isn't over: Mondays every 60 weeks from Monday 5 October next
@@ -876,14 +876,15 @@ public class ActivityCheckTests
         Assert.Empty(ActivityCheck.Check(intervals, [ride], WithRest(hours: 24)).Problems);
     }
 
-    // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks.
+    // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks. Taken
+    // from the activity itself, so a caller can't leave it out (code review, Phase 6).
     [Fact]
     public void OthersThatCanClash_ForADemandingActivity_ReachAsFarAsTheRestRulesAreChecked()
     {
-        var series = Weekly(new LocalDate(2026, 10, 25), [IsoDayOfWeek.Sunday], new LocalTime(18, 0)).Series;
+        var sundays = Weekly(new LocalDate(2026, 10, 25), [IsoDayOfWeek.Sunday], new LocalTime(18, 0));
 
-        Assert.True(ActivityCheck.OthersThatCanClash(series, Today, Duration.FromHours(24), demanding: true).Contains(new LocalDate(2027, 3, 27)));
-        Assert.False(ActivityCheck.OthersThatCanClash(series, Today, Duration.FromHours(24)).Contains(new LocalDate(2027, 3, 27)));
+        Assert.True(ActivityCheck.OthersThatCanClash(sundays with { IsDemanding = true }, Today, Duration.FromHours(24)).Contains(new LocalDate(2027, 3, 27)));
+        Assert.False(ActivityCheck.OthersThatCanClash(sundays, Today, Duration.FromHours(24)).Contains(new LocalDate(2027, 3, 27)));
     }
 
     // H5 within the activity itself: demanding every day, with 48 hours between demanding sessions.
@@ -936,9 +937,9 @@ public class ActivityCheckTests
     [Fact]
     public void OthersThatCanClash_ReachAsFarAsTheRestRule()
     {
-        var series = GymSession(new LocalDate(2026, 11, 2)).Series;
+        var gym = GymSession(new LocalDate(2026, 11, 2));
 
-        var dates = ActivityCheck.OthersThatCanClash(series, Today, Duration.FromHours(96));
+        var dates = ActivityCheck.OthersThatCanClash(gym, Today, Duration.FromHours(96));
 
         Assert.Equal(new LocalDate(2026, 10, 28), dates.Start);
     }

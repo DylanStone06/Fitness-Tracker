@@ -339,15 +339,16 @@ public static class ActivityCheck
 
     /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
-    /// <paramref name="series"/>: the clash window, and any occurrence moved outside it that is checked (not one moved
-    /// into the past), 3 days either side. For a <paramref name="demanding"/> one, as far as its rest rules (H5-H7) are
-    /// checked: the year H4 and H8 are. Lets a caller load only those activities.
+    /// <paramref name="candidate"/>: the clash window, and any occurrence moved outside it that is checked (not one moved
+    /// into the past), 3 days either side. For a demanding one, as far as its rest rules (H5-H7) are checked: the year
+    /// H4 and H8 are. Lets a caller load only those activities.
     /// </summary>
-    public static DateInterval OthersThatCanClash(Series series, LocalDate today, Duration betweenDemanding = default, bool demanding = false)
+    public static DateInterval OthersThatCanClash(PlannedActivity candidate, LocalDate today, Duration betweenDemanding = default)
     {
+        var series = candidate.Series;
         var nearby = NearbyDates(series, today);
         var end = nearby.Max(dates => dates.End);
-        if (demanding)
+        if (candidate.IsDemanding)
         {
             end = LocalDate.Max(end, LongerDates(series, FirstCheckedDate(series, today)).End.PlusDays(MarginDays));
         }
