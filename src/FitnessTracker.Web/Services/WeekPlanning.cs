@@ -90,9 +90,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
             new[] { TimeOfDay.Morning, TimeOfDay.Midday, TimeOfDay.Afternoon, TimeOfDay.Evening }
                 .FirstOrDefault(part => Planner.HoursOf(part) is { } hours && start.TimeOfDay >= hours.From && start.TimeOfDay < hours.To));
         var request = new PlanRequest(week, user.Now.ToInstant(), zone, activities, [asGoal], Sleep(user.Preferences), user.Context.Rest, user.Context);
-        var options = Planner.Options(request, asGoal, most + 1);
-        var others = options.Options.Where(option => option.Time.Start != occurrence.Time.Start).Take(most).ToList();
-        return new OtherTimes(occurrence, week, options with { Options = others }, user, unreadable);
+        return new OtherTimes(occurrence, week, Planner.Options(request, asGoal, most, notAt: occurrence.Time.Start), user, unreadable);
     }
 
     private static SleepWindow Sleep(UserPreferences preferences) => new(

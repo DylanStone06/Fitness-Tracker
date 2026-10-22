@@ -194,11 +194,12 @@ public static class Planner
     /// SCH-6, T16: other times for one session (a missed or skipped one, or one to move) in the request's week, from
     /// <see cref="PlanRequest.Now"/> on: the best on each day, best first, at most <paramref name="most"/>, around
     /// everything else, which stays where it is. Pass the activities without the session itself (its occurrence
-    /// cancelled), or it is in its own way. When none fits, <see cref="SessionAlternatives.None"/> says why.
+    /// cancelled), or it is in its own way, and its time now as <paramref name="notAt"/>: that day's next best is
+    /// offered instead. When none fits, <see cref="SessionAlternatives.None"/> says why.
     /// </summary>
-    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most)
+    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null)
     {
-        var week = new WeekState(request);
+        var week = new WeekState(request) { NotAt = notAt };
         if (Travel.KnownJourneys(session.LocationId, request.Context) is not { } journeys)
         {
             return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: Sentence(Travel.WhyUnknown(session.LocationId, request.Context))));
@@ -336,6 +337,9 @@ public static class Planner
 
         public IReadOnlyList<LocalDate> SessionDates(Guid goal) => _sessions.TryGetValue(goal, out var dates) ? dates : [];
 
+        /// <summary>SCH-6: a start not to offer, the time the session has now.</summary>
+        public Instant? NotAt { get; init; }
+
         /// <summary>What couldn't be counted, in a fixed order (SCH-7).</summary>
         public IReadOnlyList<string> Notes => _notes.ToList();
 
@@ -396,7 +400,7 @@ public static class Planner
             foreach (var start in StartsOn(date))
             {
                 var verdict = Check(goal, journeys, date, start);
-                if (verdict.Broken != Broken.None)
+                if (verdict.Broken != Broken.None || start == NotAt)
                 {
                     continue;
                 }

@@ -485,6 +485,21 @@ public class PlannerTests
         });
     }
 
+    // The time it has now isn't offered, but its day still is, at its next best time (code review, Phase 6: the day was
+    // dropped). Busy each day until 17:00, so Thursday's best evening time is 18:00, the session's own.
+    [Fact]
+    public void AnotherTime_SkipsTheCurrentTime_ButKeepsItsDay()
+    {
+        var busy = Daily("Day", new LocalTime(7, 30), Duration.FromMinutes(570));
+        var session = Goal("Gym", sessions: 1, minutes: 50, time: TimeOfDay.Evening, days: [IsoDayOfWeek.Thursday]);
+        var current = Instant.FromUtc(2026, 11, 5, 18, 0);
+
+        var options = Planner.Options(Request([session], [busy]), session, most: 3, notAt: current);
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 5, 18, 15), options.Options[0].Time.Start);
+        Assert.Equal(Instant.FromUtc(2026, 11, 5, 18, 0), Planner.Options(Request([session], [busy]), session, most: 3).Options[0].Time.Start);
+    }
+
     // ... and when nothing fits in what's left of the week, each day says why.
     [Fact]
     public void AMissedSession_WithNoTimeLeft_SaysWhyEachDay()
