@@ -26,6 +26,22 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
     }
 
+    // H5, SCH-1 (§7.2: a validation error, not a clash to accept): a demanding session 22 hours after another breaks the
+    // 24 hours a new user's preferences keep between them, and isn't saved.
+    [Fact]
+    public async Task Add_ADemandingSessionTooSoonAfterAnother_IsNotSaved_AndSaysWhy()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Hard ride", new() { ["StartTime"] = "20:00", ["IsDemanding"] = "true" });
+        var title = TestBrowser.NewName("Intervals");
+
+        var response = await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-03", ["StartTime"] = "18:00", ["IsDemanding"] = "true" });
+
+        var html = await AssertShowsAnErrorAsync(response);
+        Assert.Contains("It&#x27;s 22 h from Hard ride, a demanding session on Mon 2 Nov 2026 at 20:00; your preferences keep demanding sessions at least 24 hours apart.", html);
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+    }
+
     // Q2: the user can choose to keep a clash once it has been shown, and it is saved.
     [Fact]
     public async Task Add_ClashingWithAnotherActivity_IsSaved_WithSaveAnyway()

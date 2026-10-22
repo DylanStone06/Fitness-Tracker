@@ -25,7 +25,11 @@ public sealed record Place(string Name, OpeningHours OpeningHours);
 /// how the user wants times written in its explanations (ACC-3).
 /// </summary>
 public sealed record PlanningContext(
-    LocalDate Today, Guid? Home, TravelTimes Travel, IReadOnlyDictionary<Guid, Place> Places, ClockFormat Clock = ClockFormat.TwentyFourHour);
+    LocalDate Today, Guid? Home, TravelTimes Travel, IReadOnlyDictionary<Guid, Place> Places, ClockFormat Clock = ClockFormat.TwentyFourHour)
+{
+    /// <summary>ACC-7: H5-H7 from the user's preferences; <see cref="RestRules.None"/> checks none.</summary>
+    public RestRules Rest { get; init; } = RestRules.None;
+}
 
 /// <summary>What a problem is about, so a form can show it next to the right field.</summary>
 public enum CheckAspect
@@ -126,12 +130,18 @@ public static class ActivityCheck
             problems.Add(outsideOpeningHours);
         }
 
+        // H5-H7 (ACC-7) on every occurrence in the clash window, against the demanding sessions near them.
+        var occurrences = series.OccurrencesBetween(dates.Start, dates.End)
+            .Concat(MovedOutside(series, dates, context.Today))
+            .OrderBy(occurrence => occurrence.Time.Start)
+            .ToList();
+        var restCheckedUpTo = occurrences.Count == 0 ? dates.End : LocalDate.Max(dates.End, occurrences[^1].Time.Start.InZone(series.Zone).Date);
+        problems.AddRange(RestProblems(candidate, occurrences, others, context, restCheckedUpTo));
+
         if (problems.Count > 0 || journeys is not { } knownJourneys)
         {
             return new ActivityCheckResult(problems, [], dates);
         }
-
-        var occurrences = series.OccurrencesBetween(dates.Start, dates.End).Concat(MovedOutside(series, dates, context.Today)).ToList();
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
         var notes = new List<string>();
@@ -180,6 +190,7 @@ public static class ActivityCheck
             problems.Add(outsideOpeningHours);
         }
 
+        problems.AddRange(RestProblems(candidate, [occurrence], others, context, day));
         if (problems.Count > 0 || journeys is not { } knownJourneys)
         {
             return new ActivityCheckResult(problems, [], dates);
@@ -201,10 +212,110 @@ public static class ActivityCheck
 
     /// <summary>
     /// The dates on which another activity has to start (or be running) to be able to clash with the occurrence the
-    /// rule puts on <paramref name="occurrenceDate"/>, where it now is: 3 days either side. For <see cref="CheckOccurrence"/>.
+    /// rule puts on <paramref name="occurrenceDate"/>, where it now is: 3 days either side, or further when the rest
+    /// between demanding sessions (H5) reaches further. For <see cref="CheckOccurrence"/>.
     /// </summary>
-    public static DateInterval OthersThatCanClashWith(Series series, LocalDate occurrenceDate) =>
-        Around(OccurrenceOn(series, occurrenceDate)?.Time.Start.InZone(series.Zone).Date ?? occurrenceDate);
+    public static DateInterval OthersThatCanClashWith(Series series, LocalDate occurrenceDate, Duration betweenDemanding = default) =>
+        Wider(Around(OccurrenceOn(series, occurrenceDate)?.Time.Start.InZone(series.Zone).Date ?? occurrenceDate), betweenDemanding);
+
+    /// <summary>
+    /// H5: how many days either side a demanding session's rest reaches, for loading the sessions it must be kept apart
+    /// from (a day more than the hours, rounded up, so a session late the day before is included). None for no rest.
+    /// </summary>
+    public static int RestReachDays(Duration betweenDemanding) =>
+        betweenDemanding <= Duration.Zero ? 0 : (int)Math.Ceiling(betweenDemanding.TotalDays) + 1;
+
+    // The dates, with more days either side when the rest between demanding sessions reaches past MarginDays.
+    private static DateInterval Wider(DateInterval dates, Duration betweenDemanding)
+    {
+        var extra = Math.Max(0, RestReachDays(betweenDemanding) - MarginDays);
+        return new DateInterval(dates.Start.PlusDays(-extra), dates.End.PlusDays(extra));
+    }
+
+    // H5-H7 (ACC-7): for a demanding activity, each checked occurrence against the demanding sessions near it, other
+    // activities' and its own, start to start in elapsed time (§8). Each rule is said once, naming the first occurrence
+    // that breaks it and counting the rest. Validation errors (§7.2), like H4 and H8, not clashes to accept.
+    private static IEnumerable<CheckProblem> RestProblems(
+        PlannedActivity candidate, IReadOnlyList<Occurrence> occurrences, IEnumerable<PlannedActivity> others, PlanningContext context, LocalDate checkedUpTo)
+    {
+        var rest = context.Rest;
+        if (!candidate.IsDemanding || occurrences.Count == 0)
+        {
+            return [];
+        }
+
+        var zone = candidate.Series.Zone;
+        var reach = Math.Max(1, RestReachDays(rest.BetweenDemanding));
+        var from = occurrences.Min(occurrence => occurrence.Time.Start).InZone(zone).Date.PlusDays(-reach);
+        var through = occurrences.Max(occurrence => occurrence.Time.Start).InZone(zone).Date.PlusDays(reach);
+        var demanding = others
+            .Where(other => other.IsDemanding && other.Id != candidate.Id)
+            .SelectMany(other => other.Series.OccurrencesBetween(from, through).Select(occurrence => (other.Title, Occurrence: occurrence)))
+            .Concat(candidate.Series.OccurrencesBetween(from, through).Select(occurrence => (candidate.Title, Occurrence: occurrence)))
+            .ToList();
+
+        var tooClose = new List<(Occurrence Mine, string Title, Instant Other)>();
+        var crowded = new List<(LocalDate Date, List<string> Titles)>();
+        var recovery = new List<LocalDate>();
+        foreach (var mine in occurrences.OrderBy(occurrence => occurrence.Time.Start))
+        {
+            var start = mine.Time.Start;
+            var date = start.InZone(zone).Date;
+            var near = demanding.Where(other => other.Occurrence != mine).ToList();
+            if (near.Where(other => Abs(other.Occurrence.Time.Start - start) < rest.BetweenDemanding)
+                    .OrderBy(other => Abs(other.Occurrence.Time.Start - start))
+                    .ThenBy(other => other.Occurrence.Time.Start)
+                    .Select(other => (other.Title, (Instant?)other.Occurrence.Time.Start))
+                    .FirstOrDefault() is (var title, { } closest))
+            {
+                tooClose.Add((mine, title, closest));
+            }
+
+            var sameDay = near.Where(other => other.Occurrence.Time.Start.InZone(zone).Date == date).Select(other => other.Title).ToList();
+            if (sameDay.Count >= rest.MostDemandingPerDay)
+            {
+                crowded.Add((date, sameDay));
+            }
+
+            if (rest.RecoveryDays.Contains(date.DayOfWeek))
+            {
+                recovery.Add(date);
+            }
+        }
+
+        var problems = new List<CheckProblem>();
+        if (tooClose.Count > 0)
+        {
+            var (mine, title, other) = tooClose[0];
+            var at = other.InZone(zone);
+            var hours = (int)rest.BetweenDemanding.TotalHours;
+            problems.Add(new CheckProblem(CheckAspect.Time,
+                $"It's {Times.Length(Abs(other - mine.Time.Start))} from {title}, a demanding session on {Date.Format(at.Date)} at {Times.Clock(at, context.Clock)}; " +
+                $"your preferences keep demanding sessions at least {hours} {(hours == 1 ? "hour" : "hours")} apart.{More(tooClose.Count, checkedUpTo)}"));
+        }
+
+        if (crowded.Count > 0)
+        {
+            var (date, titles) = crowded[0];
+            var already = titles.Count == 1 ? $"there's already a demanding session, {titles[0]}" : $"there are already {titles.Count} demanding sessions";
+            problems.Add(new CheckProblem(CheckAspect.Time,
+                $"On {Date.Format(date)} {already}; your preferences allow {rest.MostDemandingPerDay} a day.{More(crowded.Count, checkedUpTo)}"));
+        }
+
+        if (recovery.Count > 0)
+        {
+            problems.Add(new CheckProblem(CheckAspect.Time,
+                $"{Date.Format(recovery[0])} is one of your recovery days, and this is a demanding session.{More(recovery.Count, checkedUpTo)}"));
+        }
+
+        return problems;
+    }
+
+    // " The same happens on 7 more dates up to Tue 29 Dec 2026." after the first of several, or nothing.
+    private static string More(int count, LocalDate checkedUpTo) =>
+        count > 1 ? $" The same happens on {count - 1} more {(count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}." : "";
+
+    private static Duration Abs(Duration duration) => duration < Duration.Zero ? -duration : duration;
 
     // The occurrence the rule puts on date, where it now is, or null when it is cancelled or the rule doesn't fall then.
     private static Occurrence? OccurrenceOn(Series series, LocalDate date)
@@ -222,10 +333,10 @@ public static class ActivityCheck
     /// <paramref name="series"/>: the clash window, and any occurrence moved outside it that is checked (not one moved
     /// into the past), 3 days either side. Lets a caller load only those activities.
     /// </summary>
-    public static DateInterval OthersThatCanClash(Series series, LocalDate today)
+    public static DateInterval OthersThatCanClash(Series series, LocalDate today, Duration betweenDemanding = default)
     {
         var nearby = NearbyDates(series, today);
-        return new DateInterval(nearby.Min(dates => dates.Start), nearby.Max(dates => dates.End));
+        return Wider(new DateInterval(nearby.Min(dates => dates.Start), nearby.Max(dates => dates.End)), betweenDemanding);
     }
 
     // The clash window with MarginDays either side, and the same around each occurrence moved outside it.

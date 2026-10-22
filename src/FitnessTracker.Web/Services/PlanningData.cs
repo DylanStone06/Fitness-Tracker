@@ -1,5 +1,6 @@
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Models;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.TimeZones;
@@ -37,7 +38,14 @@ public class PlanningData(AppDbContext db, IClock clock)
             locations.FirstOrDefault(location => location.IsHome)?.Id,
             TravelLeg.ToTravelTimes(legs),
             locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())),
-            preferences.TimesShownAs());
+            preferences.TimesShownAs())
+        {
+            // ACC-7: H5-H7, for the check on save and the planner alike.
+            Rest = new RestRules(
+                Duration.FromHours(preferences.MinimumHoursBetweenDemandingSessions),
+                preferences.MaximumDemandingSessionsPerDay,
+                Week.DaysIn(preferences.RecoveryDays).ToHashSet()),
+        };
         return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
     }
 

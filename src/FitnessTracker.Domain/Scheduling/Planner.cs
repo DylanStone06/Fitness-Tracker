@@ -38,7 +38,11 @@ public sealed record SleepWindow(LocalTime Bedtime, LocalTime WakeTime, Duration
 /// ACC-7: H5, demanding sessions at least <see cref="BetweenDemanding"/> apart, start to start; H6, at most
 /// <see cref="MostDemandingPerDay"/> in a day; H7, none on <see cref="RecoveryDays"/>.
 /// </summary>
-public sealed record RestRules(Duration BetweenDemanding, int MostDemandingPerDay, IReadOnlySet<IsoDayOfWeek> RecoveryDays);
+public sealed record RestRules(Duration BetweenDemanding, int MostDemandingPerDay, IReadOnlySet<IsoDayOfWeek> RecoveryDays)
+{
+    /// <summary>No rest rules: nothing apart, any number a day, no recovery days.</summary>
+    public static RestRules None { get; } = new(Duration.Zero, int.MaxValue, new HashSet<IsoDayOfWeek>());
+}
 
 /// <summary>
 /// What "Plan my week" plans: the <paramref name="Week"/>'s dates in <paramref name="Zone"/>, from
@@ -106,7 +110,7 @@ public static class Planner
     /// </summary>
     public static DateInterval DatesToLoadFor(DateInterval week, Duration betweenDemanding)
     {
-        var margin = Math.Max(Agenda.MarginDays, (int)Math.Ceiling(betweenDemanding.TotalDays) + 1);
+        var margin = Math.Max(Agenda.MarginDays, ActivityCheck.RestReachDays(betweenDemanding));
         return new DateInterval(week.Start.PlusDays(-margin), week.End.PlusDays(margin));
     }
 

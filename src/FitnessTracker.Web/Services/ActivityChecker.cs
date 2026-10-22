@@ -21,11 +21,13 @@ public class ActivityChecker(PlanningData planning)
         var loaded = await planning.LoadAsync();
         var user = clock is { } chosen ? loaded with { Context = loaded.Context with { Clock = chosen } } : loaded;
 
-        // Only activities that can fall near the dates checked, not every one the user ever had; one that can't be read
-        // is left out with a note, not allowed to stop every save.
+        // Only activities that can fall near the dates checked (as far as the rest between demanding sessions reaches,
+        // H5), not every one the user ever had; one that can't be read is left out with a note, not allowed to stop
+        // every save.
         var plannedCandidate = candidate.ToPlannedActivity();
         var unreadable = new List<string>();
-        var others = await planning.ActivitiesOnAsync(ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today), unreadable, except: candidate.Id);
+        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today, user.Context.Rest.BetweenDemanding);
+        var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.Check(plannedCandidate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };
@@ -41,7 +43,8 @@ public class ActivityChecker(PlanningData planning)
         var user = await planning.LoadAsync();
         var plannedCandidate = candidate.ToPlannedActivity();
         var unreadable = new List<string>();
-        var others = await planning.ActivitiesOnAsync(ActivityCheck.OthersThatCanClashWith(plannedCandidate.Series, occurrenceDate), unreadable, except: candidate.Id);
+        var nearby = ActivityCheck.OthersThatCanClashWith(plannedCandidate.Series, occurrenceDate, user.Context.Rest.BetweenDemanding);
+        var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.CheckOccurrence(plannedCandidate, occurrenceDate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };

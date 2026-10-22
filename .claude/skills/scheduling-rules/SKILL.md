@@ -128,7 +128,15 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   `PlanningContext` (today in the user's timezone, home, travel times, each location's name and opening hours).
 - **Problems** stop the save, each with a `CheckAspect` for the form field: a repeat that never happens (Repeat), no
   home or a missing travel leg for an activity away from home (Location; never guessed as zero), H8 (Length), and
-  H4 on **every** occurrence checked, naming the first and counting the rest (Time).
+  H4 on **every** occurrence checked, naming the first and counting the rest (Time). For a demanding activity, H5-H7
+  from `PlanningContext.Rest` (ACC-7; `RestRules.None` checks none) on every occurrence in the clash window, against
+  the demanding sessions near it, other activities' and its own, start to start in elapsed time, as the planner does:
+  "It's 22 h from Hard ride, a demanding session on Mon 2 Nov 2026 at 20:00; your preferences keep demanding sessions
+  at least 24 hours apart.", "On Mon 2 Nov 2026 there's already a demanding session, Hard ride; your preferences allow
+  1 a day.", "Wed 4 Nov 2026 is one of your recovery days, and this is a demanding session." (Time). They are
+  validation errors, not clashes to accept (§7.2). `OthersThatCanClash` and `OthersThatCanClashWith` take the rest
+  between demanding sessions, to reach as far as it does (`RestReachDays`). Tests: `ActivityCheckTests.ADemanding*`,
+  `TheRestRule_*`, `CheckOccurrence_KeepsTheRestRule`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*`.
 - **Clashes** (H1) are only looked for when there are no problems (they depend on travel and length). The user can
   save them with "Save anyway" (Q2), asked on each save; acceptance isn't stored yet.
 - **Windows**, from the later of today and the first date (`FirstCheckedDate`), or from the first date when nothing
@@ -237,7 +245,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 
 | Area | Requirements | Phase |
 |---|---|---|
-| The rest of the one validator on save: sleep minimum (H3), rest gaps and demanding sessions (H5-H7); the planner keeps them already | SCH-1, §7.2 | 6-8 (H1, H4, H8 built in 4) |
+| The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
 | Accepting suggestions, rescheduling a missed session, templates | SCH-4, SCH-6, CAL-9, T15, T16 | 6 |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
@@ -277,7 +285,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T10 | Buffer overlapping another activity is a conflict | **Covered** (domain and on save) | `ConflictsTests.ChangingTimeRunningInto*`, `PreparationTimeOverlapping*`, `ActivityCheckTests.AClash_IsFoundOnFootprints_*`, web `ActivityChecksTests.Add_WhoseTravelRunsIntoAnotherActivity_Clashes` |
 | T11 | Back-to-back: no conflict; 1 min overlap: conflict | **Covered** (domain and on save) | `ConflictsTests.BackToBackActivities_*`, `OverlappingByOneMinute_*`, web `ActivityChecksTests.Add_BackToBackWithAnotherActivity_IsSaved` |
 | T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
-| T13 | Demanding sessions too close | **Covered** (planner); the check on save is still to come | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed` |
+| T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
 | T15 | "Brighton weekend" template | Not built (Phase 6) | |
 | T16 | Reschedule a missed workout | Not built (Phase 6) | |
