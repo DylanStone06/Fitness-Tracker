@@ -50,6 +50,26 @@ public class PlannerTests
         }
     }
 
+    // SCH-1, H5-H7: with rest rules (48 hours apart, Thursday a recovery day), every demanding suggestion passes the
+    // check on save as a demanding one-off, against the others (scheduling review, Phase 6: the test above has no rest
+    // rules, so the planner and the check were never compared on them).
+    [Fact]
+    public void EveryDemandingSuggestion_PassesTheRestRulesOnSave()
+    {
+        var rest = new RestRules(Duration.FromHours(48), 1, new HashSet<IsoDayOfWeek> { IsoDayOfWeek.Thursday });
+        var context = Context() with { Rest = rest };
+
+        var plan = Planner.Plan(Request([Goal("Intervals", sessions: 3, minutes: 45, demanding: true)]) with { Rest = rest, Context = context });
+
+        Assert.Equal(3, plan.Suggestions.Count);
+        var asActivities = plan.Suggestions.Select(OneOffFor).ToList();
+        Assert.All(asActivities, activity => Assert.True(activity.IsDemanding));
+        foreach (var suggestion in asActivities)
+        {
+            Assert.Empty(ActivityCheck.Check(suggestion, asActivities, context).Problems);
+        }
+    }
+
     // §7.4: busy time includes sleep, with winding down and getting going (T12: sleep is never cut into).
     [Fact]
     public void NoSuggestion_CutsIntoSleep()
@@ -542,6 +562,25 @@ public class PlannerTests
         Assert.Equal(Duration.FromMinutes(630), plan.FreeTime[0].Total);
     }
 
+    // CAL-7, §8: the day the clocks go back has 25 hours, and its free time counts the extra one. Week of 19 October
+    // 2026, sleep 03:00 to 11:00 (busy 02:30 to 11:30), so the repeated hour isn't asleep. Sunday 25 October is free
+    // 23:00 to 02:30 UTC and 11:30 to 24:00 UTC: 16 hours, the longest 12 h 30 min; Saturday 15 hours.
+    [Fact]
+    public void FreeTime_OnTheDayTheClocksGoBack_CountsItsExtraHour()
+    {
+        var plan = Planner.Plan(Request([]) with
+        {
+            Week = new DateInterval(new LocalDate(2026, 10, 19), new LocalDate(2026, 10, 25)),
+            Now = Instant.FromUtc(2026, 10, 12, 12, 0),
+            Sleep = new SleepWindow(new LocalTime(3, 0), new LocalTime(11, 0), Duration.FromMinutes(30), Duration.FromMinutes(30)),
+        });
+
+        Assert.Equal(new LocalDate(2026, 10, 24), plan.FreeTime[5].Date);
+        Assert.Equal(Duration.FromHours(15), plan.FreeTime[5].Total);
+        Assert.Equal(new LocalDate(2026, 10, 25), plan.FreeTime[6].Date);
+        Assert.Equal((Duration.FromHours(16), Duration.FromMinutes(750)), (plan.FreeTime[6].Total, plan.FreeTime[6].Longest));
+    }
+
     private static PlannedActivity WeekdaysOnly(PlannedActivity daily) =>
         daily with
         {
@@ -558,7 +597,10 @@ public class PlannerTests
         var start = suggestion.Time.Start.InZone(London).LocalDateTime;
         return new PlannedActivity(Guid.NewGuid(), suggestion.Goal.Title,
             new Series(start.Date, start.TimeOfDay, suggestion.Goal.Length, London, RecurrenceRule.Daily().EndingAfter(1)),
-            suggestion.Goal.Buffers, suggestion.Goal.LocationId);
+            suggestion.Goal.Buffers, suggestion.Goal.LocationId)
+        {
+            IsDemanding = suggestion.Goal.IsDemanding,
+        };
     }
 
     private static PlanRequest Request(PlanGoal[] goals, PlannedActivity[]? activities = null) =>

@@ -865,6 +865,17 @@ public class ActivityCheckTests
         Assert.StartsWith("It's 23 h from Long run, a demanding session on Sat 27 Mar 2027 at 18:00", problem.Message);
     }
 
+    // H5, T5, §8: elapsed time, not clock time, across the night the clocks go back: Saturday 24 October 2026 18:00 BST
+    // (17:00 UTC) to Sunday 17:30 GMT (17:30 UTC) is 24 h 30 min, though the clocks say 23 h 30 min.
+    [Fact]
+    public void TheRestRule_IsElapsedTime_OnTheNightTheClocksGoBack()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 10, 24), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 10, 25), new LocalTime(17, 30), minutes: 45, at: null) with { IsDemanding = true };
+
+        Assert.Empty(ActivityCheck.Check(intervals, [ride], WithRest(hours: 24)).Problems);
+    }
+
     // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks.
     [Fact]
     public void OthersThatCanClash_ForADemandingActivity_ReachAsFarAsTheRestRulesAreChecked()
