@@ -354,7 +354,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     // one to move), with nothing else moved. Each opens the occurrence's page, or a one-off's form, with that time
     // filled in, the pages a drag opens (CAL-8), so the move is checked and confirmed there (SCH-1).
     [HttpGet]
-    public async Task<IActionResult> Reschedule(Guid id, string? date)
+    public async Task<IActionResult> Reschedule(Guid id, string? date, bool returnToCalendar = false)
     {
         var activity = await FindAsync(id);
         if (activity is null || FormInput.ParseDate(date) is not { } day || SeriesOf(activity) is null)
@@ -367,10 +367,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return NotFound();
         }
 
+        // Back where it was opened from once moved: the calendar, if it came from there.
         var occurrenceDate = FormInput.Date.Format(found.Occurrence.Date);
-        return View(RescheduleViewModel.From(activity, found, (start, minutes) => activity.RepeatRule is null
-            ? Url.Action(nameof(Edit), new { id, start, minutes })!
-            : Url.Action(nameof(Occurrence), new { id, date = occurrenceDate, start, minutes })!));
+        var back = returnToCalendar ? "true" : null;
+        var model = RescheduleViewModel.From(activity, found, (start, minutes) => activity.RepeatRule is null
+            ? Url.Action(nameof(Edit), new { id, start, minutes, returnToCalendar = back })!
+            : Url.Action(nameof(Occurrence), new { id, date = occurrenceDate, start, minutes, returnToCalendar = back })!);
+        model.ReturnToCalendar = returnToCalendar;
+        return View(model);
     }
 
     // Only asks; deleting needs the form post below.

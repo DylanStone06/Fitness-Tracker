@@ -39,6 +39,9 @@ public sealed class RescheduleViewModel
 
     public required IReadOnlyList<string> Notes { get; init; }
 
+    /// <summary>Opened from the calendar: going back, or the move once saved, returns to it.</summary>
+    public bool ReturnToCalendar { get; set; }
+
     /// <param name="moveUrl">The page that moves it to a start ("2026-11-04T18:30") for a number of minutes.</param>
     public static RescheduleViewModel From(Activity activity, OtherTimes found, Func<string, int, string> moveUrl)
     {

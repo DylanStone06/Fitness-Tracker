@@ -62,11 +62,11 @@
         <p>
             @if (Model.Repeats)
             {
-                <a asp-action="Occurrence" asp-route-id="@Model.Activity.Id" asp-route-date="@Model.Date">Back to this occurrence</a>
+                <a asp-action="Occurrence" asp-route-id="@Model.Activity.Id" asp-route-date="@Model.Date" asp-route-returnToCalendar="@(Model.ReturnToCalendar ? "true" : null)">Back to this occurrence</a>
             }
             else
             {
-                <a asp-action="Edit" asp-route-id="@Model.Activity.Id">Back to the activity</a>
+                <a asp-action="Edit" asp-route-id="@Model.Activity.Id" asp-route-returnToCalendar="@(Model.ReturnToCalendar ? "true" : null)">Back to the activity</a>
             }
         </p>
     </div>

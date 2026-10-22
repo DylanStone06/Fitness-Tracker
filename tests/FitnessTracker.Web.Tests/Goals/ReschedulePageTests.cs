@@ -54,6 +54,23 @@ public sealed partial class ReschedulePageTests(TestAppFactory factory) : IClass
         Assert.Contains($"href=\"/Activities/Reschedule/{id}?date=2026-11-09\"", html);
     }
 
+    // From the calendar, the move goes back to the calendar once saved (code review, Phase 6: it ended on the list).
+    [Fact]
+    public async Task FromTheCalendar_TheMoveGoesBackToIt()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-02", ["Repeats"] = "Weekly", ["RepeatDays[0]"] = "true" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var occurrence = await PageAsync(browser, $"/Activities/Occurrence/{id}?date=2026-11-09&returnToCalendar=true");
+        var html = await PageAsync(browser, $"/Activities/Reschedule/{id}?date=2026-11-09&returnToCalendar=true");
+
+        Assert.Contains($"href=\"/Activities/Reschedule/{id}?date=2026-11-09&amp;returnToCalendar=true\"", occurrence);
+        Assert.All(MoveLinks().Matches(html), move => Assert.EndsWith("&amp;returnToCalendar=true", move.Groups[1].Value));
+        Assert.NotEmpty(MoveLinks().Matches(html));
+    }
+
     // A date it doesn't happen on is "not found", like an occurrence's page.
     [Fact]
     public async Task ADateItDoesntHappenOn_IsNotFound()
