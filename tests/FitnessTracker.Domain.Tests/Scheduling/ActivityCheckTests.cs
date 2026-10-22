@@ -876,6 +876,33 @@ public class ActivityCheckTests
         Assert.Empty(ActivityCheck.Check(intervals, [ride], WithRest(hours: 24)).Problems);
     }
 
+    // H5 further than two days: each occurrence looks at the sessions within the rest rule's reach (code review,
+    // Phase 6: the check now looks only near each one). A ride on Monday 18:00 and intervals on Thursday 17:00 are
+    // 71 hours apart, under 72.
+    [Fact]
+    public void TheRestRule_LongerThanTwoDays_StillFindsTheOtherSession()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 5), new LocalTime(17, 0), minutes: 45, at: null) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(intervals, [ride], WithRest(hours: 72)).Problems);
+
+        Assert.Contains("from Hard ride, a demanding session on Mon 2 Nov 2026 at 18:00", problem.Message);
+    }
+
+    // H6 on the 25-hour day the clocks go back: 00:30 BST and 23:30 GMT on Sunday 25 October 2026 are 24 hours apart,
+    // and the same date.
+    [Fact]
+    public void TwoDemandingSessions_AtEitherEndOfThe25HourDay_AreTheSameDay()
+    {
+        var early = OneOff("Night ride", new LocalDate(2026, 10, 25), new LocalTime(0, 30), minutes: 30, at: null) with { IsDemanding = true };
+        var late = OneOff("Late intervals", new LocalDate(2026, 10, 25), new LocalTime(23, 30), minutes: 20, at: null) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(late, [early], WithRest(hours: 0)).Problems);
+
+        Assert.Equal("On Sun 25 Oct 2026 there's already a demanding session, Night ride; your preferences allow 1 a day.", problem.Message);
+    }
+
     // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks. Taken
     // from the activity itself, so a caller can't leave it out (code review, Phase 6).
     [Fact]

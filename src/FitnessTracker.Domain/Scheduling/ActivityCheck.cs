@@ -248,22 +248,40 @@ public static class ActivityCheck
         var from = occurrences.Min(occurrence => occurrence.Time.Start).InZone(zone).Date.PlusDays(-reach);
         var through = occurrences.Max(occurrence => occurrence.Time.Start).InZone(zone).Date.PlusDays(reach);
         // Which are its own is kept: another activity's occurrence at the same date, time and length is equal to one of
-        // its own, but isn't it.
+        // its own, but isn't it. In time order, so each occurrence looks only at those within the window around it.
         var demanding = others
             .Where(other => other.IsDemanding && other.Id != candidate.Id)
             .SelectMany(other => other.Series.OccurrencesBetween(from, through).Select(occurrence => (other.Title, Occurrence: occurrence, Own: false)))
             .Concat(candidate.Series.OccurrencesBetween(from, through).Select(occurrence => (candidate.Title, Occurrence: occurrence, Own: true)))
+            .OrderBy(other => other.Occurrence.Time.Start)
             .ToList();
+        // As far as H5 reaches, and at least two days: two starts on the same date (H6) are always closer than that,
+        // even on a 25-hour day.
+        var window = rest.BetweenDemanding > Duration.FromDays(2) ? rest.BetweenDemanding : Duration.FromDays(2);
 
         // Each by date: two of its own occurrences on one date (one moved there) are one date, not two.
-        var tooClose = new List<(LocalDate Date, Occurrence Mine, string Title, Instant Other)>();
+        var tooClose = new List<(Occurrence Mine, string Title, Instant Other)>();
         var crowded = new List<(LocalDate Date, List<string> Titles)>();
         var recovery = new List<LocalDate>();
+        var first = 0;
         foreach (var mine in occurrences.OrderBy(occurrence => occurrence.Time.Start))
         {
             var start = mine.Time.Start;
             var date = start.InZone(zone).Date;
-            var near = demanding.Where(other => !(other.Own && other.Occurrence == mine)).ToList();
+            while (first < demanding.Count && demanding[first].Occurrence.Time.Start <= start - window)
+            {
+                first++;
+            }
+
+            var near = new List<(string Title, Occurrence Occurrence, bool Own)>();
+            for (var i = first; i < demanding.Count && demanding[i].Occurrence.Time.Start < start + window; i++)
+            {
+                if (!(demanding[i].Own && demanding[i].Occurrence == mine))
+                {
+                    near.Add(demanding[i]);
+                }
+            }
+
             if (near.Where(other => Abs(other.Occurrence.Time.Start - start) < rest.BetweenDemanding)
                     .OrderBy(other => Abs(other.Occurrence.Time.Start - start))
                     .ThenBy(other => other.Occurrence.Time.Start)
@@ -271,7 +289,7 @@ public static class ActivityCheck
                     .Select(other => (other.Title, (Instant?)other.Occurrence.Time.Start))
                     .FirstOrDefault() is (var title, { } closest))
             {
-                tooClose.Add((date, mine, title, closest));
+                tooClose.Add((mine, title, closest));
             }
 
             var sameDay = near.Where(other => other.Occurrence.Time.Start.InZone(zone).Date == date).Select(other => other.Title).ToList();
@@ -289,12 +307,12 @@ public static class ActivityCheck
         var problems = new List<CheckProblem>();
         if (tooClose.Count > 0)
         {
-            var (_, mine, title, other) = tooClose[0];
+            var (mine, title, other) = tooClose[0];
             var at = other.InZone(zone);
             var hours = (int)rest.BetweenDemanding.TotalHours;
             problems.Add(new CheckProblem(CheckAspect.Time,
                 $"It's {Times.Length(Abs(other - mine.Time.Start))} from {title}, a demanding session on {Date.Format(at.Date)} at {Times.Clock(at, context.Clock)}; " +
-                $"your preferences keep demanding sessions at least {hours} {(hours == 1 ? "hour" : "hours")} apart.{More(tooClose.Select(each => each.Date), checkedUpTo)}"));
+                $"your preferences keep demanding sessions at least {hours} {(hours == 1 ? "hour" : "hours")} apart.{More(tooClose.Select(each => each.Mine.Time.Start.InZone(zone).Date), checkedUpTo)}"));
         }
 
         if (crowded.Count > 0)
