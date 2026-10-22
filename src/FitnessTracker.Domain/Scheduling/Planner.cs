@@ -195,7 +195,8 @@ public static class Planner
     /// <see cref="PlanRequest.Now"/> on: the best on each day, best first, at most <paramref name="most"/>, around
     /// everything else, which stays where it is. Pass the activities without the session itself (its occurrence
     /// cancelled), or it is in its own way, and its time now as <paramref name="notAt"/>: that day's next best is
-    /// offered instead. When none fits, <see cref="SessionAlternatives.None"/> says why.
+    /// offered instead. When none fits, <see cref="SessionAlternatives.None"/> says why. For a stored activity's
+    /// occurrence use <see cref="OptionsFor"/>, which does all that.
     /// </summary>
     public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null)
     {
@@ -219,6 +220,41 @@ public static class Planner
 
         var days = week.DayReasons(session, journeys);
         return new SessionAlternatives([], new Shortfall(session, 1, days) { Note = days.Count == 0 ? week.NoDaysLeft(session) : null });
+    }
+
+    /// <summary>
+    /// SCH-6, T16: <see cref="Options"/> for the occurrence of a stored <paramref name="activity"/> its rule puts on
+    /// <paramref name="date"/>, planned as its goal's session (its <see cref="PlannedActivity.GoalId"/>, or itself when
+    /// it has none): that occurrence is taken out of its way, its other sessions count as the goal's (one a day, and the
+    /// spread, §7.3), the part of the day it was in is preferred and the time it has now isn't offered. Null when it
+    /// doesn't happen that day.
+    /// </summary>
+    public static SessionAlternatives? OptionsFor(PlanRequest request, PlannedActivity activity, LocalDate date, int priority, int most)
+    {
+        if (ActivityCheck.OccurrenceOn(activity.Series, date) is not { } occurrence)
+        {
+            return null;
+        }
+
+        var goalId = activity.GoalId ?? activity.Id;
+        var activities = request.Activities
+            .Where(other => other.Id != activity.Id)
+            .Append(activity with { Series = activity.Series.CancelOccurrence(date), GoalId = goalId })
+            .ToList();
+        var start = occurrence.Time.Start.InZone(request.Zone).TimeOfDay;
+        var session = new PlanGoal(
+            goalId,
+            activity.Title,
+            1,
+            occurrence.Time.Duration,
+            activity.Buffers,
+            activity.LocationId,
+            activity.IsDemanding,
+            priority,
+            new HashSet<IsoDayOfWeek>(),
+            new[] { TimeOfDay.Morning, TimeOfDay.Midday, TimeOfDay.Afternoon, TimeOfDay.Evening }
+                .FirstOrDefault(part => HoursOf(part) is { } hours && start >= hours.From && start < hours.To));
+        return Options(request with { Activities = activities, Goals = [session] }, session, most, notAt: occurrence.Time.Start);
     }
 
     /// <summary>

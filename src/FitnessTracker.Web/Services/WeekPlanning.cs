@@ -72,26 +72,11 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         var first = CalendarWeeks.StartOf(start.Date, user.Preferences.WeekStart);
         var week = new DateInterval(first, first.PlusDays(6));
         var unreadable = new List<string>();
-        // Its other sessions count as the goal's, its goal's or (with none) its own, so the planner's one session of a
-        // goal a day and its spread over the week (§7.3) apply to them too.
-        var goalId = activity.GoalId ?? activity.Id;
-        var activities = (await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, user.Context.Rest.BetweenDemanding), unreadable))
-            .Select(other => other.Id == activity.Id ? other with { Series = other.Series.CancelOccurrence(date), GoalId = goalId } : other)
-            .ToList();
-        var asGoal = new PlanGoal(
-            goalId,
-            activity.Title,
-            1,
-            occurrence.Time.Duration,
-            session.Buffers,
-            activity.LocationId,
-            activity.IsDemanding,
-            (int)activity.Priority,
-            new HashSet<IsoDayOfWeek>(),
-            new[] { TimeOfDay.Morning, TimeOfDay.Midday, TimeOfDay.Afternoon, TimeOfDay.Evening }
-                .FirstOrDefault(part => Planner.HoursOf(part) is { } hours && start.TimeOfDay >= hours.From && start.TimeOfDay < hours.To));
-        var request = new PlanRequest(week, user.Now.ToInstant(), zone, activities, [asGoal], Sleep(user.Preferences), user.Context.Rest, user.Context);
-        return new OtherTimes(occurrence, week, Planner.Options(request, asGoal, most, notAt: occurrence.Time.Start), user, unreadable);
+        var activities = await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, user.Context.Rest.BetweenDemanding), unreadable);
+        var request = new PlanRequest(week, user.Now.ToInstant(), zone, activities, [], Sleep(user.Preferences), user.Context.Rest, user.Context);
+        // Not null: the occurrence was found above.
+        var options = Planner.OptionsFor(request, session, date, (int)activity.Priority, most)!;
+        return new OtherTimes(occurrence, week, options, user, unreadable);
     }
 
     private static SleepWindow Sleep(UserPreferences preferences) => new(

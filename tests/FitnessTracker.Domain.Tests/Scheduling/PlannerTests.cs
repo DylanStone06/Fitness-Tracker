@@ -521,6 +521,45 @@ public class PlannerTests
         Assert.Equal(Instant.FromUtc(2026, 11, 5, 18, 0), Planner.Options(Request([session], [busy]), session, most: 3).Options[0].Time.Start);
     }
 
+    // SCH-6, §7.3: other times for a stored activity's occurrence count its own series as the goal's sessions, one a day:
+    // a daily 18:00 session missed on Monday is only offered another time that Monday (scheduling review M-2, then the
+    // code review moved this from the Web into the planner, so no caller can forget it).
+    [Fact]
+    public void OptionsFor_ADailySession_AreOnlyOnTheDayItWasMissed()
+    {
+        var daily = new PlannedActivity(Guid.NewGuid(), "Gym",
+            new Series(Week.Start, new LocalTime(18, 0), Duration.FromMinutes(50), London, RecurrenceRule.Daily()), Buffers.None, null);
+
+        var options = Planner.OptionsFor(Request([], [daily]), daily, Week.Start, priority: 1, most: 3)!;
+
+        var option = Assert.Single(options.Options);
+        Assert.Equal(Week.Start, option.Time.Start.InZone(London).Date);
+        Assert.NotEqual(new LocalTime(18, 0), option.Time.Start.InZone(London).TimeOfDay);
+    }
+
+    // ... and the other sessions of the goal it was planned for: Wednesday already has one.
+    [Fact]
+    public void OptionsFor_AreNotOnADayWithAnotherSessionOfItsGoal()
+    {
+        var goal = Guid.NewGuid();
+        var monday = OneOff("Gym", Week.Start, new LocalTime(18, 0), 50) with { GoalId = goal };
+        var wednesday = OneOff("Gym", Week.Start.PlusDays(2), new LocalTime(18, 0), 50) with { GoalId = goal };
+
+        var options = Planner.OptionsFor(Request([], [monday, wednesday]), monday, Week.Start, priority: 1, most: 7)!;
+
+        Assert.NotEmpty(options.Options);
+        Assert.DoesNotContain(options.Options, option => option.Time.Start.InZone(London).Date == Week.Start.PlusDays(2));
+    }
+
+    // A date it doesn't happen on has no other times.
+    [Fact]
+    public void OptionsFor_ADateItDoesntHappenOn_IsNull()
+    {
+        var monday = OneOff("Gym", Week.Start, new LocalTime(18, 0), 50);
+
+        Assert.Null(Planner.OptionsFor(Request([], [monday]), monday, Week.Start.PlusDays(1), priority: 1, most: 3));
+    }
+
     // ... and when nothing fits in what's left of the week, each day says why.
     [Fact]
     public void AMissedSession_WithNoTimeLeft_SaysWhyEachDay()
