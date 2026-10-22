@@ -56,22 +56,23 @@ public sealed record ActivityCheckResult(IReadOnlyList<CheckProblem> Problems, I
 /// <summary>
 /// SCH-1, first part: the check every new or changed activity goes through before it is saved, whatever made the
 /// change. Problems that stop the save: a repeat that never happens, travel that can't be worked out (never guessed
-/// as zero, P1), a footprint longer than the day allows (H8), and an activity outside its location's opening hours on any date
-/// (H4). Clashes with other activities' footprints (H1) are only looked for once there are no problems, because they
-/// depend on the travel and length being right. A repeating activity is checked for <see cref="WeeksAhead"/> weeks
-/// from today, or from its first date if that is later: rules such as "every 98 weeks" and "every 99 weeks" can't be
-/// proved never to clash in any shorter time than centuries.
+/// as zero, P1), a footprint longer than the day allows (H8), an activity outside its location's opening hours on any date
+/// (H4), and for a demanding one the rest rules (H5-H7). Clashes with other activities' footprints (H1) are only
+/// looked for once there are no problems, because they depend on the travel and length being right. A repeating
+/// activity is checked for clashes <see cref="WeeksAhead"/> weeks from today, or from its first date if that is later:
+/// rules such as "every 98 weeks" and "every 99 weeks" can't be proved never to clash in any shorter time than
+/// centuries. The problems are checked further ahead (<see cref="WeeksAheadForFixedRules"/>).
 /// </summary>
 public static class ActivityCheck
 {
     public const int WeeksAhead = 8;
 
     /// <summary>
-    /// Opening hours (H4) and the length limit (H8) are checked further ahead than clashes: they can't be overridden,
-    /// they are cheap, and they depend on the weekday and on the clocks changing, which a year covers. A daily rule
-    /// every N days is checked for at least 7 x N days, so every weekday it can fall on is reached.
+    /// The rules a save can't override, opening hours (H4), the rest rules (H5-H7) and the length limit (H8), are
+    /// checked further ahead than clashes: they depend on the weekday and on the clocks changing, which a year covers.
+    /// A daily rule every N days is checked for at least 7 x N days, so every weekday it can fall on is reached.
     /// </summary>
-    public const int WeeksAheadForHoursAndLength = 53;
+    public const int WeeksAheadForFixedRules = 53;
 
     // Other activities starting this many days either side of the dates checked can still overlap (Agenda.MarginDays).
     private const int MarginDays = Agenda.MarginDays;
@@ -379,7 +380,7 @@ public static class ActivityCheck
     private static DateInterval LongerDates(Series series, LocalDate firstChecked)
     {
         var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
-        return new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
+        return new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForFixedRules * 7, everyDaysOfTheWeek) - 1));
     }
 
     // The clash window with MarginDays either side, and the same around each occurrence moved outside it.
@@ -422,7 +423,7 @@ public static class ActivityCheck
     // 60 weeks can skip the whole year), or moved there.
     private static bool HappensFrom(Series series, LocalDate date)
     {
-        var yearEnd = date.PlusWeeks(WeeksAheadForHoursAndLength);
+        var yearEnd = date.PlusWeeks(WeeksAheadForFixedRules);
         return series.OccurrencesBetween(date, yearEnd).Count > 0
             || FallsAfter(series, yearEnd)
             || series.Changes.Values.Any(change => change is OccurrenceChange.Moved move && move.Start.Date >= date);
