@@ -79,7 +79,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   counts as zero towards the limit.
 - Travel (`TravelTimes.JourneysFor`): **none** when the activity is at base or has no location; otherwise the leg
   base to activity and the leg back, which can differ. A missing leg gives no journeys and names the missing legs:
-  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6, TRV-4).
+  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6b, TRV-4).
 - To put a footprint on a day, use `CalendarDays.DayOf(footprint.Activity, zone)`, not `Whole.Start`: an activity at
   00:10 with 25 min travel belongs to the day it starts, not the day before.
 
@@ -152,7 +152,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   loads only the other activities in `OthersThatCanClash`. Clashes: `WeeksAhead` (8) weeks, others' occurrences 3
   days either side (two footprints of up to a day each reach 49 h apart, a third date across a 23-hour day). Rules like every 98
   and every 99 weeks can't be proved clash-free in any practical window, so it is a window, said in the message.
-  H4 and H8: `WeeksAheadForHoursAndLength` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
+  H4, H5-H7 and H8: `WeeksAheadForFixedRules` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
   every weekday and both clock changes are reached; H8 on every occurrence (a moved one can be longer), and a
   length of zero or less is reported before any occurrence is worked out.
 - **A moved occurrence (CAL-4) is checked wherever it lands from today on** (`MovedOutside`): before the windows
@@ -250,10 +250,11 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - **Other times for one session** (SCH-6, T16, `Planner.Options`): the same rules and scores, for one session (a
   missed or skipped occurrence, or one to move) in its week from `Now` on: the best time on each day that has one,
   best first, at most `most`. The caller passes the activities with that occurrence cancelled, so it isn't in its own
-  way, and nothing else moves. The Web prefers the part of the day it was in and leaves out the time it has now. It
-  plans it as its goal (`Activity.GoalId`, or the activity's own id when it has none) and gives the activity's other
-  occurrences that `GoalId`, so one session a day and the spread count them (review M-2: a daily series was offered
-  days that already had one; test `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`). None
+  way, and nothing else moves. For a stored activity's occurrence, `Planner.OptionsFor` does all of that: it cancels
+  the occurrence, plans it as its goal (`GoalId`, or the activity's own id when it has none) with the activity's
+  other occurrences counted as that goal's, so one session a day and the spread apply to them (review M-2: a daily
+  series was offered days that already had one), prefers the part of the day it was in and leaves out the time it
+  has now. Tests: `PlannerTests.OptionsFor_*`, `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`. None
   fitting gives the same day reasons as a shortfall.
 - Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
   T16, T22.
@@ -304,7 +305,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
 | T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
-| T15 | "Brighton weekend" template | Not built (Phase 6) | |
+| T15 | "Brighton weekend" template | Not built (Phase 6b, after A/B weeks) | |
 | T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
