@@ -5,7 +5,10 @@
 
 <div class="row">
     <div class="col-md-8 col-lg-7">
-        <h1 class="text-break" dir="auto">@Model.Activity.Title</h1>
+        @* The heading says what the page is for, as every other page's does; the activity is named below it, as on the
+           delete pages (accessibility pass, Phase 6: the heading was the title alone). *@
+        <h1>Find another time</h1>
+        <p class="fs-5 text-break mb-1" dir="auto">@Model.Activity.Title</p>
         <p class="mb-1"><span class="fw-semibold">This one:</span> @Model.Now</p>
         <p class="text-body-secondary">Other times later that week, fitted around everything else, which stays where it
             is. Choosing one opens it with that time filled in, to check and save.</p>
