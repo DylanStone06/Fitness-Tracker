@@ -40,14 +40,16 @@ public class PlanningData(AppDbContext db, IClock clock)
             locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())),
             preferences.TimesShownAs())
         {
-            // ACC-7: H5-H7, for the check on save and the planner alike.
-            Rest = new RestRules(
-                Duration.FromHours(preferences.MinimumHoursBetweenDemandingSessions),
-                preferences.MaximumDemandingSessionsPerDay,
-                Week.DaysIn(preferences.RecoveryDays).ToHashSet()),
+            Rest = RestRulesOf(preferences),
         };
         return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
     }
+
+    /// <summary>ACC-7: H5-H7 from <paramref name="preferences"/>, for the check on save and the planner alike.</summary>
+    public static RestRules RestRulesOf(UserPreferences preferences) => new(
+        Duration.FromHours(preferences.MinimumHoursBetweenDemandingSessions),
+        preferences.MaximumDemandingSessionsPerDay,
+        Week.DaysIn(preferences.RecoveryDays).ToHashSet());
 
     /// <summary>ACC-6: each category's default getting-ready and changing minutes: the user's own, or the built-in ones.</summary>
     public async Task<IReadOnlyDictionary<ActivityCategory, (int Preparation, int Changing)>> DefaultBuffersAsync()

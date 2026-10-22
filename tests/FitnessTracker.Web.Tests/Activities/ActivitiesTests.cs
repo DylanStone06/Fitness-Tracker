@@ -574,6 +574,24 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
         Assert.DoesNotContain("overlaps Team meeting", page);
     }
 
+    // Q8, H5: a stricter rest rule saved together with the timezone isn't blamed on the move. Two demanding sessions
+    // 24 hours apart break 48 hours wherever they are; both checks use the rules just chosen (scheduling review,
+    // Phase 6: the one before the move used the old ones).
+    [Fact]
+    public async Task AStricterRestRuleSavedWithTheTimezone_IsNotBlamedOnTheMove()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync(TestBrowser.NewName("Hard ride"), new() { ["StartDate"] = "2026-11-02", ["StartTime"] = "18:00", ["IsDemanding"] = "true" });
+        var intervals = TestBrowser.NewName("Intervals");
+        await browser.AddActivityAsync(intervals, new() { ["StartDate"] = "2026-11-03", ["StartTime"] = "18:00", ["IsDemanding"] = "true" });
+        Assert.NotNull(await StoredData.ActivityTitledAsync(factory, intervals));
+
+        await SavePreferencesAsync(browser, new() { ["TimeZoneId"] = "America/New_York", ["MinimumHoursBetweenDemandingSessions"] = "48" });
+
+        var page = await (await browser.GetAsync("/Preferences")).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Your activities moved to the new timezone", page);
+    }
+
     // §8, T5: 01:30 doesn't exist in London on Sunday 28 March 2027 (the clocks go forward at 01:00), so the activity
     // really starts at 02:30, and the list says so rather than showing a time it won't happen at.
     [Fact]
