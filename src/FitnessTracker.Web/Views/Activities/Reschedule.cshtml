@@ -1,0 +1,73 @@
+@model RescheduleViewModel
+@{
+    ViewData["Title"] = "Find another time";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-7">
+        <h1 class="text-break">@Model.Activity.Title</h1>
+        <p class="mb-1"><span class="fw-semibold">This one:</span> @Model.Now</p>
+        <p class="text-body-secondary">Other times later that week, fitted around everything else, which stays where it
+            is. Choosing one opens it with that time filled in, to check and save.</p>
+
+        @* P1: what couldn't be read or counted is said, not planned around as if it were known. *@
+        @if (Model.Notes.Count > 0)
+        {
+            <div class="alert alert-warning" role="status">
+                <ul class="mb-0">
+                    @foreach (var note in Model.Notes)
+                    {
+                        <li>@note</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (Model.Options.Count > 0)
+        {
+            <ul class="list-group mb-3">
+                @foreach (var option in Model.Options)
+                {
+                    <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                        <span class="flex-grow-1">
+                            <span class="ft-time d-block">@option.Day, @option.Time</span>
+                            @if (option.Trip is { } trip)
+                            {
+                                <span class="d-block small">@trip</span>
+                            }
+                            @if (option.Reasons.Count > 0)
+                            {
+                                <span class="d-block small text-body-secondary">@string.Join(" · ", option.Reasons)</span>
+                            }
+                        </span>
+                        <a class="btn btn-sm btn-primary" href="@option.MoveUrl">Move it here<span class="visually-hidden">: @option.Day, @option.Time</span></a>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            @* SCH-5: why nothing fits, with the numbers. *@
+            <div class="alert alert-warning">
+                <p class="mb-1">No other time fits later that week.</p>
+                <ul class="mb-0">
+                    @foreach (var reason in Model.NoneBecause)
+                    {
+                        <li>@reason</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <p>
+            @if (Model.Repeats)
+            {
+                <a asp-action="Occurrence" asp-route-id="@Model.Activity.Id" asp-route-date="@Model.Date">Back to this occurrence</a>
+            }
+            else
+            {
+                <a asp-action="Edit" asp-route-id="@Model.Activity.Id">Back to the activity</a>
+            }
+        </p>
+    </div>
+</div>

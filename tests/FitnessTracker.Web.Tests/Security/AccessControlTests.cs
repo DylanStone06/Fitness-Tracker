@@ -30,6 +30,7 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Activities/Delete/{id}" },
         { "GET", "/Activities/Occurrence/{id}" },
         { "POST", "/Activities/Occurrence/{id}" },
+        { "GET", "/Activities/Reschedule/{id}" },
         { "GET", "/Goals/Edit/{id}" },
         { "POST", "/Goals/Edit/{id}" },
         { "GET", "/Goals/Delete/{id}" },

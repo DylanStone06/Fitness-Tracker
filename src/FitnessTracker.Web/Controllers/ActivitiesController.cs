@@ -17,7 +17,7 @@ namespace FitnessTracker.Web.Controllers;
 // CAL-2, CAL-3: the signed-in user's activities, once or repeating. The per-user filter means another user's
 // activity is "not found", exactly like one that doesn't exist (T19), and an activity can only be at the signed-in
 // user's own locations. Every save goes through the one check (SCH-1, ActivityChecker).
-public class ActivitiesController(AppDbContext db, ActivityChecker checker, PlanningData planning) : Controller
+public class ActivitiesController(AppDbContext db, ActivityChecker checker, PlanningData planning, WeekPlanning weekPlanning) : Controller
 {
     private const string CheckNotes = "CheckNotes";
 
@@ -349,6 +349,29 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         CheckAspect.Length => nameof(OccurrenceFormViewModel.DurationHours),
         _ => string.Empty,
     };
+
+    // SCH-6, T16: other times later in its week for the occurrence its rule puts on date (a missed or skipped one, or
+    // one to move), with nothing else moved. Each opens the occurrence's page, or a one-off's form, with that time
+    // filled in, the pages a drag opens (CAL-8), so the move is checked and confirmed there (SCH-1).
+    [HttpGet]
+    public async Task<IActionResult> Reschedule(Guid id, string? date)
+    {
+        var activity = await FindAsync(id);
+        if (activity is null || FormInput.ParseDate(date) is not { } day || SeriesOf(activity) is null)
+        {
+            return NotFound();
+        }
+
+        if (await weekPlanning.OptionsAsync(activity, day, most: 3) is not { } found)
+        {
+            return NotFound();
+        }
+
+        var occurrenceDate = FormInput.Date.Format(found.Occurrence.Date);
+        return View(RescheduleViewModel.From(activity, found, (start, minutes) => activity.RepeatRule is null
+            ? Url.Action(nameof(Edit), new { id, start, minutes })!
+            : Url.Action(nameof(Occurrence), new { id, date = occurrenceDate, start, minutes })!));
+    }
 
     // Only asks; deleting needs the form post below.
     [HttpGet]

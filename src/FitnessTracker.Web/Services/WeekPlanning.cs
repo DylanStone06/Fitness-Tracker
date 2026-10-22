@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Footprints;
+using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
@@ -15,6 +16,9 @@ public sealed record PlannedWeek(
     IReadOnlyDictionary<Guid, WeeklyGoal> Goals,
     UserPlanning User,
     IReadOnlyList<string> Unreadable);
+
+/// <summary>SCH-6: other times for one occurrence in its week, with what the page needs to show them.</summary>
+public sealed record OtherTimes(Occurrence Occurrence, DateInterval Week, SessionAlternatives Options, UserPlanning User, IReadOnlyList<string> Unreadable);
 
 /// <summary>
 /// SCH-3: plans a week of the signed-in user's weekly goals (GOL-1) with the domain's <see cref="Planner"/>, around
@@ -41,11 +45,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
             user.Now.Zone,
             activities,
             goals.Select(goal => ToPlanGoal(goal, preferences)).ToList(),
-            new SleepWindow(
-                preferences.UsualBedtime,
-                preferences.UsualWakeTime,
-                Duration.FromMinutes(preferences.WindDownMinutes),
-                Duration.FromMinutes(preferences.WakeUpRoutineMinutes)),
+            Sleep(preferences),
             rest,
             user.Context)
         {
@@ -53,6 +53,53 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         };
         return new PlannedWeek(week, Planner.Plan(request), goals.ToDictionary(goal => goal.Id), user, unreadable);
     }
+
+    /// <summary>
+    /// SCH-6, T16: up to <paramref name="most"/> other times, on different days later in its week, for the occurrence of
+    /// <paramref name="activity"/> its rule puts on <paramref name="date"/>, around everything else, which stays where
+    /// it is. The time it has now isn't offered; the part of the day it's in is preferred. Null when it doesn't happen
+    /// that day.
+    /// </summary>
+    public async Task<OtherTimes?> OptionsAsync(Activity activity, LocalDate date, int most)
+    {
+        var user = await planning.LoadAsync();
+        var session = activity.ToPlannedActivity();
+        if (ActivityCheck.OccurrenceOn(session.Series, date) is not { } occurrence)
+        {
+            return null;
+        }
+
+        var zone = user.Now.Zone;
+        var start = occurrence.Time.Start.InZone(zone);
+        var first = CalendarWeeks.StartOf(start.Date, user.Preferences.WeekStart);
+        var week = new DateInterval(first, first.PlusDays(6));
+        var unreadable = new List<string>();
+        var activities = (await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, user.Context.Rest.BetweenDemanding), unreadable))
+            .Select(other => other.Id == activity.Id ? other with { Series = other.Series.CancelOccurrence(date) } : other)
+            .ToList();
+        var asGoal = new PlanGoal(
+            activity.Id,
+            activity.Title,
+            1,
+            occurrence.Time.Duration,
+            session.Buffers,
+            activity.LocationId,
+            activity.IsDemanding,
+            (int)activity.Priority,
+            new HashSet<IsoDayOfWeek>(),
+            new[] { TimeOfDay.Morning, TimeOfDay.Midday, TimeOfDay.Afternoon, TimeOfDay.Evening }
+                .FirstOrDefault(part => Planner.HoursOf(part) is { } hours && start.TimeOfDay >= hours.From && start.TimeOfDay < hours.To));
+        var request = new PlanRequest(week, user.Now.ToInstant(), zone, activities, [asGoal], Sleep(user.Preferences), user.Context.Rest, user.Context);
+        var options = Planner.Options(request, asGoal, most + 1);
+        var others = options.Options.Where(option => option.Time.Start != occurrence.Time.Start).Take(most).ToList();
+        return new OtherTimes(occurrence, week, options with { Options = others }, user, unreadable);
+    }
+
+    private static SleepWindow Sleep(UserPreferences preferences) => new(
+        preferences.UsualBedtime,
+        preferences.UsualWakeTime,
+        Duration.FromMinutes(preferences.WindDownMinutes),
+        Duration.FromMinutes(preferences.WakeUpRoutineMinutes));
 
     // ACC-7: an exercise goal with no preferred days or time of its own takes the ones in Preferences.
     private static PlanGoal ToPlanGoal(WeeklyGoal goal, UserPreferences preferences)

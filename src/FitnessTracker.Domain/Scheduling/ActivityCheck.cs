@@ -317,8 +317,11 @@ public static class ActivityCheck
 
     private static Duration Abs(Duration duration) => duration < Duration.Zero ? -duration : duration;
 
-    // The occurrence the rule puts on date, where it now is, or null when it is cancelled or the rule doesn't fall then.
-    private static Occurrence? OccurrenceOn(Series series, LocalDate date)
+    /// <summary>
+    /// The occurrence the rule puts on <paramref name="date"/>, where it now is (CAL-4: moved or not), or null when it is
+    /// cancelled or the rule doesn't fall then.
+    /// </summary>
+    public static Occurrence? OccurrenceOn(Series series, LocalDate date)
     {
         var lands = series.Changes.TryGetValue(date, out var change) && change is OccurrenceChange.Moved move ? move.Start.Date : date;
         return series.OccurrencesBetween(lands.PlusDays(-1), lands.PlusDays(1))

@@ -459,6 +459,45 @@ public class PlannerTests
         Assert.EndsWith("(demanding sessions are at least 1 hour apart)", Assert.Single(plan.Shortfalls).Days[0].Reason);
     }
 
+    // SCH-6, T16: a missed Monday gym session (Mondays 18:00 at Town gym, around office days) gets other times later in
+    // the week: the best on each day from now (Wednesday 09:00) on, at most three, on different days, best first, none
+    // moving anything else (each passes the check on save against everything as it is).
+    [Fact]
+    public void AMissedSession_GetsOtherTimesLaterInTheWeek_AndNothingElseMoves()
+    {
+        var work = WorkWeekdays();
+        var gym = new PlannedActivity(Guid.NewGuid(), "Gym",
+            new Series(Week.Start, new LocalTime(18, 0), Duration.FromMinutes(50), London, RecurrenceRule.Weekly([IsoDayOfWeek.Monday])), Buffers.None, Gym);
+        var now = Instant.FromUtc(2026, 11, 4, 9, 0);
+        var session = Goal("Gym", sessions: 1, minutes: 50, at: Gym, time: TimeOfDay.Evening);
+
+        var options = Planner.Options(Request([session], [work, gym]) with { Now = now }, session, most: 3);
+
+        Assert.Equal(3, options.Options.Count);
+        Assert.Null(options.None);
+        Assert.Equal(3, options.Options.Select(option => option.Time.Start.InZone(London).Date).Distinct().Count());
+        Assert.All(options.Options, option =>
+        {
+            Assert.True(option.Footprint.Whole.Start >= now);
+            var check = ActivityCheck.Check(OneOffFor(option), [work, gym], Context());
+            Assert.Empty(check.Problems);
+            Assert.Empty(check.Clashes);
+        });
+    }
+
+    // ... and when nothing fits in what's left of the week, each day says why.
+    [Fact]
+    public void AMissedSession_WithNoTimeLeft_SaysWhyEachDay()
+    {
+        var full = Daily("Busy", new LocalTime(7, 30), Duration.FromMinutes(900));
+        var session = Goal("Gym", sessions: 1, minutes: 50);
+
+        var options = Planner.Options(Request([session], [full]) with { Now = Instant.FromUtc(2026, 11, 7, 9, 0) }, session, most: 3);
+
+        Assert.Empty(options.Options);
+        Assert.Equal([new LocalDate(2026, 11, 7), new LocalDate(2026, 11, 8)], options.None!.Days.Select(day => day.Date));
+    }
+
     private static string Describe(WeekPlan plan) =>
         string.Join("\n", plan.Suggestions.Select(suggestion => $"{suggestion.Goal.Title} {suggestion.Time}"))
         + "\n" + string.Join("\n", plan.Shortfalls.Select(shortfall => $"{shortfall.Goal.Title} {shortfall.Missing} {string.Join("; ", shortfall.Days.Select(day => $"{day.Date} {day.Reason}"))}"));

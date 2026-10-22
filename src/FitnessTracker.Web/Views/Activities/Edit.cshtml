@@ -25,5 +25,11 @@
                 <a class="btn btn-link" asp-action="Index">Cancel</a>
             }
         </form>
+
+        @* SCH-6: a one-off missed or to move: other times later that week. *@
+        @if (Model.Repeats == RepeatChoice.Never && Model.SavedStartDate is { } date)
+        {
+            <p class="mt-3"><a asp-action="Reschedule" asp-route-id="@ViewContext.RouteData.Values["id"]" asp-route-date="@date">Find another time this week</a></p>
+        }
     </div>
 </div>

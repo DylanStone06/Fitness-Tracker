@@ -238,15 +238,20 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   (one a day)", review M-2). `Shorter`, worked out once every goal has its times so it is never a time given to
   another (review M-4): the longest session, in 5-minute steps down to 15, that would fit, with its time ("A 60-minute
   session would fit: Mon 2 Nov 2026 at 17:30").
+- **Other times for one session** (SCH-6, T16, `Planner.Options`): the same rules and scores, for one session (a
+  missed or skipped occurrence, or one to move) in its week from `Now` on: the best time on each day that has one,
+  best first, at most `most`. The caller passes the activities with that occurrence cancelled, so it isn't in its own
+  way, and nothing else moves. The Web prefers the part of the day it was in and leaves out the time it has now. None
+  fitting gives the same day reasons as a shortfall.
 - Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
-  T22.
+  T16, T22.
 
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |
 |---|---|---|
 | The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
-| Accepting suggestions, rescheduling a missed session, templates | SCH-4, SCH-6, CAL-9, T15, T16 | 6 |
+| Templates and their base location | CAL-9, TRV-4, T15 | 6 (if the owner still wants them) |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code
@@ -288,7 +293,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
 | T15 | "Brighton weekend" template | Not built (Phase 6) | |
-| T16 | Reschedule a missed workout | Not built (Phase 6) | |
+| T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
 | T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, preferences) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests` |

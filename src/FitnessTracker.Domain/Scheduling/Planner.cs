@@ -82,6 +82,9 @@ public sealed record Shortfall(PlanGoal Goal, int Missing, IReadOnlyList<DayReas
     public string? Note { get; init; }
 }
 
+/// <summary>SCH-6: other times for one session, best first, or why there are none (<see cref="None"/>).</summary>
+public sealed record SessionAlternatives(IReadOnlyList<Suggestion> Options, Shortfall? None);
+
 /// <summary>
 /// The suggestions in time order, what didn't fit, how many sessions of each goal were planned already, and
 /// <see cref="Notes"/>: what couldn't be counted (an activity's travel that can't be worked out, P1).
@@ -177,6 +180,36 @@ public static class Planner
         {
             Notes = week.Notes,
         };
+    }
+
+    /// <summary>
+    /// SCH-6, T16: other times for one session (a missed or skipped one, or one to move) in the request's week, from
+    /// <see cref="PlanRequest.Now"/> on: the best on each day, best first, at most <paramref name="most"/>, around
+    /// everything else, which stays where it is. Pass the activities without the session itself (its occurrence
+    /// cancelled), or it is in its own way. When none fits, <see cref="SessionAlternatives.None"/> says why.
+    /// </summary>
+    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most)
+    {
+        var week = new WeekState(request);
+        if (Travel.KnownJourneys(session.LocationId, request.Context) is not { } journeys)
+        {
+            return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: Sentence(Travel.WhyUnknown(session.LocationId, request.Context))));
+        }
+
+        if (Footprint.ProblemsWith(session.Length, session.Buffers, journeys).Count > 0)
+        {
+            return new SessionAlternatives([], new Shortfall(session, 1, [],
+                Blocked: $"Counting getting ready, travel and changing, {session.Title} would take up more than a day"));
+        }
+
+        var options = week.BestEachDay(session, journeys).Take(most).ToList();
+        if (options.Count > 0)
+        {
+            return new SessionAlternatives(options, null);
+        }
+
+        var days = week.DayReasons(session, journeys);
+        return new SessionAlternatives([], new Shortfall(session, 1, days) { Note = days.Count == 0 ? week.NoDaysLeft(session) : null });
     }
 
     /// <summary>
@@ -330,26 +363,48 @@ public static class Planner
             (int Score, Verdict Verdict, LocalDate Date)? best = null;
             foreach (var date in _request.Week)
             {
-                foreach (var start in StartsOn(date))
+                if (BestOn(goal, journeys, date) is { } onDate && (best is null || onDate.Score > best.Value.Score))
                 {
-                    var verdict = Check(goal, journeys, date, start);
-                    if (verdict.Broken != Broken.None)
-                    {
-                        continue;
-                    }
-
-                    var score = Score(goal, date, verdict.Footprint).Score;
-                    if (best is null || score > best.Value.Score)
-                    {
-                        best = (score, verdict, date);
-                    }
+                    best = onDate;
                 }
             }
 
-            return best is { } chosen
-                ? new Suggestion(goal, chosen.Verdict.Footprint.Activity, chosen.Verdict.Footprint, Score(goal, chosen.Date, chosen.Verdict.Footprint).Reasons)
-                : null;
+            return best is { } chosen ? SuggestionFor(goal, chosen.Verdict, chosen.Date) : null;
         }
+
+        // SCH-6: the best time on each day that has one, best first (the earliest on a tie).
+        public IEnumerable<Suggestion> BestEachDay(PlanGoal goal, Journeys journeys) =>
+            _request.Week
+                .Select(date => BestOn(goal, journeys, date))
+                .OfType<(int Score, Verdict Verdict, LocalDate Date)>()
+                .OrderByDescending(best => best.Score)
+                .ThenBy(best => best.Verdict.Footprint.Activity.Start)
+                .Select(best => SuggestionFor(goal, best.Verdict, best.Date));
+
+        // The best-scoring start time on the date that keeps every rule, the earliest on a tie.
+        private (int Score, Verdict Verdict, LocalDate Date)? BestOn(PlanGoal goal, Journeys journeys, LocalDate date)
+        {
+            (int Score, Verdict Verdict, LocalDate Date)? best = null;
+            foreach (var start in StartsOn(date))
+            {
+                var verdict = Check(goal, journeys, date, start);
+                if (verdict.Broken != Broken.None)
+                {
+                    continue;
+                }
+
+                var score = Score(goal, date, verdict.Footprint).Score;
+                if (best is null || score > best.Value.Score)
+                {
+                    best = (score, verdict, date);
+                }
+            }
+
+            return best;
+        }
+
+        private Suggestion SuggestionFor(PlanGoal goal, Verdict verdict, LocalDate date) =>
+            new(goal, verdict.Footprint.Activity, verdict.Footprint, Score(goal, date, verdict.Footprint).Reasons);
 
         // SCH-5: for each day not over and without a session of this goal, the rule that ruled it out, with numbers.
         public IReadOnlyList<DayReason> DayReasons(PlanGoal goal, Journeys journeys)

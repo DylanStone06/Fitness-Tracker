@@ -67,6 +67,9 @@
         </form>
 
         <p>
+            @* SCH-6: missed it, or can't make it? Other times later that week. *@
+            <a asp-action="Reschedule" asp-route-id="@Model.Activity.Id" asp-route-date="@Model.Date">Find another time this week</a>
+            ·
             <a asp-action="Edit" asp-route-id="@Model.Activity.Id" asp-route-returnToCalendar="@(Model.ReturnToCalendar ? "true" : null)">Change every occurrence</a>
             ·
             @if (Model.ReturnToCalendar)
