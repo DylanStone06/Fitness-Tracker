@@ -57,12 +57,12 @@ public class PlannerTests
         var plan = Planner.Plan(Request([Goal("Gym", sessions: 7)]));
 
         Assert.Equal(7, plan.Suggestions.Count);
+        // Moments, not clock times, so a footprint crossing midnight can't slip through (review L-5). November: GMT = UTC.
         Assert.All(plan.Suggestions, suggestion =>
         {
-            var start = suggestion.Footprint.Whole.Start.InZone(London).TimeOfDay;
-            var end = suggestion.Footprint.Whole.End.InZone(London).TimeOfDay;
-            Assert.True(start >= new LocalTime(7, 30), $"starts at {start}");
-            Assert.True(end <= new LocalTime(22, 30), $"ends at {end}");
+            var day = suggestion.Time.Start.InUtc().Date;
+            Assert.True(suggestion.Footprint.Whole.Start >= Instant.FromUtc(day.Year, day.Month, day.Day, 7, 30));
+            Assert.True(suggestion.Footprint.Whole.End <= Instant.FromUtc(day.Year, day.Month, day.Day, 22, 30));
         });
     }
 
@@ -311,6 +311,152 @@ public class PlannerTests
         Assert.NotEmpty(shortfall.Days);
         var footprints = plan.Suggestions.Select(suggestion => suggestion.Footprint.Whole).ToList();
         Assert.All(footprints, a => Assert.DoesNotContain(footprints, b => a != b && a.Start < b.End && b.Start < a.End));
+    }
+
+    // H5, T13 (scheduling review H-1): a demanding session four days before the week still counts when the rule is 96
+    // hours. The ride is on Thursday 29 October at 18:00 GMT; 96 hours later is Monday 2 November 18:00, the best time
+    // from then on (before, Monday 08:30 was suggested, 86.5 hours after it).
+    [Fact]
+    public void ADemandingSessionBeforeTheWeek_StillKeepsItsRestGap()
+    {
+        var goal = Goal("Intervals", sessions: 1, minutes: 45, demanding: true);
+        var hardRide = OneOff("Hard ride", new LocalDate(2026, 10, 29), new LocalTime(18, 0), 60) with { IsDemanding = true };
+
+        var plan = Planner.Plan(Request([goal], [hardRide]) with { Rest = new RestRules(Duration.FromHours(96), 1, new HashSet<IsoDayOfWeek>()) });
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 2, 18, 0), Assert.Single(plan.Suggestions).Time.Start);
+        Assert.Equal(new DateInterval(new LocalDate(2026, 10, 28), new LocalDate(2026, 11, 13)), Planner.DatesToLoadFor(Week, Duration.FromHours(96)));
+    }
+
+    // SCH-5 (review M-1): each day is free only from 17:40 to 19:55 (135 min). The gym needs 130 from 25 minutes before a
+    // quarter-hour start, so its activity would have to start at 18:05 or 18:10: nothing fits, and the reason says why
+    // rather than reading as if it fitted.
+    [Fact]
+    public void AGapLongEnough_ButOffTheQuarterHour_SaysSo()
+    {
+        var gym = Goal("Gym", sessions: 1, at: Gym, minutes: 50, buffers: new(Duration.Zero, Duration.FromMinutes(10)));
+        var busyDays = new[]
+        {
+            Daily("Day", new LocalTime(7, 30), Duration.FromMinutes(610)),
+            Daily("Evening", new LocalTime(19, 55), Duration.FromMinutes(185)),
+        };
+
+        var plan = Planner.Plan(Request([gym], busyDays));
+
+        Assert.Empty(plan.Suggestions);
+        var tuesday = Assert.Single(plan.Shortfalls).Days.Single(day => day.Date == new LocalDate(2026, 11, 3));
+        Assert.Equal(
+            "The longest free time, 17:40 to 19:55, is 2 h 15 min, but with sessions starting on the quarter hour, Gym " +
+            "(2 h 10 min with getting ready, travel and changing) doesn't fit in it",
+            tuesday.Reason);
+    }
+
+    // SCH-5 (review M-2): planned on Friday 6 November at 12:00, five gym sessions get Friday, Saturday and Sunday (one a
+    // day); the two left over are still explained.
+    [Fact]
+    public void SessionsThatDontFitInWhatsLeftOfTheWeek_AreStillExplained()
+    {
+        var plan = Planner.Plan(Request([Goal("Gym", sessions: 5)]) with { Now = Instant.FromUtc(2026, 11, 6, 12, 0) });
+
+        Assert.Equal(3, plan.Suggestions.Count);
+        var shortfall = Assert.Single(plan.Shortfalls);
+        Assert.Equal(2, shortfall.Missing);
+        Assert.Empty(shortfall.Days);
+        Assert.Equal("Every day left this week already has a Gym session (one a day)", shortfall.Note);
+    }
+
+    // SCH-5 (review M-4): one free hour a day (17:30-18:30). Gym (high priority, 90 min) can't fit; Stretching (low, 60
+    // min) then takes every free hour, so no shorter Gym session is offered at a time it was given.
+    [Fact]
+    public void AShorterSessionOffered_IsNotATimeGivenToAnotherGoal()
+    {
+        var oneSlot = new[] { Daily("Day", new LocalTime(7, 30), Duration.FromMinutes(600)), Daily("Evening", new LocalTime(18, 30), Duration.FromMinutes(240)) };
+        var gym = Goal("Gym", sessions: 1, minutes: 90, priority: 2);
+        var stretching = Goal("Stretching", sessions: 7, minutes: 60, priority: 0);
+
+        var plan = Planner.Plan(Request([gym, stretching], oneSlot));
+
+        Assert.Contains(plan.Suggestions, suggestion => suggestion.Goal.Title == "Stretching" && suggestion.Time.Start == Instant.FromUtc(2026, 11, 2, 17, 30));
+        Assert.Null(Assert.Single(plan.Shortfalls).Shorter);
+    }
+
+    // SCH-5 (review L-1): the gym is open only on Monday, 18:00 to 02:00. Tuesday's first free start (00:00) is in
+    // Monday's opening and runs past 02:00; Tuesday's reason is about Tuesday, when it's closed.
+    [Fact]
+    public void ADayReason_IsAboutThatDaysOwnOpeningHours()
+    {
+        var mondayLate = new OpeningHours(new Dictionary<IsoDayOfWeek, OpenTimes> { [IsoDayOfWeek.Monday] = new(new LocalTime(18, 0), new LocalTime(2, 0)) });
+        var gym = Goal("Gym", sessions: 2, at: Gym, minutes: 150);
+
+        var plan = Planner.Plan(Request([gym]) with
+        {
+            Context = Context(gymHours: mondayLate),
+            Sleep = new SleepWindow(new LocalTime(4, 0), new LocalTime(12, 0), Duration.FromMinutes(30), Duration.FromMinutes(30)),
+        });
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 2, 18, 0), Assert.Single(plan.Suggestions).Time.Start);
+        var tuesday = Assert.Single(plan.Shortfalls).Days.Single(day => day.Date == new LocalDate(2026, 11, 3));
+        Assert.Equal("Town gym is closed that day", tuesday.Reason);
+    }
+
+    // P1 (review L-2): another activity whose travel can't be worked out is planned around without its travel, and the
+    // plan says so, as the home page does.
+    [Fact]
+    public void AnActivityWhoseTravelIsUnknown_IsNamedInANote()
+    {
+        var swim = OneOff("Swim", new LocalDate(2026, 11, 2), new LocalTime(8, 30), 60) with { LocationId = Pool };
+
+        var plan = Planner.Plan(Request([Goal("Stretching", sessions: 1)], [swim]) with { Context = Context(withPoolTravel: false) });
+
+        Assert.Equal(
+            "Travel to and from Swim isn't counted, because there's no travel time from Home to Town pool, or from Town pool to Home",
+            Assert.Single(plan.Notes));
+    }
+
+    // Review L-3: with two sessions of a goal allowed in a day (8 a week), a day with one still gets a reason.
+    [Fact]
+    public void WithTwoAllowedADay_ADayWithOneSession_StillGetsAReason()
+    {
+        var oneSlot = new[] { Daily("Day", new LocalTime(7, 30), Duration.FromMinutes(600)), Daily("Evening", new LocalTime(18, 30), Duration.FromMinutes(240)) };
+
+        var plan = Planner.Plan(Request([Goal("Gym", sessions: 8)], oneSlot));
+
+        Assert.Equal(7, plan.Suggestions.Count);
+        var shortfall = Assert.Single(plan.Shortfalls);
+        Assert.Equal(7, shortfall.Days.Count);
+        Assert.Equal("There's no free time; Gym needs 1 h", shortfall.Days[0].Reason);
+    }
+
+    // H5, T5 (review L-4): the rest gap is elapsed time (§8). On the night the clocks go forward (28 March 2027), the same
+    // clock time is 23 hours later, so it isn't allowed; 19:00 BST (18:00 UTC), 24 hours after Saturday 18:00 GMT, is.
+    [Fact]
+    public void TheRestGap_IsElapsedTime_OnTheNightTheClocksGoForward()
+    {
+        var goal = Goal("Intervals", sessions: 1, minutes: 45, demanding: true, days: [IsoDayOfWeek.Sunday], time: TimeOfDay.Evening);
+        var ride = OneOff("Hard ride", new LocalDate(2027, 3, 27), new LocalTime(18, 0), 60) with { IsDemanding = true };
+
+        var plan = Planner.Plan(Request([goal], [ride]) with { Week = new DateInterval(new LocalDate(2027, 3, 22), new LocalDate(2027, 3, 28)) });
+
+        Assert.Equal(Instant.FromUtc(2027, 3, 28, 18, 0), Assert.Single(plan.Suggestions).Time.Start);
+    }
+
+    // Review L-6: "1 hour", not "1 hours". Free only 17:45-19:00 after a demanding 15-minute ride at 17:30 each day.
+    [Fact]
+    public void TheRestRule_ReadsWellForOneHour()
+    {
+        var days = new[]
+        {
+            Daily("Day", new LocalTime(7, 30), Duration.FromMinutes(600)),
+            Daily("Ride", new LocalTime(17, 30), Duration.FromMinutes(15)) with { IsDemanding = true },
+            Daily("Evening", new LocalTime(19, 0), Duration.FromMinutes(210)),
+        };
+
+        var plan = Planner.Plan(Request([Goal("Intervals", sessions: 1, minutes: 45, demanding: true)], days) with
+        {
+            Rest = new RestRules(Duration.FromHours(1), 2, new HashSet<IsoDayOfWeek>()),
+        });
+
+        Assert.EndsWith("(demanding sessions are at least 1 hour apart)", Assert.Single(plan.Shortfalls).Days[0].Reason);
     }
 
     private static string Describe(WeekPlan plan) =>

@@ -111,6 +111,21 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Equal("2026-11-07", InputValue(AddForms(html).First(), "StartDate"));
     }
 
+    // H5 (scheduling review H-1): with 96 hours between demanding sessions, a hard ride on Thursday 29 October at 18:00,
+    // four days before the week, is loaded and kept apart from: Monday 18:00 at the earliest, not Monday morning.
+    [Fact]
+    public async Task ADemandingSessionDaysBeforeTheWeek_IsKeptApartFrom()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["MinimumHoursBetweenDemandingSessions"] = "96" })).StatusCode);
+        await browser.AddActivityAsync(TestBrowser.NewName("Hard ride"), new() { ["StartDate"] = "2026-10-29", ["StartTime"] = "18:00", ["IsDemanding"] = "true" });
+        await browser.AddGoalAsync(TestBrowser.NewName("Intervals"), new() { ["SessionsPerWeek"] = "1", ["IsDemanding"] = "true", ["DurationMinutes"] = "45", ["DurationHours"] = "0" });
+
+        var form = AddForms(await PageAsync(browser, Week)).First();
+
+        Assert.Equal(("2026-11-02", "18:00"), (InputValue(form, "StartDate"), InputValue(form, "StartTime")));
+    }
+
     // T19: only the signed-in user's goals are planned.
     [Fact]
     public async Task AnotherUsersGoals_AreNeverShown()

@@ -190,18 +190,22 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - `Planner.Plan(PlanRequest)`: the sessions weekly goals (GOL-1, `PlanGoal`) still need in a week's dates, from
   `Now` on. A session counts towards a goal when its activity has that `PlannedActivity.GoalId`; `AlreadyPlanned`
   says how many did. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
-- **Busy time** (§7.4): every occurrence's footprint over `Agenda.MarginDays` either side (travel that can't be worked
-  out is left out, as on the home page), and each night's `SleepWindow`, from winding down before bed to getting going
-  after waking. A bedtime before midday is after midnight. Sleep is never cut into (T12's planner half).
+- **Busy time** (§7.4): every occurrence's footprint over `Planner.DatesToLoadFor` (`Agenda.MarginDays` either side,
+  or further when the rest between demanding sessions reaches further, so H5 sees a session 4 days before the week:
+  scheduling review H-1; the Web loads the same dates), and each night's `SleepWindow`, from winding down before bed
+  to getting going after waking. A bedtime before midday is after midnight. Sleep is never cut into (T12's planner
+  half). Travel that can't be worked out is left out, as on the home page, and said in `WeekPlan.Notes` (P1).
 - **Start times**: every quarter hour (Q1) that happens exactly once; on clock-change nights the skipped and repeated
   quarter hours aren't tried rather than guessed.
 - **Hard rules, in this order** (a time that breaks one is never suggested): not over (the footprint starts at or
-  after `Now`); one session of a goal a day (two for more than 7 a week); H7, no demanding session on a recovery day;
-  H6, no more than `MostDemandingPerDay` demanding sessions starting that day, those already planned included; H1, the
-  footprint overlaps no busy time (half-open); H4, the activity part inside its place's opening hours; H5, demanding
-  sessions at least `BetweenDemanding` apart, **start to start** (the requirements don't say from what; start to start
-  lets "24 hours" mean the same time each day). H8 is checked once per goal: a footprint longer than a day is
-  `Blocked`, as is travel that can't be worked out (P1).
+  after `Now`); one session of a goal a day (two for 8-14 a week); not on a day the user said no to for the goal
+  (`PlanRequest.Rejected`, SCH-4; saying no to one time gave the next quarter hour); H7, no demanding session on a
+  recovery day; H6, no more than `MostDemandingPerDay` demanding sessions starting that day, those already planned
+  included; H1, the footprint overlaps no busy time (half-open); H4, the activity part inside its place's opening
+  hours; H5, demanding sessions at least `BetweenDemanding` apart, **start to start** in elapsed time (the
+  requirements don't say from what). So "24 hours" is the same clock time each day, except across a clock change: on
+  28 March 2027, Saturday 18:00 GMT to Sunday 18:00 BST is 23 hours (review L-4). H8 is checked once per goal: a
+  footprint longer than a day is `Blocked`, as is travel that can't be worked out (P1).
 - **Scores** (`Planner.Scores`, one place, higher is better; ties go to the earliest start): preferred day +30;
   preferred time of day +20 (by start time: morning 05:00-12:00, midday 11:00-14:00, afternoon 12:00-17:00, evening
   17:00-22:00, `Planner.HoursOf`); +10 for each day from the nearest other session of the goal, up to 3 (none: 3);
@@ -213,13 +217,19 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - **Greedy**: each session takes the best time left, so the week isn't guaranteed to be the best possible one
   (§7.4): with 48 hours between demanding sessions it picks Monday, Thursday, Sunday, where Monday, Wednesday, Friday,
   Sunday would fit four (`PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`).
-- **Shortfalls** (SCH-5): the sessions that didn't fit, a reason for each day that isn't over and has no session of
-  the goal, from the first rule its times break: "A recovery day, and Intervals is demanding"; "It already has 1
-  demanding session, the most for a day"; when every time is busy, "The longest free time is 1 h 25 min; Gym needs 2 h
-  10 min with getting ready, travel and changing" (T14); when every free time is outside opening hours, "Town gym is
-  closed that day" or "… is open 06:00 to 09:00, and your free time then is too short"; otherwise the nearest demanding
-  session and the rest rule (T13). `Shorter`: the longest session, in 5-minute steps down to 15, that would fit, with
-  its time ("A 60-minute session would fit: Mon 2 Nov 2026 at 17:30").
+- **Shortfalls** (SCH-5): the sessions that didn't fit, and a reason for each day that isn't over and doesn't already
+  have as many of the goal's sessions as a day allows (a day with one of two allowed is listed, review L-3), from the
+  first rule its times break: "You said no to this day"; "A recovery day, and Intervals is demanding"; "It already
+  has 1 demanding session, the most for a day"; when every time is busy, "The longest free time is 1 h 25 min; Gym
+  needs 2 h 10 min with getting ready, travel and changing" (T14), or, when that time is long enough but no
+  quarter-hour start fits in it, "The longest free time, 17:40 to 19:55, is 2 h 15 min, but with sessions starting on
+  the quarter hour, Gym (2 h 10 min …) doesn't fit in it" (review M-1); when every free time is outside opening hours,
+  that day's own hours: "Town gym is closed that day" or "… is open 06:00 to 09:00, and your free time then is too
+  short" (not the day before's late opening, review L-1); otherwise the nearest demanding session and the rest rule
+  (T13). When no day gives a reason, `Shortfall.Note` says why ("Every day left this week already has a Gym session
+  (one a day)", review M-2). `Shorter`, worked out once every goal has its times so it is never a time given to
+  another (review M-4): the longest session, in 5-minute steps down to 15, that would fit, with its time ("A 60-minute
+  session would fit: Mon 2 Nov 2026 at 17:30").
 - Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
   T22.
 

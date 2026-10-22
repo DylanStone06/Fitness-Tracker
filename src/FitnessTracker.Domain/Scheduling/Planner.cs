@@ -68,14 +68,24 @@ public sealed record Suggestion(PlanGoal Goal, Interval Time, Footprint Footprin
 public sealed record DayReason(LocalDate Date, string Reason);
 
 /// <summary>
-/// SCH-5: sessions of a goal that didn't fit, each day's reason (days that already have one of its sessions, or are
-/// over, aren't listed), and a shorter session that would fit, if any. <see cref="Blocked"/> says why none could be
-/// planned at all (travel that can't be worked out, P1).
+/// SCH-5: sessions of a goal that didn't fit, each day's reason (days that are over, or already have as many of its
+/// sessions as a day allows, aren't listed), and a shorter session that would fit, if any. <see cref="Blocked"/> says
+/// why none could be planned at all (travel that can't be worked out, P1).
 /// </summary>
-public sealed record Shortfall(PlanGoal Goal, int Missing, IReadOnlyList<DayReason> Days, string? Shorter = null, string? Blocked = null);
+public sealed record Shortfall(PlanGoal Goal, int Missing, IReadOnlyList<DayReason> Days, string? Shorter = null, string? Blocked = null)
+{
+    /// <summary>Why, when no day is left to give a reason: each day left already has as many sessions as a day allows.</summary>
+    public string? Note { get; init; }
+}
 
-/// <summary>The suggestions in time order, what didn't fit, and how many sessions of each goal were planned already.</summary>
-public sealed record WeekPlan(IReadOnlyList<Suggestion> Suggestions, IReadOnlyList<Shortfall> Shortfalls, IReadOnlyDictionary<Guid, int> AlreadyPlanned);
+/// <summary>
+/// The suggestions in time order, what didn't fit, how many sessions of each goal were planned already, and
+/// <see cref="Notes"/>: what couldn't be counted (an activity's travel that can't be worked out, P1).
+/// </summary>
+public sealed record WeekPlan(IReadOnlyList<Suggestion> Suggestions, IReadOnlyList<Shortfall> Shortfalls, IReadOnlyDictionary<Guid, int> AlreadyPlanned)
+{
+    public IReadOnlyList<string> Notes { get; init; } = [];
+}
 
 /// <summary>
 /// SCH-2, SCH-3, SCH-5, SCH-7, requirements §7.4: plans the sessions weekly goals still need. Busy time is every
@@ -89,6 +99,16 @@ public static class Planner
 {
     /// <summary>Requirements Q1: start times are tried every 15 minutes, on the quarter hour.</summary>
     public static readonly Duration Step = Duration.FromMinutes(15);
+
+    /// <summary>
+    /// The dates whose activities a plan of <paramref name="week"/> needs: <see cref="Agenda.MarginDays"/> either side for
+    /// clashes, or more when the rest between demanding sessions (H5) reaches further.
+    /// </summary>
+    public static DateInterval DatesToLoadFor(DateInterval week, Duration betweenDemanding)
+    {
+        var margin = Math.Max(Agenda.MarginDays, (int)Math.Ceiling(betweenDemanding.TotalDays) + 1);
+        return new DateInterval(week.Start.PlusDays(-margin), week.End.PlusDays(margin));
+    }
 
     /// <summary>Shorter sessions are offered in steps of 5 minutes, down to this.</summary>
     private static readonly Duration ShortestOffered = Duration.FromMinutes(15);
@@ -126,7 +146,8 @@ public static class Planner
             {
                 if (week.Best(goal, journeys) is not { } best)
                 {
-                    shortfalls.Add(new Shortfall(goal, missing - placed, week.DayReasons(goal, journeys), week.Shorter(goal, journeys, ShortestOffered)));
+                    var days = week.DayReasons(goal, journeys);
+                    shortfalls.Add(new Shortfall(goal, missing - placed, days) { Note = days.Count == 0 ? week.NoDaysLeft(goal) : null });
                     break;
                 }
 
@@ -135,10 +156,23 @@ public static class Planner
             }
         }
 
+        // A shorter session is only offered once every goal has its times, so it is never at a time one of them was
+        // given (scheduling review M-4).
+        for (var i = 0; i < shortfalls.Count; i++)
+        {
+            if (shortfalls[i].Blocked is null && Travel.KnownJourneys(shortfalls[i].Goal.LocationId, request.Context) is { } journeys)
+            {
+                shortfalls[i] = shortfalls[i] with { Shorter = week.Shorter(shortfalls[i].Goal, journeys, ShortestOffered) };
+            }
+        }
+
         return new WeekPlan(
             suggestions.OrderBy(suggestion => suggestion.Time.Start).ThenBy(suggestion => suggestion.Goal.Title, StringComparer.Ordinal).ToList(),
             shortfalls,
-            alreadyPlanned);
+            alreadyPlanned)
+        {
+            Notes = week.Notes,
+        };
     }
 
     /// <summary>
@@ -207,18 +241,26 @@ public static class Planner
         private readonly List<Instant> _demanding = [];
         private readonly Dictionary<Guid, List<LocalDate>> _sessions = [];
         private readonly Dictionary<LocalDate, Duration> _load = [];
+        private readonly SortedSet<string> _notes = new(StringComparer.Ordinal);
 
         public WeekState(PlanRequest request)
         {
             _request = request;
             _zone = request.Zone;
-            var from = request.Week.Start.PlusDays(-Agenda.MarginDays);
-            var through = request.Week.End.PlusDays(Agenda.MarginDays);
+            // Wide enough for clashes and for the rest between demanding sessions (H5, scheduling review H-1).
+            var loaded = DatesToLoadFor(request.Week, request.Rest.BetweenDemanding);
             foreach (var activity in request.Activities)
             {
-                // Travel that can't be worked out is left out, as on the home page (P1: the check on save says so).
-                var journeys = Travel.KnownJourneys(activity.LocationId, request.Context) ?? Journeys.None;
-                foreach (var occurrence in activity.Series.OccurrencesBetween(from, through))
+                // Travel that can't be worked out is left out, as on the home page, and said (P1).
+                var known = Travel.KnownJourneys(activity.LocationId, request.Context);
+                var journeys = known ?? Journeys.None;
+                var occurrences = activity.Series.OccurrencesBetween(loaded.Start, loaded.End);
+                if (known is null && occurrences.Count > 0)
+                {
+                    _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknown(activity.LocationId, request.Context)}");
+                }
+
+                foreach (var occurrence in occurrences)
                 {
                     var longest = Times.LongestFor(occurrence.Time, activity.Series.Zone);
                     var footprint = Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, journeys, longest).Count == 0
@@ -248,6 +290,24 @@ public static class Planner
         }
 
         public IReadOnlyList<LocalDate> SessionDates(Guid goal) => _sessions.TryGetValue(goal, out var dates) ? dates : [];
+
+        /// <summary>What couldn't be counted, in a fixed order (SCH-7).</summary>
+        public IReadOnlyList<string> Notes => _notes.ToList();
+
+        // SCH-5 (scheduling review M-2): why, when no day gave a reason: they are over, or each day left already has
+        // as many of the goal's sessions as a day allows.
+        public string NoDaysLeft(PlanGoal goal)
+        {
+            var lastStart = _request.Week.End.PlusDays(1).AtStartOfDayInZone(_zone).ToInstant();
+            if (lastStart <= _request.Now)
+            {
+                return "No days are left this week";
+            }
+
+            return SessionsPerDay(goal) == 1
+                ? $"Every day left this week already has a {goal.Title} session (one a day)"
+                : $"Every day left this week already has two {goal.Title} sessions (two a day)";
+        }
 
         public void Add(Suggestion suggestion)
         {
@@ -380,8 +440,7 @@ public static class Planner
                 return new Verdict(Broken.Past, footprint);
             }
 
-            // One session of a goal a day, or two for one of more than 7 a week.
-            if (SessionDates(goal.Id).Count(day => day == date) >= (goal.SessionsPerWeek + 6) / 7)
+            if (SessionDates(goal.Id).Count(day => day == date) >= SessionsPerDay(goal))
             {
                 return new Verdict(Broken.GoalAlreadyThatDay, footprint);
             }
@@ -498,18 +557,27 @@ public static class Planner
             var free = verdicts.Where(verdict => verdict.Broken != Broken.Busy).ToList();
             if (free.Count == 0)
             {
-                var needed = Times.Length(goal.Length + goal.Buffers.Preparation + goal.Buffers.Changing + journeys.Out + journeys.Back);
+                var whole = goal.Length + goal.Buffers.Preparation + goal.Buffers.Changing + journeys.Out + journeys.Back;
                 var withAround = goal.Buffers == Buffers.None && journeys == Journeys.None ? "" : " with getting ready, travel and changing";
-                var longest = LongestFreeOn(date);
-                return longest == Duration.Zero
-                    ? $"There's no free time; {goal.Title} needs {needed}{withAround}"
-                    : $"The longest free time is {Times.Length(longest)}; {goal.Title} needs {needed}{withAround}";
+                if (LongestFreeOn(date) is not { } longest)
+                {
+                    return $"There's no free time; {goal.Title} needs {Times.Length(whole)}{withAround}";
+                }
+
+                // Long enough, but no quarter-hour start fits in it (scheduling review M-1): said, not left looking as
+                // if it fitted.
+                return longest.Duration < whole
+                    ? $"The longest free time is {Times.Length(longest.Duration)}; {goal.Title} needs {Times.Length(whole)}{withAround}"
+                    : $"The longest free time, {Times.Clock(longest.Start.InZone(_zone), clock)} to {Times.Clock(longest.End.InZone(_zone), clock)}, " +
+                      $"is {Times.Length(longest.Duration)}, but with sessions starting on the quarter hour, {goal.Title} " +
+                      $"({Times.Length(whole)}{withAround}) doesn't fit in it";
             }
 
             if (free.All(verdict => verdict.Broken == Broken.OpeningHours))
             {
+                // That day's own hours: a time just after midnight can be in the day before's opening (review L-1).
                 var name = Travel.NameOf(goal.LocationId!.Value, _request.Context);
-                return free[0].Hours?.Hours is { } hours
+                return _request.Context.Places[goal.LocationId.Value].OpeningHours.Days.TryGetValue(date.DayOfWeek, out var hours)
                     ? $"{name} is open {ClockText.Format(hours.Opens, clock)} to {ClockText.Format(hours.Closes, clock)}{(hours.Closes <= hours.Opens ? " the next day" : "")}, and your free time then is too short"
                     : $"{name} is closed that day";
             }
@@ -517,30 +585,33 @@ public static class Planner
             var near = free.First(verdict => verdict.Broken == Broken.RestGap).Near!.Value.InZone(_zone);
             var apart = (int)_request.Rest.BetweenDemanding.TotalHours;
             return $"Too close to the demanding session at {Times.Clock(near, clock)} on {Times.Date.Format(near.Date)} " +
-                   $"(demanding sessions are at least {apart} hours apart)";
+                   $"(demanding sessions are at least {apart} {(apart == 1 ? "hour" : "hours")} apart)";
         }
 
-        // The longest stretch of the date (not already over) with nothing planned and not asleep.
-        private Duration LongestFreeOn(LocalDate date)
+        // The longest stretch of the date (not already over) with nothing planned and not asleep, or null for none.
+        private Interval? LongestFreeOn(LocalDate date)
         {
             var dayStart = Instant.Max(date.AtStartOfDayInZone(_zone).ToInstant(), _request.Now);
             var dayEnd = date.PlusDays(1).AtStartOfDayInZone(_zone).ToInstant();
-            var longest = Duration.Zero;
+            Interval? longest = null;
             var from = dayStart;
             foreach (var busy in _busy.Where(busy => busy.End > dayStart && busy.Start < dayEnd).OrderBy(busy => busy.Start))
             {
-                if (busy.Start > from)
+                if (busy.Start > from && (longest is null || busy.Start - from > longest.Value.Duration))
                 {
-                    longest = Duration.Max(longest, busy.Start - from);
+                    longest = new Interval(from, busy.Start);
                 }
 
                 from = Instant.Max(from, busy.End);
             }
 
-            return dayEnd > from ? Duration.Max(longest, dayEnd - from) : longest;
+            return dayEnd > from && (longest is null || dayEnd - from > longest.Value.Duration) ? new Interval(from, dayEnd) : longest;
         }
 
         private static Duration Abs(Duration duration) => duration < Duration.Zero ? -duration : duration;
+
+        // One session of a goal a day, or two for one of more than 7 a week (at most 14).
+        private static int SessionsPerDay(PlanGoal goal) => (goal.SessionsPerWeek + 6) / 7;
 
         private static string PartOfDay(TimeOfDay time) => time switch
         {

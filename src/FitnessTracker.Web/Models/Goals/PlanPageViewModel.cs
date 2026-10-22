@@ -153,10 +153,13 @@ public sealed class PlanPageViewModel
             Shortfalls = planned.Plan.Shortfalls.Select(shortfall => new ShortfallView(
                 shortfall.Goal.Title,
                 $"{shortfall.Missing} of {shortfall.Goal.SessionsPerWeek} {(shortfall.Goal.SessionsPerWeek == 1 ? "session doesn't" : "sessions don't")} fit this week.",
-                shortfall.Days.Select(day => $"{DayPattern.Format(day.Date)}: {day.Reason}.").ToList(),
+                shortfall.Note is { } note
+                    ? [$"{note}."]
+                    : shortfall.Days.Select(day => $"{DayPattern.Format(day.Date)}: {day.Reason}.").ToList(),
                 shortfall.Shorter is { } shorter ? $"{shorter}." : null,
                 shortfall.Blocked is { } blocked ? $"{blocked}." : null)).ToList(),
-            Unreadable = planned.Unreadable,
+            // P1: what couldn't be read or counted, said rather than planned around as if it were known.
+            Unreadable = [.. planned.Unreadable, .. planned.Plan.Notes.Select(note => $"{note}.")],
         };
     }
 

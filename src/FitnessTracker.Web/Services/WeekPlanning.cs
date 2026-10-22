@@ -32,8 +32,8 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         var first = CalendarWeeks.StartOf(date ?? user.Now.Date, preferences.WeekStart);
         var week = new DateInterval(first, first.PlusDays(6));
         var unreadable = new List<string>();
-        var nearby = new DateInterval(week.Start.PlusDays(-Agenda.MarginDays), week.End.PlusDays(Agenda.MarginDays));
-        var activities = await planning.ActivitiesOnAsync(nearby, unreadable);
+        var betweenDemanding = Duration.FromHours(preferences.MinimumHoursBetweenDemandingSessions);
+        var activities = await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, betweenDemanding), unreadable);
         var goals = await db.WeeklyGoals.AsNoTracking().ToListAsync();
         var request = new PlanRequest(
             week,
@@ -47,7 +47,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
                 Duration.FromMinutes(preferences.WindDownMinutes),
                 Duration.FromMinutes(preferences.WakeUpRoutineMinutes)),
             new RestRules(
-                Duration.FromHours(preferences.MinimumHoursBetweenDemandingSessions),
+                betweenDemanding,
                 preferences.MaximumDemandingSessionsPerDay,
                 Week.DaysIn(preferences.RecoveryDays).ToHashSet()),
             user.Context)
