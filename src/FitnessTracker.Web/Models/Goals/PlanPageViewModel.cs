@@ -68,6 +68,9 @@ public sealed class PlanPageViewModel
 
     public required IReadOnlyList<string> Unreadable { get; init; }
 
+    /// <summary>CAL-7: each day left, "Mon 2 Nov: 15 h free, the longest 15 h".</summary>
+    public required IReadOnlyList<string> FreeTime { get; init; }
+
     /// <summary>SCH-4: a day said no to for a goal, as the page's address carries it: "{goal id}-20261104".</summary>
     public static string SkipFor(Guid goal, LocalDate date) => $"{goal:N}-{SkipDate.Format(date)}";
 
@@ -160,6 +163,11 @@ public sealed class PlanPageViewModel
                 shortfall.Blocked is { } blocked ? $"{blocked}." : null)).ToList(),
             // P1: what couldn't be read or counted, said rather than planned around as if it were known.
             Unreadable = [.. planned.Unreadable, .. planned.Plan.Notes.Select(note => $"{note}.")],
+            FreeTime = planned.Plan.FreeTime
+                .Select(day => day.Total == Duration.Zero
+                    ? $"{DayPattern.Format(day.Date)}: no free time"
+                    : $"{DayPattern.Format(day.Date)}: {ActivityDisplay.Length((int)day.Total.TotalMinutes)} free, the longest {ActivityDisplay.Length((int)day.Longest.TotalMinutes)}")
+                .ToList(),
         };
     }
 

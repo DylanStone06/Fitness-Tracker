@@ -238,6 +238,9 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   (one a day)", review M-2). `Shorter`, worked out once every goal has its times so it is never a time given to
   another (review M-4): the longest session, in 5-minute steps down to 15, that would fit, with its time ("A 60-minute
   session would fit: Mon 2 Nov 2026 at 17:30").
+- **Free time** (CAL-7, `WeekPlan.FreeTime`): each day not over, from `Now`, midnight to midnight, the stretches not
+  busy (sleep windows and footprints): in all and the longest, before any suggestion. The longest-free-time reasons
+  use the same stretches.
 - **Other times for one session** (SCH-6, T16, `Planner.Options`): the same rules and scores, for one session (a
   missed or skipped occurrence, or one to move) in its week from `Now` on: the best time on each day that has one,
   best first, at most `most`. The caller passes the activities with that occurrence cancelled, so it isn't in its own

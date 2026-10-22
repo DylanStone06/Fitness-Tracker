@@ -82,6 +82,9 @@ public sealed record Shortfall(PlanGoal Goal, int Missing, IReadOnlyList<DayReas
     public string? Note { get; init; }
 }
 
+/// <summary>CAL-7: a day's free time, not counting sleep or anything planned: in all, and the longest stretch.</summary>
+public sealed record FreeDay(LocalDate Date, Duration Total, Duration Longest);
+
 /// <summary>SCH-6: other times for one session, best first, or why there are none (<see cref="None"/>).</summary>
 public sealed record SessionAlternatives(IReadOnlyList<Suggestion> Options, Shortfall? None);
 
@@ -92,6 +95,9 @@ public sealed record SessionAlternatives(IReadOnlyList<Suggestion> Options, Shor
 public sealed record WeekPlan(IReadOnlyList<Suggestion> Suggestions, IReadOnlyList<Shortfall> Shortfalls, IReadOnlyDictionary<Guid, int> AlreadyPlanned)
 {
     public IReadOnlyList<string> Notes { get; init; } = [];
+
+    /// <summary>CAL-7: each day not over, its free time as the calendar is now, before any suggestion.</summary>
+    public IReadOnlyList<FreeDay> FreeTime { get; init; } = [];
 }
 
 /// <summary>
@@ -123,6 +129,7 @@ public static class Planner
     public static WeekPlan Plan(PlanRequest request)
     {
         var week = new WeekState(request);
+        var freeTime = week.FreeTime();
         var suggestions = new List<Suggestion>();
         var shortfalls = new List<Shortfall>();
         var alreadyPlanned = new Dictionary<Guid, int>();
@@ -179,6 +186,7 @@ public static class Planner
             alreadyPlanned)
         {
             Notes = week.Notes,
+            FreeTime = freeTime,
         };
     }
 
@@ -647,24 +655,43 @@ public static class Planner
                    $"(demanding sessions are at least {apart} {(apart == 1 ? "hour" : "hours")} apart)";
         }
 
-        // The longest stretch of the date (not already over) with nothing planned and not asleep, or null for none.
-        private Interval? LongestFreeOn(LocalDate date)
+        // CAL-7: each day not over, its free time in all and its longest stretch.
+        public IReadOnlyList<FreeDay> FreeTime() =>
+            _request.Week
+                .Where(date => date.PlusDays(1).AtStartOfDayInZone(_zone).ToInstant() > _request.Now)
+                .Select(date => FreeOn(date) is var free && free.Count > 0
+                    ? new FreeDay(date, free.Aggregate(Duration.Zero, (total, stretch) => total + stretch.Duration), free.Max(stretch => stretch.Duration))
+                    : new FreeDay(date, Duration.Zero, Duration.Zero))
+                .ToList();
+
+        // The longest stretch of the date (not already over) with nothing planned and not asleep, or null for none; the
+        // earliest of equal ones.
+        private Interval? LongestFreeOn(LocalDate date) =>
+            FreeOn(date).OrderByDescending(stretch => stretch.Duration).Select(stretch => (Interval?)stretch).FirstOrDefault();
+
+        // The stretches of the date (from now, midnight to midnight) with nothing planned and not asleep, in time order.
+        private List<Interval> FreeOn(LocalDate date)
         {
             var dayStart = Instant.Max(date.AtStartOfDayInZone(_zone).ToInstant(), _request.Now);
             var dayEnd = date.PlusDays(1).AtStartOfDayInZone(_zone).ToInstant();
-            Interval? longest = null;
+            var free = new List<Interval>();
             var from = dayStart;
             foreach (var busy in _busy.Where(busy => busy.End > dayStart && busy.Start < dayEnd).OrderBy(busy => busy.Start))
             {
-                if (busy.Start > from && (longest is null || busy.Start - from > longest.Value.Duration))
+                if (busy.Start > from)
                 {
-                    longest = new Interval(from, busy.Start);
+                    free.Add(new Interval(from, busy.Start));
                 }
 
                 from = Instant.Max(from, busy.End);
             }
 
-            return dayEnd > from && (longest is null || dayEnd - from > longest.Value.Duration) ? new Interval(from, dayEnd) : longest;
+            if (dayEnd > from)
+            {
+                free.Add(new Interval(from, dayEnd));
+            }
+
+            return free;
         }
 
         private static Duration Abs(Duration duration) => duration < Duration.Zero ? -duration : duration;

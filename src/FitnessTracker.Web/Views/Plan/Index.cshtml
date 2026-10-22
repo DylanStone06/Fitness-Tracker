@@ -137,6 +137,22 @@ else
         }
     }
 
+    @* CAL-7: each day's free time as the calendar is now, not counting sleep or anything planned. *@
+    @if (Model.FreeTime.Count > 0)
+    {
+        <details class="mb-3">
+            <summary>Free time each day</summary>
+            <p class="small text-body-secondary mb-1">As your calendar is now, before any of these suggestions, not counting
+                sleep or the time around your activities.</p>
+            <ul class="small mb-0">
+                @foreach (var day in Model.FreeTime)
+                {
+                    <li>@day</li>
+                }
+            </ul>
+        </details>
+    }
+
     <p class="small text-body-secondary">The planner fills the week one session at a time, best first, so it won't
         always find the best possible week: if a session doesn't fit, try another time for one that did.</p>
 }

@@ -126,6 +126,21 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Equal(("2026-11-02", "18:00"), (InputValue(form, "StartDate"), InputValue(form, "StartTime")));
     }
 
+    // CAL-7: each day's free time as the calendar is, without sleep (23:00-07:00, with 30 minutes either side).
+    [Fact]
+    public async Task EachDaysFreeTime_IsShown()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync(TestBrowser.NewName("Dentist"), new() { ["StartDate"] = "2026-11-03", ["StartTime"] = "12:00" });
+        await browser.AddGoalAsync(TestBrowser.NewName("Gym"));
+
+        var html = await PageAsync(browser, Week);
+
+        Assert.Contains("Mon 2 Nov: 15 h free, the longest 15 h", html);
+        // 07:30-12:00 and 13:00-22:30 around the dentist at 12:00.
+        Assert.Contains("Tue 3 Nov: 14 h free, the longest 9 h 30 min", html);
+    }
+
     // T19: only the signed-in user's goals are planned.
     [Fact]
     public async Task AnotherUsersGoals_AreNeverShown()

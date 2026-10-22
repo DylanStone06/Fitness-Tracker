@@ -498,6 +498,41 @@ public class PlannerTests
         Assert.Equal([new LocalDate(2026, 11, 7), new LocalDate(2026, 11, 8)], options.None!.Days.Select(day => day.Date));
     }
 
+    // CAL-7: each day's free time as the calendar is (before any suggestion), not counting sleep or footprints: a day
+    // taken up from 07:30 to 17:30 and 18:30 to 22:30 has one free hour; an empty one 15 hours (07:30 to 22:30).
+    [Fact]
+    public void EachDaysFreeTime_IsTheTotalAndTheLongest_WithoutSleepOrFootprints()
+    {
+        var busyWeekdays = new[]
+        {
+            WeekdaysOnly(Daily("Day", new LocalTime(7, 30), Duration.FromMinutes(600))),
+            WeekdaysOnly(Daily("Evening", new LocalTime(18, 30), Duration.FromMinutes(240))),
+        };
+
+        var plan = Planner.Plan(Request([Goal("Gym", sessions: 3)], busyWeekdays));
+
+        Assert.Equal(7, plan.FreeTime.Count);
+        Assert.Equal((Duration.FromHours(1), Duration.FromHours(1)), (plan.FreeTime[0].Total, plan.FreeTime[0].Longest));
+        Assert.Equal((Duration.FromHours(15), Duration.FromHours(15)), (plan.FreeTime[5].Total, plan.FreeTime[5].Longest));
+    }
+
+    // Only what's left of a day counts: planned on Saturday 7 November at 12:00, Saturday has 10 h 30 min left.
+    [Fact]
+    public void FreeTime_StartsFromNow()
+    {
+        var plan = Planner.Plan(Request([]) with { Now = Instant.FromUtc(2026, 11, 7, 12, 0) });
+
+        Assert.Equal([new LocalDate(2026, 11, 7), new LocalDate(2026, 11, 8)], plan.FreeTime.Select(day => day.Date));
+        Assert.Equal(Duration.FromMinutes(630), plan.FreeTime[0].Total);
+    }
+
+    private static PlannedActivity WeekdaysOnly(PlannedActivity daily) =>
+        daily with
+        {
+            Series = new Series(daily.Series.FirstDate, daily.Series.StartTime, daily.Series.Length, London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday, IsoDayOfWeek.Tuesday, IsoDayOfWeek.Wednesday, IsoDayOfWeek.Thursday, IsoDayOfWeek.Friday])),
+        };
+
     private static string Describe(WeekPlan plan) =>
         string.Join("\n", plan.Suggestions.Select(suggestion => $"{suggestion.Goal.Title} {suggestion.Time}"))
         + "\n" + string.Join("\n", plan.Shortfalls.Select(shortfall => $"{shortfall.Goal.Title} {shortfall.Missing} {string.Join("; ", shortfall.Days.Select(day => $"{day.Date} {day.Reason}"))}"));
