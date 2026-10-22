@@ -796,7 +796,7 @@ public class ActivityCheckTests
     }
 
     // H7: no demanding session on a recovery day; every occurrence checked, the first named and the rest counted.
-    // Wednesdays from 4 November, checked for 8 weeks to Tuesday 29 December: 8 Wednesdays.
+    // Wednesdays from 4 November, checked for 53 weeks (as H4 and H8 are) to Tuesday 9 November 2027: 53 Wednesdays.
     [Fact]
     public void ADemandingSessionOnARecoveryDay_IsAProblem()
     {
@@ -805,8 +805,47 @@ public class ActivityCheckTests
         var problem = Assert.Single(ActivityCheck.Check(wednesdays, [], WithRest(hours: 0, recovery: [IsoDayOfWeek.Wednesday])).Problems);
 
         Assert.Equal(
-            "Wed 4 Nov 2026 is one of your recovery days, and this is a demanding session. The same happens on 7 more dates up to Tue 29 Dec 2026.",
+            "Wed 4 Nov 2026 is one of your recovery days, and this is a demanding session. The same happens on 52 more dates up to Tue 9 Nov 2027.",
             problem.Message);
+    }
+
+    // H7: a rule every 10 days reaches Friday first on 1 January 2027, past the 8-week clash window (scheduling review,
+    // Phase 6: the rest rules were only checked that far, unlike H4 and H8, which depend on the weekday too).
+    [Fact]
+    public void ARecoveryDay_IsFound_ForARuleEveryTenDays()
+    {
+        var everyTenDays = new PlannedActivity(Guid.NewGuid(), "Intervals",
+            new Series(new LocalDate(2026, 11, 2), new LocalTime(18, 0), Duration.FromMinutes(45), London, RecurrenceRule.Daily(10)), Buffers.None, null)
+        {
+            IsDemanding = true,
+        };
+
+        var problem = Assert.Single(ActivityCheck.Check(everyTenDays, [], WithRest(hours: 0, recovery: [IsoDayOfWeek.Friday])).Problems);
+
+        Assert.StartsWith("Fri 1 Jan 2027 is one of your recovery days, and this is a demanding session.", problem.Message);
+    }
+
+    // H5, T5, §8: Saturday 18:00 GMT to Sunday 18:00 BST on 27-28 March 2027 is 23 hours, though every other weekend
+    // is 24 or 25 (the planner refuses that slot too: TheRestGap_IsElapsedTime_OnTheNightTheClocksGoForward).
+    [Fact]
+    public void TheRestRule_IsKeptOnTheNightTheClocksGoForward()
+    {
+        var saturdays = Weekly(new LocalDate(2026, 10, 24), [IsoDayOfWeek.Saturday], new LocalTime(18, 0)) with { Title = "Long run", IsDemanding = true };
+        var sundays = Weekly(new LocalDate(2026, 10, 25), [IsoDayOfWeek.Sunday], new LocalTime(18, 0)) with { Title = "Intervals", IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(sundays, [saturdays], WithRest(hours: 24)).Problems);
+
+        Assert.StartsWith("It's 23 h from Long run, a demanding session on Sat 27 Mar 2027 at 18:00", problem.Message);
+    }
+
+    // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks.
+    [Fact]
+    public void OthersThatCanClash_ForADemandingActivity_ReachAsFarAsTheRestRulesAreChecked()
+    {
+        var series = Weekly(new LocalDate(2026, 10, 25), [IsoDayOfWeek.Sunday], new LocalTime(18, 0)).Series;
+
+        Assert.True(ActivityCheck.OthersThatCanClash(series, Today, Duration.FromHours(24), demanding: true).Contains(new LocalDate(2027, 3, 27)));
+        Assert.False(ActivityCheck.OthersThatCanClash(series, Today, Duration.FromHours(24)).Contains(new LocalDate(2027, 3, 27)));
     }
 
     // H5 within the activity itself: demanding every day, with 48 hours between demanding sessions.

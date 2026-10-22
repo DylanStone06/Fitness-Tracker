@@ -129,14 +129,20 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 - **Problems** stop the save, each with a `CheckAspect` for the form field: a repeat that never happens (Repeat), no
   home or a missing travel leg for an activity away from home (Location; never guessed as zero), H8 (Length), and
   H4 on **every** occurrence checked, naming the first and counting the rest (Time). For a demanding activity, H5-H7
-  from `PlanningContext.Rest` (ACC-7; `RestRules.None` checks none) on every occurrence in the clash window, against
-  the demanding sessions near it, other activities' and its own, start to start in elapsed time, as the planner does:
+  from `PlanningContext.Rest` (ACC-7; `RestRules.None` checks none) on every occurrence over the same year as H4 and
+  H8 (they depend on the weekday and the clocks changing too: a rule every 10 days first reaches Friday in January;
+  Saturday to Sunday 18:00 is 23 h across 27-28 March 2027), against the demanding sessions near it, other
+  activities' and its own (kept apart by whose they are, not by time: another activity's at the same moment isn't
+  its own, review H-1), start to start in elapsed time, as the planner does:
   "It's 22 h from Hard ride, a demanding session on Mon 2 Nov 2026 at 20:00; your preferences keep demanding sessions
   at least 24 hours apart.", "On Mon 2 Nov 2026 there's already a demanding session, Hard ride; your preferences allow
   1 a day.", "Wed 4 Nov 2026 is one of your recovery days, and this is a demanding session." (Time). They are
   validation errors, not clashes to accept (§7.2). `OthersThatCanClash` and `OthersThatCanClashWith` take the rest
-  between demanding sessions, to reach as far as it does (`RestReachDays`). Tests: `ActivityCheckTests.ADemanding*`,
-  `TheRestRule_*`, `CheckOccurrence_KeepsTheRestRule`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*`.
+  between demanding sessions, to reach as far as it does (`RestReachDays`); `OthersThatCanClash(..., demanding: true)`
+  also reaches to the end of that year, for one-offs months ahead (a running series is loaded anyway). Tests:
+  `ActivityCheckTests.ADemanding*`, `TheRestRule_*`, `ARecoveryDay_IsFound_ForARuleEveryTenDays`,
+  `CheckOccurrence_KeepsTheRestRule`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*`,
+  `Add_ADemandingSeries_KeepsTheRestRule_MonthsAhead_AcrossTheClockChange`.
 - **Clashes** (H1) are only looked for when there are no problems (they depend on travel and length). The user can
   save them with "Save anyway" (Q2), asked on each save; acceptance isn't stored yet.
 - **Windows**, from the later of today and the first date (`FirstCheckedDate`), or from the first date when nothing

@@ -106,8 +106,7 @@ public static class ActivityCheck
             return new ActivityCheckResult(problems, [], dates);
         }
 
-        var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
-        var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
+        var longerDates = LongerDates(series, firstChecked);
         // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands, as well as these dates; one moved
         // into the past only when the whole series is (MovedOutside).
         // In time order, so explanations name the earliest first, and up to the last date checked.
@@ -130,13 +129,10 @@ public static class ActivityCheck
             problems.Add(outsideOpeningHours);
         }
 
-        // H5-H7 (ACC-7) on every occurrence in the clash window, against the demanding sessions near them.
-        var occurrences = series.OccurrencesBetween(dates.Start, dates.End)
-            .Concat(MovedOutside(series, dates, context.Today))
-            .OrderBy(occurrence => occurrence.Time.Start)
-            .ToList();
-        var restCheckedUpTo = occurrences.Count == 0 ? dates.End : LocalDate.Max(dates.End, occurrences[^1].Time.Start.InZone(series.Zone).Date);
-        problems.AddRange(RestProblems(candidate, occurrences, others, context, restCheckedUpTo));
+        // H5-H7 (ACC-7) as far ahead as H4 and H8, for the same reasons: they can't be overridden, and they depend on
+        // the weekday (H7) and on the clocks changing (H5, elapsed time). Each occurrence against the demanding sessions
+        // near it.
+        problems.AddRange(RestProblems(candidate, longerOccurrences, others, context, checkedUpTo));
 
         if (problems.Count > 0 || journeys is not { } knownJourneys)
         {
@@ -144,6 +140,9 @@ public static class ActivityCheck
         }
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
+        var occurrences = series.OccurrencesBetween(dates.Start, dates.End)
+            .Concat(MovedOutside(series, dates, context.Today))
+            .ToList();
         var notes = new List<string>();
         var nearby = NearbyDates(series, context.Today);
         var otherBookings = others
@@ -336,12 +335,27 @@ public static class ActivityCheck
     /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
     /// <paramref name="series"/>: the clash window, and any occurrence moved outside it that is checked (not one moved
-    /// into the past), 3 days either side. Lets a caller load only those activities.
+    /// into the past), 3 days either side. For a <paramref name="demanding"/> one, as far as its rest rules (H5-H7) are
+    /// checked: the year H4 and H8 are. Lets a caller load only those activities.
     /// </summary>
-    public static DateInterval OthersThatCanClash(Series series, LocalDate today, Duration betweenDemanding = default)
+    public static DateInterval OthersThatCanClash(Series series, LocalDate today, Duration betweenDemanding = default, bool demanding = false)
     {
         var nearby = NearbyDates(series, today);
-        return Wider(new DateInterval(nearby.Min(dates => dates.Start), nearby.Max(dates => dates.End)), betweenDemanding);
+        var end = nearby.Max(dates => dates.End);
+        if (demanding)
+        {
+            end = LocalDate.Max(end, LongerDates(series, FirstCheckedDate(series, today)).End.PlusDays(MarginDays));
+        }
+
+        return Wider(new DateInterval(nearby.Min(dates => dates.Start), end), betweenDemanding);
+    }
+
+    // The year H4, H8 and the rest rules are checked for; a daily rule every N days for at least 7 x N days, so every
+    // weekday it can fall on is reached.
+    private static DateInterval LongerDates(Series series, LocalDate firstChecked)
+    {
+        var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
+        return new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
     }
 
     // The clash window with MarginDays either side, and the same around each occurrence moved outside it.

@@ -21,12 +21,12 @@ public class ActivityChecker(PlanningData planning)
         var loaded = await planning.LoadAsync();
         var user = clock is { } chosen ? loaded with { Context = loaded.Context with { Clock = chosen } } : loaded;
 
-        // Only activities that can fall near the dates checked (as far as the rest between demanding sessions reaches,
-        // H5), not every one the user ever had; one that can't be read is left out with a note, not allowed to stop
-        // every save.
+        // Only activities that can fall near the dates checked (for a demanding one, as far ahead as its rest rules are
+        // checked and as far either side as the rest between demanding sessions reaches, H5-H7), not every one the user
+        // ever had; one that can't be read is left out with a note, not allowed to stop every save.
         var plannedCandidate = candidate.ToPlannedActivity();
         var unreadable = new List<string>();
-        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today, user.Context.Rest.BetweenDemanding);
+        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today, user.Context.Rest.BetweenDemanding, plannedCandidate.IsDemanding);
         var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.Check(plannedCandidate, others, user.Context);
