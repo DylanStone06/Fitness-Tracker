@@ -236,8 +236,8 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   short" (not the day before's late opening, review L-1); otherwise the nearest demanding session and the rest rule
   (T13). When no day gives a reason, `Shortfall.Note` says why ("Every day left this week already has a Gym session
   (one a day)", review M-2). `Shorter`, worked out once every goal has its times so it is never a time given to
-  another (review M-4): the longest session, in 5-minute steps down to 15, that would fit, with its time ("A 60-minute
-  session would fit: Mon 2 Nov 2026 at 17:30").
+  another (review M-4): the longest session, in 5-minute steps down to 15, that would fit, with its time, its length
+  written as other lengths are ("A session of 1 h would fit: Mon 2 Nov 2026 at 17:30").
 - **Free time** (CAL-7, `WeekPlan.FreeTime`): each day not over, from `Now`, midnight to midnight, the stretches not
   busy (sleep windows and footprints): in all and the longest, before any suggestion. The longest-free-time reasons
   use the same stretches.

@@ -44,7 +44,7 @@ else
         <ul class="list-unstyled small mb-3">
             @foreach (var goal in Model.Progress)
             {
-                <li><span class="fw-semibold">@goal.Title</span>: @goal.Planned</li>
+                <li><span class="fw-semibold" dir="auto">@goal.Title</span>: @goal.Planned</li>
             }
         </ul>
     }
@@ -64,7 +64,8 @@ else
                 <li class="list-group-item ft-stripe @suggestion.CategoryStyle">
                     <div class="d-flex flex-wrap align-items-baseline column-gap-2">
                         <span class="ft-time">@suggestion.Day, @suggestion.Time</span>
-                        <span class="fw-semibold text-break">@suggestion.Title</span>
+                        @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+                        <span class="fw-semibold text-break" dir="auto">@suggestion.Title</span>
                         <span class="ft-chip small">@suggestion.CategoryName</span>
                     </div>
                     @if (suggestion.Place is { } place)
@@ -110,7 +111,7 @@ else
         @foreach (var shortfall in Model.Shortfalls)
         {
             <div class="alert alert-warning">
-                <h3 class="h6 text-break">@shortfall.Title</h3>
+                <h3 class="h6 text-break" dir="auto">@shortfall.Title</h3>
                 @if (shortfall.Blocked is { } blocked)
                 {
                     <p class="mb-0">@blocked</p>

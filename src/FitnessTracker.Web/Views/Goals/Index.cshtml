@@ -28,7 +28,8 @@ else
             @* CAL-2: the category's colour as a stripe and a label, with its name in the label. *@
             <li class="list-group-item ft-stripe @ActivityDisplay.CategoryStyle(goal.Category) d-flex flex-wrap align-items-center gap-2">
                 <span class="flex-grow-1 text-break">
-                    <span class="fw-semibold">@goal.Title</span>
+                    @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+                    <span class="fw-semibold" dir="auto">@goal.Title</span>
                     <span class="d-block small">@GoalDisplay.HowOften(goal)</span>
                     @if (GoalDisplay.Preferred(goal) is { } preferred)
                     {

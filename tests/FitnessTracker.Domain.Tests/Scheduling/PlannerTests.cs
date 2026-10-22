@@ -264,7 +264,8 @@ public class PlannerTests
 
         var plan = Planner.Plan(Request([gym], busyDays));
 
-        Assert.Equal("A 60-minute session would fit: Mon 2 Nov 2026 at 17:30", Assert.Single(plan.Shortfalls).Shorter);
+        // Written as other lengths are, so a long one reads well ("11 h 15 min", not "675-minute": break-ui, Phase 6).
+        Assert.Equal("A session of 1 h would fit: Mon 2 Nov 2026 at 17:30", Assert.Single(plan.Shortfalls).Shorter);
     }
 
     // P1: travel that can't be worked out is never guessed; the goal isn't planned, and the reason is given.

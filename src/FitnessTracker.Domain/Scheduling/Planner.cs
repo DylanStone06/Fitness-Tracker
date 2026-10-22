@@ -444,7 +444,7 @@ public static class Planner
                 if (Best(goal with { Length = length }, journeys) is { } fits)
                 {
                     var start = fits.Time.Start.InZone(_zone);
-                    return $"A {(int)length.TotalMinutes}-minute session would fit: {Times.Date.Format(start.Date)} at {Times.Clock(start, _request.Context.Clock)}";
+                    return $"A session of {Times.Length(length)} would fit: {Times.Date.Format(start.Date)} at {Times.Clock(start, _request.Context.Clock)}";
                 }
             }
 
