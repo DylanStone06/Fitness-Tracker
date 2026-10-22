@@ -1,0 +1,19 @@
+@model LocationFormViewModel
+@{
+    ViewData["Title"] = "Add a location";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Add a location</h1>
+
+        <form asp-action="Create" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <partial name="_NameField" />
+            <partial name="_LocationFields" />
+
+            <button type="submit" class="btn btn-primary">Add location</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,18 @@
+@model FitnessTracker.Web.Data.TravelLeg
+@{
+    ViewData["Title"] = "Delete travel time";
+    var names = (IReadOnlyDictionary<Guid, string>)ViewData["Names"]!;
+    var journey = $"{names.GetValueOrDefault(Model.FromLocationId)} to {names.GetValueOrDefault(Model.ToLocationId)}";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Delete travel time</h1>
+        <p>Delete the travel time from <strong class="text-break">@journey</strong> (@Model.Minutes minutes)? The journey back, if it has a time, is kept.</p>
+
+        <form asp-action="Delete" method="post">
+            <button type="submit" class="btn btn-danger">Delete travel time</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

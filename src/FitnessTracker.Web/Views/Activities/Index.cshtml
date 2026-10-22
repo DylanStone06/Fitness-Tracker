@@ -1,0 +1,61 @@
+@model IReadOnlyList<FitnessTracker.Web.Data.Activity>
+@{
+    ViewData["Title"] = "Activities";
+    var names = (IReadOnlyDictionary<Guid, string>)ViewData["Names"]!;
+    var clock = ViewData["Clock"] as FitnessTracker.Domain.Time.ClockFormat? ?? FitnessTracker.Domain.Time.ClockFormat.TwentyFourHour;
+}
+
+<h1>Activities</h1>
+<p>Everything that takes up your time, once or repeating. Work is an activity too: add it as a weekly activity at your
+    office.</p>
+
+@* CAL-4, P5: what an edit of the whole activity did to occurrences changed on their own. *@
+@if (ViewData["SeriesEdit"] is string seriesEdit)
+{
+    <div class="alert alert-info" role="status">@seriesEdit</div>
+}
+
+@* P1: after a save, other activities that could only be checked in part are named, never silently assumed fine. *@
+@if (ViewData["CheckNotes"] is string[] { Length: > 0 } notes)
+{
+    <div class="alert alert-info" role="status">
+        <p class="mb-1">Saved. Some of your other activities could only be checked in part:</p>
+        <ul class="mb-0">
+            @foreach (var note in notes)
+            {
+                <li>@note</li>
+            }
+        </ul>
+    </div>
+}
+
+<p><a class="btn btn-primary" asp-action="Create">Add an activity</a></p>
+
+@if (Model.Count == 0)
+{
+    <p>You haven't added any activities yet.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var activity in Model)
+        {
+            @* CAL-2: the category's colour as a stripe and a label, with its name in the label. *@
+            <li class="list-group-item ft-stripe @ActivityDisplay.CategoryStyle(activity.Category) d-flex flex-wrap align-items-center gap-2">
+                <span class="flex-grow-1 text-break">
+                    <span class="fw-semibold">@activity.Title</span>
+                    <span class="d-block small">@ActivityDisplay.When(activity, clock)</span>
+                    <span class="d-block small text-body-secondary mt-1">
+                        <span class="ft-chip">@ActivityDisplay.CategoryName(activity.Category)</span>@if (activity.LocationId is { } where && names.TryGetValue(where, out var place))
+                        {
+                            <text> at @place</text>
+                        }@(activity.IsFixed ? ", fixed" : ", movable")@(activity.IsDemanding ? ", demanding" : "")
+                    </span>
+                </span>
+                @* The hidden title tells screen reader users which activity each button is for. *@
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@activity.Id">Edit<span class="visually-hidden"> @activity.Title</span></a>
+                <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@activity.Id">Delete<span class="visually-hidden"> @activity.Title</span></a>
+            </li>
+        }
+    </ul>
+}

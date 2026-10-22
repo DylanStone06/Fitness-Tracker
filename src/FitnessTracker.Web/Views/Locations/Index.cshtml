@@ -1,0 +1,35 @@
+@model IReadOnlyList<FitnessTracker.Web.Data.Location>
+@{
+    ViewData["Title"] = "Locations";
+}
+
+<h1>Locations</h1>
+<p>The places your activities happen, such as home, the office or the gym.</p>
+
+<p><a class="btn btn-primary" asp-action="Create">Add a location</a></p>
+
+@if (Model.Count == 0)
+{
+    <p>You haven't added any locations yet.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var location in Model)
+        {
+            <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                <span class="flex-grow-1 text-break">
+                    @location.Name
+                    @if (location.IsHome)
+                    {
+                        <span class="badge text-bg-primary ms-1">Home</span>
+                    }
+                    <span class="d-block small text-body-secondary">@(location.HasOpeningHours ? "Set opening hours" : "Always open")</span>
+                </span>
+                @* The hidden name tells screen reader users which location each button is for. *@
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@location.Id">Edit<span class="visually-hidden"> @location.Name</span></a>
+                <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@location.Id">Delete<span class="visually-hidden"> @location.Name</span></a>
+            </li>
+        }
+    </ul>
+}

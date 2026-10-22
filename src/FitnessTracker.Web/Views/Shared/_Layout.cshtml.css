@@ -1,15 +1,25 @@
-/* Styles for the layout's own markup only (CSS isolation). Site-wide styles go in wwwroot/css/site.css. */
+/* Styles for the layout's own markup only (CSS isolation). Site-wide styles go in wwwroot/css/site.css.
+   Links made by tag helpers (asp-controller) don't get this file's scope attribute, so they're reached through the
+   header with ::deep. */
 
-a.navbar-brand {
+.site-header {
+  background-color: var(--ft-surface);
+  box-shadow: var(--ft-shadow);
+}
+
+.site-header ::deep a.navbar-brand {
   white-space: normal;
-  text-align: center;
   word-break: break-all;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.border-bottom {
-  border-bottom: 1px solid #e5e5e5;
+.brand-mark {
+  flex-shrink: 0;
 }
 
-.box-shadow {
-  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+/* The page you're on: bold and underlined, as well as aria-current, so it isn't shown by colour alone. */
+.site-header ::deep .nav-link.active {
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--bs-link-color);
 }

@@ -1,0 +1,221 @@
+@model FitnessTracker.Web.Models.Preferences.PreferencesFormViewModel
+@using FitnessTracker.Web.Data
+@using FitnessTracker.Web.Models.Preferences
+@{
+    ViewData["Title"] = "Preferences";
+    var days = Week.Days;
+    // An alias someone saved earlier (such as "GB") is kept in the list so it shows as chosen.
+    var timeZones = PreferencesFormViewModel.TimeZoneIds.Contains(Model.TimeZoneId)
+        ? PreferencesFormViewModel.TimeZoneIds
+        : PreferencesFormViewModel.TimeZoneIds.Prepend(Model.TimeZoneId);
+}
+
+<div class="row">
+    <div class="col-md-10 col-lg-8">
+        <h1>Preferences</h1>
+        <p>Also: your <a asp-controller="CategoryBuffers" asp-action="Index">default time around activities</a>, such as changing after the gym.</p>
+
+        @if (ViewData["Saved"] is true)
+        {
+            <div class="alert alert-success" role="status">Your preferences are saved.</div>
+        }
+
+        @* Q8: what moving activities to the new timezone broke, from the check on save. Nothing is hidden (P1). *@
+        @if (ViewData["MoveFindings"] is string[] { Length: > 0 } findings)
+        {
+            <div class="alert alert-warning" role="status">
+                <p class="mb-1">Your activities moved to the new timezone, keeping their clock times. Some now need a look:</p>
+                <ul class="mb-0">
+                    @foreach (var finding in findings)
+                    {
+                        <li>@finding</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <form asp-action="Index" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="Version" />
+
+            <fieldset class="mb-4">
+                <legend class="h4">Time and units</legend>
+
+                <div class="mb-3">
+                    <label asp-for="TimeZoneId" class="form-label"></label>
+                    <div class="form-text mt-0 mb-1" id="timezone-hint">
+                        Your activities keep their clock times if you change this: the gym at 07:00 stays at 07:00 in the new timezone.
+                        They are checked again afterwards, and anything the move breaks is shown here.
+                    </div>
+                    <span asp-validation-for="TimeZoneId" class="d-block text-danger" id="timezone-error"></span>
+                    <select asp-for="TimeZoneId" class="form-select" asp-items="@(timeZones.Select(id => new SelectListItem(id, id)))"
+                            aria-describedby="timezone-hint timezone-error" aria-invalid="@ViewData.ModelState.AriaInvalid("TimeZoneId")"></select>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="WeekStart" class="form-label"></label>
+                    <span asp-validation-for="WeekStart" class="d-block text-danger" id="week-start-error"></span>
+                    <select asp-for="WeekStart" class="form-select" asp-items="@(days.Select(day => new SelectListItem(day.ToString(), day.ToString())))"
+                            aria-describedby="week-start-error" aria-invalid="@ViewData.ModelState.AriaInvalid("WeekStart")"></select>
+                </div>
+
+                <fieldset class="mb-3">
+                    <legend class="form-label fs-6">Clock</legend>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="Use24HourClock" value="true" id="Use24HourClock" />
+                        <label class="form-check-label" for="Use24HourClock">24-hour (18:30)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="Use24HourClock" value="false" id="Use24HourClock-12" />
+                        <label class="form-check-label" for="Use24HourClock-12">12-hour (6:30pm)</label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-3">
+                    <legend class="form-label fs-6">Distances in</legend>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="DistanceUnit" value="@DistanceUnit.Kilometres" id="DistanceUnit" />
+                        <label class="form-check-label" for="DistanceUnit">Kilometres</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="DistanceUnit" value="@DistanceUnit.Miles" id="DistanceUnit-miles" />
+                        <label class="form-check-label" for="DistanceUnit-miles">Miles</label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-3">
+                    <legend class="form-label fs-6">Weights in</legend>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="WeightUnit" value="@WeightUnit.Kilograms" id="WeightUnit" />
+                        <label class="form-check-label" for="WeightUnit">Kilograms</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="WeightUnit" value="@WeightUnit.Pounds" id="WeightUnit-pounds" />
+                        <label class="form-check-label" for="WeightUnit-pounds">Pounds</label>
+                    </div>
+                </fieldset>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend class="h4">Appearance</legend>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Appearance" value="@Appearance.Dark" id="Appearance" />
+                    <label class="form-check-label" for="Appearance">Dark</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Appearance" value="@Appearance.Light" id="Appearance-light" />
+                    <label class="form-check-label" for="Appearance-light">Light</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Appearance" value="@Appearance.Device" id="Appearance-device" />
+                    <label class="form-check-label" for="Appearance-device">Match my device's light or dark setting</label>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend class="h4">Sleep</legend>
+                <p class="form-text mt-0">The planner protects the least sleep you need, and warns when a night falls below your aim.</p>
+
+                <div class="mb-3">
+                    <label asp-for="TargetSleepHours" class="form-label"></label>
+                    <div class="form-text mt-0 mb-1" id="target-sleep-hint">For example 8, or 7.5 for seven and a half hours.</div>
+                    <span asp-validation-for="TargetSleepHours" class="d-block text-danger" id="target-sleep-error"></span>
+                    <input asp-for="TargetSleepHours" type="number" step="0.25" class="form-control" inputmode="decimal"
+                           aria-describedby="target-sleep-hint target-sleep-error" aria-invalid="@ViewData.ModelState.AriaInvalid("TargetSleepHours")" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="MinimumSleepHours" class="form-label"></label>
+                    <span asp-validation-for="MinimumSleepHours" class="d-block text-danger" id="minimum-sleep-error"></span>
+                    <input asp-for="MinimumSleepHours" type="number" step="0.25" class="form-control" inputmode="decimal"
+                           aria-describedby="minimum-sleep-error" aria-invalid="@ViewData.ModelState.AriaInvalid("MinimumSleepHours")" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="UsualBedtime" class="form-label"></label>
+                    <span asp-validation-for="UsualBedtime" class="d-block text-danger" id="bedtime-error"></span>
+                    <input asp-for="UsualBedtime" type="time" class="form-control"
+                           aria-describedby="bedtime-error" aria-invalid="@ViewData.ModelState.AriaInvalid("UsualBedtime")" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="UsualWakeTime" class="form-label"></label>
+                    <span asp-validation-for="UsualWakeTime" class="d-block text-danger" id="wake-time-error"></span>
+                    <input asp-for="UsualWakeTime" type="time" class="form-control"
+                           aria-describedby="wake-time-error" aria-invalid="@ViewData.ModelState.AriaInvalid("UsualWakeTime")" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="WindDownMinutes" class="form-label"></label>
+                    <div class="form-text mt-0 mb-1" id="wind-down-hint">Time to wind down before going to bed.</div>
+                    <span asp-validation-for="WindDownMinutes" class="d-block text-danger" id="wind-down-error"></span>
+                    <input asp-for="WindDownMinutes" type="number" step="5" class="form-control" inputmode="numeric"
+                           aria-describedby="wind-down-hint wind-down-error" aria-invalid="@ViewData.ModelState.AriaInvalid("WindDownMinutes")" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="WakeUpRoutineMinutes" class="form-label"></label>
+                    <div class="form-text mt-0 mb-1" id="wake-up-hint">Time to get ready before your first activity of the day.</div>
+                    <span asp-validation-for="WakeUpRoutineMinutes" class="d-block text-danger" id="wake-up-error"></span>
+                    <input asp-for="WakeUpRoutineMinutes" type="number" step="5" class="form-control" inputmode="numeric"
+                           aria-describedby="wake-up-hint wake-up-error" aria-invalid="@ViewData.ModelState.AriaInvalid("WakeUpRoutineMinutes")" />
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend class="h4">Exercise</legend>
+                <p class="form-text mt-0">Used when the planner suggests times for your sessions.</p>
+
+                <fieldset class="mb-3" aria-describedby="preferred-days-error">
+                    <legend class="form-label fs-6">Days you prefer to exercise</legend>
+                    <span asp-validation-for="PreferredExerciseDays" class="d-block text-danger" id="preferred-days-error"></span>
+                    @for (var i = 0; i < days.Count; i++)
+                    {
+                        var id = i == 0 ? "PreferredExerciseDays" : $"PreferredExerciseDays-{days[i]}";
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="PreferredExerciseDays" value="@days[i]" id="@id"
+                                   checked="@Model.PreferredExerciseDays.Contains(days[i])" />
+                            <label class="form-check-label" for="@id">@days[i]</label>
+                        </div>
+                    }
+                </fieldset>
+
+                <div class="mb-3">
+                    <label asp-for="PreferredTimeOfDay" class="form-label"></label>
+                    <select asp-for="PreferredTimeOfDay" class="form-select" asp-items="@(Enum.GetValues<PreferredTimeOfDay>().Select(time => new SelectListItem(time.ToString(), time.ToString())))"></select>
+                </div>
+
+                <fieldset class="mb-3" aria-describedby="recovery-days-error">
+                    <legend class="form-label fs-6">Recovery days (no demanding sessions)</legend>
+                    <span asp-validation-for="RecoveryDays" class="d-block text-danger" id="recovery-days-error"></span>
+                    @for (var i = 0; i < days.Count; i++)
+                    {
+                        var id = i == 0 ? "RecoveryDays" : $"RecoveryDays-{days[i]}";
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="RecoveryDays" value="@days[i]" id="@id"
+                                   checked="@Model.RecoveryDays.Contains(days[i])" />
+                            <label class="form-check-label" for="@id">@days[i]</label>
+                        </div>
+                    }
+                </fieldset>
+
+                <div class="mb-3">
+                    <label asp-for="MinimumHoursBetweenDemandingSessions" class="form-label"></label>
+                    <div class="form-text mt-0 mb-1" id="rest-hint">Demanding sessions are ones you mark as hard work, such as a long run.</div>
+                    <span asp-validation-for="MinimumHoursBetweenDemandingSessions" class="d-block text-danger" id="rest-error"></span>
+                    <input asp-for="MinimumHoursBetweenDemandingSessions" type="number" step="1" class="form-control" inputmode="numeric"
+                           aria-describedby="rest-hint rest-error" aria-invalid="@ViewData.ModelState.AriaInvalid("MinimumHoursBetweenDemandingSessions")" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="MaximumDemandingSessionsPerDay" class="form-label"></label>
+                    <span asp-validation-for="MaximumDemandingSessionsPerDay" class="d-block text-danger" id="most-per-day-error"></span>
+                    <input asp-for="MaximumDemandingSessionsPerDay" type="number" step="1" class="form-control" inputmode="numeric"
+                           aria-describedby="most-per-day-error" aria-invalid="@ViewData.ModelState.AriaInvalid("MaximumDemandingSessionsPerDay")" />
+                </div>
+            </fieldset>
+
+            <button type="submit" class="btn btn-primary">Save preferences</button>
+        </form>
+    </div>
+</div>
