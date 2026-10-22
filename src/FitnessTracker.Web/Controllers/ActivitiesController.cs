@@ -515,9 +515,11 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             ModelState.AddModelError(nameof(model.LocationId), "Choose a location from the list.");
         }
 
+        // The goal is a hidden link, not a choice: one that isn't the user's, or was deleted in another tab, is dropped
+        // (as the database drops it), rather than stopping a save there's nothing on the page to correct.
         if (model.GoalId is { } goalId && !await db.WeeklyGoals.AnyAsync(goal => goal.Id == goalId))
         {
-            ModelState.AddModelError(string.Empty, "That weekly goal can't be found: it may have been deleted in another tab.");
+            model.GoalId = null;
         }
     }
 }

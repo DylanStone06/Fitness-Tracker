@@ -20,9 +20,10 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
         Assert.Equal(goal, (await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
     }
 
-    // Architecture rule 5: a form refers to the user's own records only; another user's goal is "not found".
+    // Architecture rule 5: a form refers to the user's own records only; another user's goal is "not found", so the
+    // activity is saved without it (the goal is a hidden link the user can't choose, so there's nothing to correct).
     [Fact]
-    public async Task AnotherUsersGoal_IsRefused()
+    public async Task AnotherUsersGoal_IsNotLinked()
     {
         var (_, samsGoal) = await WithAGoalAsync("sam");
         var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
@@ -30,9 +31,26 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
 
         var response = await alex.AddActivityAsync(title, new() { ["GoalId"] = samsGoal.ToString() });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("That weekly goal can&#x27;t be found", await response.Content.ReadAsStringAsync());
-        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
+    }
+
+    // A goal deleted in another tab while an activity's form is open doesn't stop the save: the link is dropped, as the
+    // database dropped it (code review, Phase 6).
+    [Fact]
+    public async Task AGoalDeletedMeanwhile_DoesntStopTheSave()
+    {
+        var (browser, goal) = await WithAGoalAsync();
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, new() { ["GoalId"] = goal.ToString() });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+        var openForm = await browser.LoadFormAsync($"/Activities/Edit/{id}");
+        await browser.SubmitFormAsync($"/Goals/Delete/{goal}", $"/Goals/Delete/{goal}", []);
+
+        var response = await browser.SubmitAsync(openForm, $"/Activities/Edit/{id}", TestBrowser.ActivityForm(title, new() { ["StartTime"] = "08:00", ["GoalId"] = goal.ToString() }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
     }
 
     [Fact]
