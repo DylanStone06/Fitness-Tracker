@@ -26,8 +26,6 @@ public sealed record OtherTimes(Occurrence Occurrence, DateInterval Week, Sessio
 /// </summary>
 public class WeekPlanning(AppDbContext db, PlanningData planning)
 {
-    private static readonly ActivityCategory[] Exercise = [ActivityCategory.Gym, ActivityCategory.Run, ActivityCategory.OtherExercise];
-
     /// <summary>The week (by the week start in Preferences) that <paramref name="date"/> is in, or this week.</summary>
     public async Task<PlannedWeek> PlanAsync(LocalDate? date, IReadOnlyCollection<RejectedDay> rejected)
     {
@@ -102,7 +100,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
     // ACC-7: an exercise goal with no preferred days or time of its own takes the ones in Preferences.
     private static PlanGoal ToPlanGoal(WeeklyGoal goal, UserPreferences preferences)
     {
-        var exercise = Exercise.Contains(goal.Category);
+        var exercise = goal.Category.IsExercise();
         var days = goal.PreferredDays == DaysOfWeek.None && exercise ? preferences.PreferredExerciseDays : goal.PreferredDays;
         var time = goal.PreferredTimeOfDay == PreferredTimeOfDay.Any && exercise ? preferences.PreferredTimeOfDay : goal.PreferredTimeOfDay;
         return new PlanGoal(

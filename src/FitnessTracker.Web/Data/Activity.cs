@@ -19,6 +19,14 @@ public enum ActivityCategory
     Other,
 }
 
+/// <summary>What the categories mean beyond their names.</summary>
+public static class ActivityCategories
+{
+    /// <summary>ACC-7: the categories Preferences' exercise days and time of day apply to.</summary>
+    public static bool IsExercise(this ActivityCategory category) =>
+        category is ActivityCategory.Gym or ActivityCategory.Run or ActivityCategory.OtherExercise;
+}
+
 /// <summary>CAL-2: the planner fits higher-priority activities in first (§7.4).</summary>
 public enum ActivityPriority
 {

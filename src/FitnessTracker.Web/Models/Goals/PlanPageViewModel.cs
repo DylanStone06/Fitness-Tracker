@@ -43,6 +43,8 @@ public sealed class PlanPageViewModel
 
     private static readonly LocalDatePattern FullDate = LocalDatePattern.CreateWithInvariantCulture("d MMM uuuu");
 
+    private static readonly LocalDatePattern DayAndMonth = LocalDatePattern.CreateWithInvariantCulture("d MMM");
+
     private static readonly LocalDatePattern SkipDate = LocalDatePattern.CreateWithInvariantCulture("uuuuMMdd");
 
     public required string WeekFrom { get; init; }
@@ -138,7 +140,7 @@ public sealed class PlanPageViewModel
         return new PlanPageViewModel
         {
             WeekFrom = sameMonth ? week.Start.Day.ToString(CultureInfo.InvariantCulture)
-                : sameYear ? LocalDatePattern.CreateWithInvariantCulture("d MMM").Format(week.Start)
+                : sameYear ? DayAndMonth.Format(week.Start)
                 : FullDate.Format(week.Start),
             WeekTo = FullDate.Format(week.End),
             Date = date,
