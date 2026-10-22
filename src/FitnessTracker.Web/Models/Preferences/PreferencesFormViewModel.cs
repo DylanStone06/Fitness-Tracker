@@ -161,6 +161,13 @@ public class PreferencesFormViewModel
             }
         }
 
+        // The same time would mean a whole day asleep, leaving the planner no free time at all.
+        if (ClockTime.Parse(UsualBedtime ?? "") is { Success: true } bedtime && ClockTime.Parse(UsualWakeTime ?? "") is { Success: true } wake
+            && bedtime.Value == wake.Value)
+        {
+            yield return new ValidationResult("Your usual bedtime and wake time can't be the same.", [nameof(UsualWakeTime)]);
+        }
+
         if (MinimumSleepHours > TargetSleepHours)
         {
             yield return new ValidationResult(
