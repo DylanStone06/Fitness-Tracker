@@ -29,6 +29,9 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.Property<int>("ChangingMinutes")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("GoalId")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsDemanding")
                         .HasColumnType("INTEGER");
 
@@ -86,6 +89,8 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GoalId");
 
                     b.HasIndex("LocationId");
 
@@ -568,6 +573,11 @@ namespace FitnessTracker.Web.Data.Migrations
 
             modelBuilder.Entity("FitnessTracker.Web.Data.Activity", b =>
                 {
+                    b.HasOne("FitnessTracker.Web.Data.WeeklyGoal", null)
+                        .WithMany()
+                        .HasForeignKey("GoalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FitnessTracker.Web.Data.Location", null)
                         .WithMany()
                         .HasForeignKey("LocationId")

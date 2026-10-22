@@ -96,6 +96,9 @@ public class Activity : IOwnedByUser, IVersioned
     /// </summary>
     public string? OccurrenceChanges { get; set; }
 
+    /// <summary>GOL-1: the weekly goal it was added for, whose sessions it counts towards when the week is planned.</summary>
+    public Guid? GoalId { get; set; }
+
     /// <summary>
     /// The domain's view of this activity, for the check on save (SCH-1) and the home page. A one-off is a series that
     /// happens once, so both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward
@@ -108,7 +111,11 @@ public class Activity : IOwnedByUser, IVersioned
             Title,
             OccurrenceChangesText.Apply(UsualSeries(), OccurrenceChanges),
             new Buffers(Duration.FromMinutes(PreparationMinutes), Duration.FromMinutes(ChangingMinutes)),
-            LocationId);
+            LocationId)
+        {
+            GoalId = GoalId,
+            IsDemanding = IsDemanding,
+        };
 
     /// <summary>
     /// CAL-4, T8: after the whole activity is edited, keeps the one-off changes of <paramref name="before"/> on dates

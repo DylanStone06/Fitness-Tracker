@@ -108,6 +108,32 @@ public class PlannerTests
         Assert.True(Period.Between(days[1], days[2], PeriodUnits.Days).Days >= 2);
     }
 
+    // SCH-4: a day said no to for a goal gets none of its sessions; another day does. (Saying no to just the time gave
+    // the next quarter hour, found in the browser: no real choice.) Another time that day is "Change".
+    [Fact]
+    public void ARejectedDay_GetsNoSessionOfThatGoal()
+    {
+        var goal = Goal("Gym", sessions: 3);
+        var first = Planner.Plan(Request([goal]));
+        var rejected = first.Suggestions[0].Time.Start.InZone(London).Date;
+
+        var second = Planner.Plan(Request([goal]) with { Rejected = [new RejectedDay(goal.Id, rejected)] });
+
+        Assert.Equal(3, second.Suggestions.Count);
+        Assert.DoesNotContain(second.Suggestions, suggestion => suggestion.Time.Start.InZone(London).Date == rejected);
+    }
+
+    // ... and when nothing else fits, that day's reason says so.
+    [Fact]
+    public void ARejectedDay_IsGivenAsTheReason_WhenNothingElseFits()
+    {
+        var goal = Goal("Gym", sessions: 7);
+
+        var plan = Planner.Plan(Request([goal]) with { Rejected = [new RejectedDay(goal.Id, new LocalDate(2026, 11, 4))] });
+
+        Assert.Equal("You said no to this day", Assert.Single(Assert.Single(plan.Shortfalls).Days).Reason);
+    }
+
     // T22, SCH-7: the same inputs always give the same suggestions, whatever order they arrive in.
     [Fact]
     public void TheSameWeekPlannedTwice_GivesTheSameSuggestions()

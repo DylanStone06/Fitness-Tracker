@@ -118,6 +118,12 @@ public class ActivityFormViewModel : IConfirmsClashes
     /// <summary>Opened from the calendar: saving (or cancelling) goes back to it, on the activity's week.</summary>
     public bool ReturnToCalendar { get; set; }
 
+    /// <summary>Opened from "Plan my week" (SCH-4): saving (or cancelling) goes back to the plan, on the activity's week.</summary>
+    public bool ReturnToPlan { get; set; }
+
+    /// <summary>GOL-1: the weekly goal it is for, carried by the page, or null.</summary>
+    public Guid? GoalId { get; set; }
+
     /// <summary>The start date as saved, once the form is valid: the week the calendar goes back to.</summary>
     public string? SavedStartDate => FormInput.ParseDate(StartDate) is { } date ? FormInput.Date.Format(date) : null;
 
@@ -136,6 +142,33 @@ public class ActivityFormViewModel : IConfirmsClashes
         StartTime = FormInput.ParseTime(time) is { } clock ? FormInput.Time.Format(clock) : null,
         ReturnToCalendar = returnToCalendar,
     };
+
+    /// <summary>
+    /// SCH-4: a session of a weekly goal at a suggested date and time, filled in from the goal, to change before saving:
+    /// movable (the planner chose the time), and every week on that day when <paramref name="everyWeek"/> (Q12).
+    /// </summary>
+    public static ActivityFormViewModel ForGoal(WeeklyGoal goal, string? date, string? time, bool everyWeek, bool returnToPlan)
+    {
+        var model = ForNew(date, time, returnToCalendar: false);
+        model.Title = goal.Title;
+        model.Category = goal.Category;
+        model.LocationId = goal.LocationId;
+        (model.DurationHours, model.DurationMinutes) = (goal.SessionMinutes / 60, goal.SessionMinutes % 60);
+        model.IsFixed = false;
+        model.Priority = goal.Priority;
+        model.IsDemanding = goal.IsDemanding;
+        model.PreparationMinutes = goal.PreparationMinutes;
+        model.ChangingMinutes = goal.ChangingMinutes;
+        model.GoalId = goal.Id;
+        model.ReturnToPlan = returnToPlan;
+        if (everyWeek && FormInput.ParseDate(model.StartDate) is { } day)
+        {
+            model.Repeats = RepeatChoice.Weekly;
+            model.RepeatDays = Week.Days.Select(weekday => weekday == day.DayOfWeek).ToList();
+        }
+
+        return model;
+    }
 
     /// <summary>CAL-8: a one-off dragged on the calendar: its new start and length in the boxes, to check and save.</summary>
     public void FillDragged(string? start, int? minutes)
@@ -160,6 +193,7 @@ public class ActivityFormViewModel : IConfirmsClashes
             DurationHours = activity.LengthMinutes / 60,
             DurationMinutes = activity.LengthMinutes % 60,
             IsFixed = activity.IsFixed,
+            GoalId = activity.GoalId,
             Priority = activity.Priority,
             IsDemanding = activity.IsDemanding,
             PreparationMinutes = activity.PreparationMinutes,
@@ -251,6 +285,7 @@ public class ActivityFormViewModel : IConfirmsClashes
         activity.PreparationMinutes = PreparationMinutes ?? defaultPreparation;
         activity.ChangingMinutes = ChangingMinutes ?? defaultChanging;
         activity.Notes = Notes;
+        activity.GoalId = GoalId;
         activity.RepeatRule = Repeats == RepeatChoice.Never ? null : RecurrenceRuleText.Format(Rule(weekStart)!);
     }
 

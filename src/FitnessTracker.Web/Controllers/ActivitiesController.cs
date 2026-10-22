@@ -42,10 +42,19 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             .ToList());
     }
 
-    // From the calendar: the date and time selected there, and back to the calendar once saved.
+    // From the calendar: the date and time selected there, and back to the calendar once saved. From "Plan my week"
+    // (SCH-4, "Change"): a session of the user's own weekly goal at the suggested time, back to the plan once saved; a
+    // goal that isn't theirs is simply not found, and the form starts empty.
     [HttpGet]
-    public async Task<IActionResult> Create(string? date, string? time, bool returnToCalendar = false) =>
-        View(await FillListsAsync(ActivityFormViewModel.ForNew(date, time, returnToCalendar)));
+    public async Task<IActionResult> Create(
+        string? date, string? time, bool returnToCalendar = false, Guid? goal = null, bool everyWeek = false, bool returnToPlan = false)
+    {
+        var forGoal = goal is { } goalId ? await db.WeeklyGoals.AsNoTracking().SingleOrDefaultAsync(saved => saved.Id == goalId) : null;
+        var model = forGoal is null
+            ? ActivityFormViewModel.ForNew(date, time, returnToCalendar)
+            : ActivityFormViewModel.ForGoal(forGoal, date, time, everyWeek, returnToPlan);
+        return View(await FillListsAsync(model));
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create(ActivityFormViewModel model)
@@ -201,11 +210,11 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         }
     }
 
-    // Back where the form was opened from: the calendar, on the activity's week, or the list.
+    // Back where the form was opened from: the calendar or the plan, on the activity's week, or the list.
     private RedirectToActionResult AfterSaving(ActivityFormViewModel model) =>
-        model.ReturnToCalendar
-            ? RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = model.SavedStartDate })
-            : RedirectToAction(nameof(Index));
+        model.ReturnToCalendar ? RedirectToAction(nameof(CalendarController.Index), "Calendar", new { date = model.SavedStartDate })
+        : model.ReturnToPlan ? RedirectToAction(nameof(PlanController.Index), "Plan", new { date = model.SavedStartDate })
+        : RedirectToAction(nameof(Index));
 
     // CAL-4: one occurrence of a repeating activity, known by the date its rule puts it on. A one-off has only one, so
     // it goes to the ordinary form. From the calendar a drag fills in the new time (CAL-8: the form does the same).
@@ -481,6 +490,11 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         if (model.LocationId is { } locationId && !await db.Locations.AnyAsync(location => location.Id == locationId))
         {
             ModelState.AddModelError(nameof(model.LocationId), "Choose a location from the list.");
+        }
+
+        if (model.GoalId is { } goalId && !await db.WeeklyGoals.AnyAsync(goal => goal.Id == goalId))
+        {
+            ModelState.AddModelError(string.Empty, "That weekly goal can't be found: it may have been deleted in another tab.");
         }
     }
 }

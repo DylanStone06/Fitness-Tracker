@@ -100,6 +100,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             activity.Property(a => a.TimeZoneId).HasMaxLength(64);
             // Deleting a location keeps its activities, with no location.
             activity.HasOne<Location>().WithMany().HasForeignKey(a => a.LocationId).OnDelete(DeleteBehavior.SetNull);
+            // Deleting a weekly goal keeps the activities added for it, as ordinary activities.
+            activity.HasOne<WeeklyGoal>().WithMany().HasForeignKey(a => a.GoalId).OnDelete(DeleteBehavior.SetNull);
             activity.HasOne<AppUser>().WithMany().HasForeignKey(a => a.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 

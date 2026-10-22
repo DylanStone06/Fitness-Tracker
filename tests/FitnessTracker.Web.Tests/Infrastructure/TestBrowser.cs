@@ -153,6 +153,34 @@ public sealed partial class TestBrowser
         return form;
     }
 
+    /// <summary>Saves every preference as a new user has them, with the given changes.</summary>
+    public Task<HttpResponseMessage> SavePreferencesAsync(Dictionary<string, string> changes)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["TimeZoneId"] = "Europe/London",
+            ["WeekStart"] = "Monday",
+            ["Use24HourClock"] = "true",
+            ["DistanceUnit"] = "Kilometres",
+            ["WeightUnit"] = "Kilograms",
+            ["TargetSleepHours"] = "8",
+            ["MinimumSleepHours"] = "7",
+            ["UsualBedtime"] = "23:00",
+            ["UsualWakeTime"] = "07:00",
+            ["WindDownMinutes"] = "30",
+            ["WakeUpRoutineMinutes"] = "30",
+            ["PreferredTimeOfDay"] = "Any",
+            ["MinimumHoursBetweenDemandingSessions"] = "24",
+            ["MaximumDemandingSessionsPerDay"] = "1",
+        };
+        foreach (var (name, value) in changes)
+        {
+            form[name] = value;
+        }
+
+        return SubmitFormAsync("/Preferences", "/Preferences", form);
+    }
+
     /// <summary>
     /// GOL-1: adds a weekly goal: three one-hour gym sessions a week, nowhere in particular, unless
     /// <paramref name="changes"/> says otherwise.

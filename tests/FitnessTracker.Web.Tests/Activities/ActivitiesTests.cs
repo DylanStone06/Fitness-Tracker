@@ -636,34 +636,8 @@ public sealed class ActivitiesTests(TestAppFactory factory) : IClassFixture<Test
     private static Task SaveWeekStartAsync(TestBrowser browser, string day) =>
         SavePreferencesAsync(browser, new() { ["WeekStart"] = day });
 
-    // Every preference as a new user has them, with the given changes.
-    private static async Task SavePreferencesAsync(TestBrowser browser, Dictionary<string, string> changes)
-    {
-        var form = new Dictionary<string, string>
-        {
-            ["TimeZoneId"] = "Europe/London",
-            ["WeekStart"] = "Monday",
-            ["Use24HourClock"] = "true",
-            ["DistanceUnit"] = "Kilometres",
-            ["WeightUnit"] = "Kilograms",
-            ["TargetSleepHours"] = "8",
-            ["MinimumSleepHours"] = "7",
-            ["UsualBedtime"] = "23:00",
-            ["UsualWakeTime"] = "07:00",
-            ["WindDownMinutes"] = "30",
-            ["WakeUpRoutineMinutes"] = "30",
-            ["PreferredTimeOfDay"] = "Any",
-            ["MinimumHoursBetweenDemandingSessions"] = "24",
-            ["MaximumDemandingSessionsPerDay"] = "1",
-        };
-        foreach (var (name, value) in changes)
-        {
-            form[name] = value;
-        }
-
-        var response = await browser.SubmitFormAsync("/Preferences", "/Preferences", form);
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-    }
+    private static async Task SavePreferencesAsync(TestBrowser browser, Dictionary<string, string> changes) =>
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(changes)).StatusCode);
 
     private static async Task<string> AssertShowsAnErrorAsync(HttpResponseMessage response)
     {

@@ -52,7 +52,14 @@ public sealed record PlanRequest(
     IReadOnlyList<PlanGoal> Goals,
     SleepWindow Sleep,
     RestRules Rest,
-    PlanningContext Context);
+    PlanningContext Context)
+{
+    /// <summary>SCH-4: days the user said no to for a goal, which get none of its sessions.</summary>
+    public IReadOnlyCollection<RejectedDay> Rejected { get; init; } = [];
+}
+
+/// <summary>SCH-4: a day the user said no to for one goal's session (another time that day: change the suggestion).</summary>
+public readonly record struct RejectedDay(Guid Goal, LocalDate Date);
 
 /// <summary>SCH-3: a time for one session of a goal, with what it takes up and why it was chosen (§7.3).</summary>
 public sealed record Suggestion(PlanGoal Goal, Interval Time, Footprint Footprint, IReadOnlyList<string> Reasons);
@@ -180,6 +187,7 @@ public static class Planner
         None,
         Past,
         GoalAlreadyThatDay,
+        SaidNo,
         RecoveryDay,
         MostDemanding,
         Busy,
@@ -378,6 +386,11 @@ public static class Planner
                 return new Verdict(Broken.GoalAlreadyThatDay, footprint);
             }
 
+            if (_request.Rejected.Contains(new RejectedDay(goal.Id, date)))
+            {
+                return new Verdict(Broken.SaidNo, footprint);
+            }
+
             if (goal.IsDemanding && rest.RecoveryDays.Contains(date.DayOfWeek))
             {
                 return new Verdict(Broken.RecoveryDay, footprint);
@@ -473,6 +486,8 @@ public static class Planner
             var first = verdicts[0];
             switch (first.Broken)
             {
+                case Broken.SaidNo:
+                    return "You said no to this day";
                 case Broken.RecoveryDay:
                     return $"A recovery day, and {goal.Title} is demanding";
                 case Broken.MostDemanding:
