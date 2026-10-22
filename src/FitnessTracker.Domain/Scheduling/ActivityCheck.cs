@@ -248,10 +248,12 @@ public static class ActivityCheck
         var reach = Math.Max(1, RestReachDays(rest.BetweenDemanding));
         var from = occurrences.Min(occurrence => occurrence.Time.Start).InZone(zone).Date.PlusDays(-reach);
         var through = occurrences.Max(occurrence => occurrence.Time.Start).InZone(zone).Date.PlusDays(reach);
+        // Which are its own is kept: another activity's occurrence at the same date, time and length is equal to one of
+        // its own, but isn't it.
         var demanding = others
             .Where(other => other.IsDemanding && other.Id != candidate.Id)
-            .SelectMany(other => other.Series.OccurrencesBetween(from, through).Select(occurrence => (other.Title, Occurrence: occurrence)))
-            .Concat(candidate.Series.OccurrencesBetween(from, through).Select(occurrence => (candidate.Title, Occurrence: occurrence)))
+            .SelectMany(other => other.Series.OccurrencesBetween(from, through).Select(occurrence => (other.Title, Occurrence: occurrence, Own: false)))
+            .Concat(candidate.Series.OccurrencesBetween(from, through).Select(occurrence => (candidate.Title, Occurrence: occurrence, Own: true)))
             .ToList();
 
         var tooClose = new List<(Occurrence Mine, string Title, Instant Other)>();
@@ -261,7 +263,7 @@ public static class ActivityCheck
         {
             var start = mine.Time.Start;
             var date = start.InZone(zone).Date;
-            var near = demanding.Where(other => other.Occurrence != mine).ToList();
+            var near = demanding.Where(other => !(other.Own && other.Occurrence == mine)).ToList();
             if (near.Where(other => Abs(other.Occurrence.Time.Start - start) < rest.BetweenDemanding)
                     .OrderBy(other => Abs(other.Occurrence.Time.Start - start))
                     .ThenBy(other => other.Occurrence.Time.Start)

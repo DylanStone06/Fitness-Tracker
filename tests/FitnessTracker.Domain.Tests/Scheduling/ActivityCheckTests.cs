@@ -836,6 +836,25 @@ public class ActivityCheckTests
         Assert.StartsWith("It's 13 h from Hard ride", problem.Message);
     }
 
+    // H5, H6, §7.2: another activity's demanding session at the very same time and length isn't the candidate's own
+    // occurrence (scheduling review, Phase 6: it was taken for it, leaving only a clash that could be saved anyway).
+    [Fact]
+    public void ADemandingSessionAtTheSameTimeAsAnother_BreaksTheRestRules()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+
+        var result = ActivityCheck.Check(intervals, [ride], WithRest(hours: 24));
+
+        Assert.Equal(
+            [
+                "It's 0 min from Hard ride, a demanding session on Mon 2 Nov 2026 at 18:00; your preferences keep demanding sessions at least 24 hours apart.",
+                "On Mon 2 Nov 2026 there's already a demanding session, Hard ride; your preferences allow 1 a day.",
+            ],
+            result.Problems.Select(problem => problem.Message));
+        Assert.Empty(result.Clashes);
+    }
+
     // The other activities to load reach as far as the rest rule: 96 hours needs those from 5 days before.
     [Fact]
     public void OthersThatCanClash_ReachAsFarAsTheRestRule()
