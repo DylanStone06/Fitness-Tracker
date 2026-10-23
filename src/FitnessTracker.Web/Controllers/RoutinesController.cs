@@ -46,14 +46,31 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         // Its weeks start as the user's do now, and keep doing so (Routine.WeekStart).
         var weekStart = (await planning.LoadAsync()).Preferences.WeekStart;
         await using var transaction = await db.Database.BeginTransactionAsync();
-        await StopOtherUsualRoutinesAsync(model, exceptId: null);
+        var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: null);
         var routine = new Routine();
         model.ApplyTo(routine, weekStart);
         db.Routines.Add(routine);
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (model.IsUsual)
+        {
+            ModelState.AddModelError(nameof(model.IsUsual), UsualAtTheSameTime);
+            return View(model);
+        }
+
         await transaction.CommitAsync();
+        await SayWhatStoppedAsync(stopped);
         return RedirectToAction(nameof(Index));
     }
+
+    /// <summary>TempData: activities that no longer happen because their routine stopped being the usual one (P1).</summary>
+    public const string UsualChanged = "UsualChanged";
+
+    // Two tabs making different routines usual at once: the database keeps one (AppDbContext), and this one is asked again.
+    private const string UsualAtTheSameTime =
+        "Another routine was made your usual one at the same moment, in another tab or window. Check your routines, then save again.";
 
     [HttpGet]
     public async Task<IActionResult> Edit(Guid id)
@@ -79,7 +96,12 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
-        await StopOtherUsualRoutinesAsync(model, exceptId: id);
+        var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: id);
+        if (routine.IsUsual && !model.IsUsual)
+        {
+            stopped.Add(routine);
+        }
+
         // Saved only if nobody has saved this routine since the form was opened (requirements §9). If not, the
         // transaction isn't committed, so the routine that was usual stays usual.
         db.Entry(routine).Property(saved => saved.Version).OriginalValue = model.Version;
@@ -87,6 +109,11 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         try
         {
             await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException error) when (error is not DbUpdateConcurrencyException && model.IsUsual)
+        {
+            ModelState.AddModelError(nameof(model.IsUsual), UsualAtTheSameTime);
+            return View(model);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -107,6 +134,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         }
 
         await transaction.CommitAsync();
+        await SayWhatStoppedAsync(stopped);
         return RedirectToAction(nameof(Index));
     }
 
@@ -214,12 +242,13 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
     private Task<Routine?> FindAsync(Guid id) => db.Routines.SingleOrDefaultAsync(routine => routine.Id == id);
 
     // One usual routine at a time: making this one usual makes the other not. Saved first, inside the caller's
-    // transaction, so the database's one-usual-per-person rule (AppDbContext) is never broken in between.
-    private async Task StopOtherUsualRoutinesAsync(RoutineFormViewModel model, Guid? exceptId)
+    // transaction, so the database's one-usual-per-person rule (AppDbContext) is never broken in between. Returns the
+    // routines that stopped being usual.
+    private async Task<List<Routine>> StopOtherUsualRoutinesAsync(RoutineFormViewModel model, Guid? exceptId)
     {
         if (!model.IsUsual)
         {
-            return;
+            return [];
         }
 
         var others = await db.Routines.Where(routine => routine.IsUsual && routine.Id != exceptId).ToListAsync();
@@ -229,6 +258,28 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         }
 
         await db.SaveChangesAsync();
+        return others;
+    }
+
+    // P1: a routine that stopped being usual is no longer in use on any date, so its activities stop happening. Said on
+    // the list, with how many, rather than letting them disappear from the calendar unexplained.
+    private async Task SayWhatStoppedAsync(List<Routine> stopped)
+    {
+        var notes = new List<string>();
+        foreach (var routine in stopped)
+        {
+            var count = await db.Activities.CountAsync(activity => activity.RoutineId == routine.Id);
+            if (count > 0)
+            {
+                notes.Add($"{routine.Name} is no longer your usual routine, so its {(count == 1 ? "1 activity no longer happens" : $"{count} activities no longer happen")} " +
+                    "until it's your usual routine again.");
+            }
+        }
+
+        if (notes.Count > 0)
+        {
+            TempData[UsualChanged] = string.Join(" ", notes);
+        }
     }
 
     // Problems across the form (listed with each field's own, all at once), and a name that is already used: two

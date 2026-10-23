@@ -9,6 +9,12 @@
     weeks, a routine can repeat over 2 to 4 weeks. Each repeating activity happens every week unless you choose, on
     the activity, a routine or one week of it.</p>
 
+@* P1: activities that stopped happening because their routine is no longer the usual one. *@
+@if (TempData[FitnessTracker.Web.Controllers.RoutinesController.UsualChanged] is string usualChanged)
+{
+    <div class="alert alert-info" role="status">@usualChanged</div>
+}
+
 <p><a class="btn btn-primary" asp-action="Create">Add a routine</a></p>
 
 @if (Model.Count == 0)

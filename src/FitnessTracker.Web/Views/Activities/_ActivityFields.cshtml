@@ -175,7 +175,8 @@
             var weekChoices = new List<SelectListItem> { new("Every week, whatever the routine", "") };
             foreach (var routine in Model.Routines)
             {
-                var group = new SelectListGroup { Name = routine.Name };
+                @* P1: only the usual routine is in use until routines can be chosen for dates (later in Phase 6b). *@
+                var group = new SelectListGroup { Name = routine.IsUsual ? routine.Name : $"{routine.Name} (not in use on any dates yet)" };
                 weekChoices.Add(new SelectListItem($"Whenever {routine.Name} is in use", ActivityFormViewModel.WeeksValue(routine.Id, null)) { Group = group });
                 for (var week = 0; routine.CycleWeeks > 1 && week < routine.CycleWeeks; week++)
                 {

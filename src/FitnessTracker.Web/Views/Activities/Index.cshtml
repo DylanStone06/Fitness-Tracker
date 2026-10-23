@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "Activities";
     var names = (IReadOnlyDictionary<Guid, string>)ViewData["Names"]!;
-    var routineNames = (IReadOnlyDictionary<Guid, string>)ViewData["RoutineNames"]!;
+    var routines = (IReadOnlyDictionary<Guid, FitnessTracker.Web.Data.Routine>)ViewData["Routines"]!;
     var clock = ViewData["Clock"] as FitnessTracker.Domain.Time.ClockFormat? ?? FitnessTracker.Domain.Time.ClockFormat.TwentyFourHour;
 }
 
@@ -46,7 +46,7 @@ else
                 <span class="flex-grow-1 text-break">
                     <span class="fw-semibold">@activity.Title</span>
                     <span class="d-block small">@ActivityDisplay.When(activity, clock)</span>
-                    @if (ActivityDisplay.Weeks(activity, routineNames) is { } weeks)
+                    @if (ActivityDisplay.Weeks(activity, routines) is { } weeks)
                     {
                         <span class="d-block small" dir="auto">@weeks</span>
                     }

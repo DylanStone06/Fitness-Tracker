@@ -90,14 +90,21 @@ public static class ActivityDisplay
 
     /// <summary>
     /// CAL-9: the weeks a repeating activity happens in, when not every week: "Week B of Usual week only", or "Only
-    /// while Holiday is in use". Null for every week. <paramref name="routineNames"/> are the user's routines' names.
+    /// while Holiday is in use". Null for every week. <paramref name="routines"/> are the user's routines. P1: one in a
+    /// routine that isn't in use (only the usual one is, until routines can be chosen for dates) is said not to happen.
     /// </summary>
-    public static string? Weeks(Activity activity, IReadOnlyDictionary<Guid, string> routineNames) =>
-        activity.RoutineId is { } routine && activity.RepeatRule is not null
-            ? activity.RoutineWeek is { } week
-                ? $"Week {week} of {routineNames.GetValueOrDefault(routine, "its routine")} only"
-                : $"Only while {routineNames.GetValueOrDefault(routine, "its routine")} is in use"
-            : null;
+    public static string? Weeks(Activity activity, IReadOnlyDictionary<Guid, Routine> routines)
+    {
+        if (activity.RoutineId is not { } id || activity.RepeatRule is null)
+        {
+            return null;
+        }
+
+        var routine = routines.GetValueOrDefault(id);
+        var name = routine?.Name ?? "its routine";
+        var weeks = activity.RoutineWeek is { } week ? $"Week {week} of {name} only" : $"Only while {name} is in use";
+        return routine is { IsUsual: true } ? weeks : $"{weeks}: it isn't on any dates yet, so this doesn't happen";
+    }
 
     /// <summary>For example "50 min", "8 h" or "1 h 30 min".</summary>
     public static string Length(int minutes) => (minutes / 60, minutes % 60) switch

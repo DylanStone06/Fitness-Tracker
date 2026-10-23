@@ -201,6 +201,67 @@ public sealed class ActivitiesInRoutinesTests(TestAppFactory factory) : IClassFi
         Assert.Contains($"<option selected=\"selected\" value=\"{routine}/B\">Week B only</option>", html);
     }
 
+    // P1: only the usual routine is in use until routines can be chosen for dates, so an activity in another one never
+    // happens. The form and the list say so, rather than it just disappearing.
+    [Fact]
+    public async Task ARoutineNotInUse_IsSaidToBe_OnTheFormAndTheList()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var holiday = TestBrowser.NewName("Holiday");
+        await browser.AddRoutineAsync(holiday);
+        var routine = (await StoredData.RoutineNamedAsync(factory, holiday))!.Id;
+        await browser.AddActivityAsync(TestBrowser.NewName("Swim"), MondaysFromToday(new() { ["Weeks"] = routine.ToString() }));
+
+        var form = WebUtility.HtmlDecode(await (await browser.GetAsync("/Activities/Create")).Content.ReadAsStringAsync());
+        var list = WebUtility.HtmlDecode(await (await browser.GetAsync("/Activities")).Content.ReadAsStringAsync());
+
+        Assert.Contains($"<optgroup label=\"{holiday} (not in use on any dates yet)\">", form);
+        Assert.Contains($"Only while {holiday} is in use: it isn't on any dates yet, so this doesn't happen", list);
+    }
+
+    // The heading doesn't ask a question the page won't let you answer.
+    [Fact]
+    public async Task TheDeletePage_OfARoutineWithActivities_SaysItCantBeDeletedYet()
+    {
+        var (browser, routine) = await SignedInWithABRoutineAsync();
+        await browser.AddActivityAsync(TestBrowser.NewName("Gym"), MondaysFromToday(new() { ["Weeks"] = $"{routine}/A" }));
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync($"/Routines/Delete/{routine}")).Content.ReadAsStringAsync());
+
+        Assert.Contains("This routine can't be deleted yet", html);
+        Assert.DoesNotContain("Delete this routine?", html);
+    }
+
+    // P1: making another routine usual means the old one's activities stop happening (it's no longer in use). Said
+    // once it's saved, naming how many.
+    [Fact]
+    public async Task MakingAnotherRoutineUsual_SaysTheOldOnesActivitiesStopHappening()
+    {
+        var (browser, routine, name) = await SignedInWithNamedABRoutineAsync();
+        await browser.AddActivityAsync(TestBrowser.NewName("Gym"), MondaysFromToday(new() { ["Weeks"] = $"{routine}/A" }));
+
+        var saved = await browser.AddRoutineAsync(TestBrowser.NewName("Busy week"), new() { ["IsUsual"] = "true" });
+        var list = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Contains($"{name} is no longer your usual routine, so its 1 activity no longer happens", list);
+    }
+
+    [Fact]
+    public async Task UntickingTheUsualRoutine_SaysItsActivitiesStopHappening()
+    {
+        var (browser, routine, name) = await SignedInWithNamedABRoutineAsync();
+        await browser.AddActivityAsync(TestBrowser.NewName("Gym"), MondaysFromToday(new() { ["Weeks"] = $"{routine}/A" }));
+        await browser.AddActivityAsync(TestBrowser.NewName("Run"), MondaysFromToday(new() { ["StartTime"] = "18:00", ["Weeks"] = $"{routine}/B" }));
+
+        var saved = await browser.SubmitFormAsync($"/Routines/Edit/{routine}", $"/Routines/Edit/{routine}",
+            TestBrowser.RoutineForm(name, new() { ["CycleWeeks"] = "2", ["IsUsual"] = "false" }));
+        var list = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Contains($"{name} is no longer your usual routine, so its 2 activities no longer happen", list);
+    }
+
     // Deleting a routine would otherwise leave its activities never happening, or quietly happening every week.
     [Fact]
     public async Task DeletingARoutineWithActivities_IsRefused_NamingThem()

@@ -1,12 +1,12 @@
 @model FitnessTracker.Web.Data.Routine
 @{
-    ViewData["Title"] = "Delete routine";
     var inIt = ViewData[FitnessTracker.Web.Controllers.RoutinesController.ActivitiesInIt] as IReadOnlyList<string> ?? [];
+    ViewData["Title"] = inIt.Count > 0 ? "Routine can't be deleted yet" : "Delete routine";
 }
 
 <div class="row">
     <div class="col-md-8 col-lg-6">
-        <h1>Delete this routine?</h1>
+        <h1>@(inIt.Count > 0 ? "This routine can't be deleted yet" : "Delete this routine?")</h1>
         <partial name="_ErrorSummary" />
         <p class="fs-5 text-break mb-1" dir="auto">@Model.Name</p>
         <p>@RoutineDisplay.Cycle(Model)</p>
