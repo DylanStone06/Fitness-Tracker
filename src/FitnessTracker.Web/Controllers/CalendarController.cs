@@ -2,6 +2,7 @@ using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Calendar;
+using FitnessTracker.Web.Models.Routines;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -81,6 +82,30 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
             item.Activity.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null,
             kind?.Repeats ?? false,
             user.Context.Clock)));
+    }
+
+    /// <summary>
+    /// CAL-9, "each week shows its template and cycle week": the routine and week of the days on screen, from
+    /// <paramref name="start"/> up to (not including) <paramref name="end"/>, as <see cref="Events"/> takes them, in
+    /// words ("Usual week, week B"). The text is null for a user with no routines. Only the signed-in user's (T19).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Weeks(string? start, string? end)
+    {
+        if (ClockTime(start) is not { } from || ClockTime(end) is not { } to)
+        {
+            return BadRequest(new { error = "Give start and end as dates, for example 2026-10-19." });
+        }
+
+        if (to <= from || Period.Between(from.Date, to.Date, PeriodUnits.Days).Days > MostDays)
+        {
+            return BadRequest(new { error = $"The end must be after the start, and at most {MostDays} days later." });
+        }
+
+        // The end isn't included: up to midnight is the day before.
+        var last = to.TimeOfDay == LocalTime.Midnight ? to.Date.PlusDays(-1) : to.Date;
+        var routines = await planning.RoutinesAsync();
+        return Json(new { text = RoutineDisplay.InUse(routines.Calendar.Across(new DateInterval(from.Date, last)), routines.All) });
     }
 
     private static LocalDateTime? ClockTime(string? text)

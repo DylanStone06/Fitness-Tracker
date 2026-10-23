@@ -159,9 +159,10 @@ public class ActivityFormViewModel : IConfirmsClashes
 
     /// <summary>
     /// SCH-4: a session of a weekly goal at a suggested date and time, filled in from the goal, to change before saving:
-    /// movable (the planner chose the time), and every week on that day when <paramref name="everyWeek"/> (Q12).
+    /// movable (the planner chose the time), and every week on that day when <paramref name="everyWeek"/> (Q12), in
+    /// <paramref name="weeks"/> of a routine (CAL-9: week B, when week B was planned).
     /// </summary>
-    public static ActivityFormViewModel ForGoal(WeeklyGoal goal, string? date, string? time, bool everyWeek, bool returnToPlan)
+    public static ActivityFormViewModel ForGoal(WeeklyGoal goal, string? date, string? time, bool everyWeek, bool returnToPlan, string? weeks = null)
     {
         var model = ForNew(date, time, returnToCalendar: false);
         model.Title = goal.Title;
@@ -179,6 +180,7 @@ public class ActivityFormViewModel : IConfirmsClashes
         {
             model.Repeats = RepeatChoice.Weekly;
             model.RepeatDays = Week.Days.Select(weekday => weekday == day.DayOfWeek).ToList();
+            model.Weeks = weeks;
         }
 
         return model;

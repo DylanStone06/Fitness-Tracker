@@ -9,13 +9,17 @@ using NodaTime;
 
 namespace FitnessTracker.Web.Services;
 
-/// <summary>SCH-3: a week planned for the signed-in user, with what the page needs to show it.</summary>
+/// <summary>
+/// SCH-3: a week planned for the signed-in user, with what the page needs to show it, its routines among them (CAL-9:
+/// the week's routine and week, and the weeks a session is added to).
+/// </summary>
 public sealed record PlannedWeek(
     DateInterval Week,
     WeekPlan Plan,
     IReadOnlyDictionary<Guid, WeeklyGoal> Goals,
     UserPlanning User,
-    IReadOnlyList<string> Unreadable);
+    IReadOnlyList<string> Unreadable,
+    UserRoutines Routines);
 
 /// <summary>SCH-6: other times for one occurrence in its week, with what the page needs to show them.</summary>
 public sealed record OtherTimes(Occurrence Occurrence, DateInterval Week, SessionAlternatives Options, UserPlanning User, IReadOnlyList<string> Unreadable);
@@ -49,7 +53,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         {
             Rejected = rejected,
         };
-        return new PlannedWeek(week, Planner.Plan(request), goals.ToDictionary(goal => goal.Id), user, unreadable);
+        return new PlannedWeek(week, Planner.Plan(request), goals.ToDictionary(goal => goal.Id), user, unreadable, await planning.RoutinesAsync());
     }
 
     /// <summary>

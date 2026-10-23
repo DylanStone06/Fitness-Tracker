@@ -8,6 +8,9 @@ public sealed record RoutineDates(Guid Routine, DateInterval Dates);
 /// <summary>The routine in use on a date, and which week of its cycle the date is in: 'A' to 'D'.</summary>
 public readonly record struct RoutineWeek(Guid Routine, char Week);
 
+/// <summary>Consecutive dates with the same routine and week in use, or none (<see cref="InUse"/> null).</summary>
+public sealed record RoutineRun(DateInterval Dates, RoutineWeek? InUse);
+
 /// <summary>
 /// CAL-9: which routine (a kind of week) is in use on each date, and which week of its cycle. A routine chosen for some
 /// dates is in use on them; every other date uses the usual routine, if there is one. Each cycle counts weeks by the
@@ -44,6 +47,30 @@ public sealed class RoutineCalendar
     {
         var routine = _dates.FirstOrDefault(chosen => chosen.Dates.Contains(date))?.Routine ?? _usual;
         return routine is { } id ? new RoutineWeek(id, _cycles[id].WeekOf(date)) : null;
+    }
+
+    /// <summary>
+    /// <paramref name="dates"/> in runs of the same routine and week, in date order: one run for an ordinary week, more
+    /// where a routine chosen for some days starts or ends, or a new week of the cycle begins. For a page to say which
+    /// routine each part of the days it shows is in.
+    /// </summary>
+    public IReadOnlyList<RoutineRun> Across(DateInterval dates)
+    {
+        var runs = new List<RoutineRun>();
+        foreach (var date in dates)
+        {
+            var inUse = On(date);
+            if (runs.Count > 0 && runs[^1].InUse == inUse)
+            {
+                runs[^1] = runs[^1] with { Dates = new DateInterval(runs[^1].Dates.Start, date) };
+            }
+            else
+            {
+                runs.Add(new RoutineRun(new DateInterval(date, date), inUse));
+            }
+        }
+
+        return runs;
     }
 
     /// <summary>

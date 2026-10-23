@@ -18,6 +18,11 @@
     }
     <h2 class="h5 mb-0 ms-sm-2">@Model.WeekFrom – @Model.WeekTo</h2>
 </nav>
+@* CAL-9: the week's routine and cycle week, which the plan is for. *@
+@if (Model.Routine is { } routine)
+{
+    <p class="fw-semibold">Routine: @routine</p>
+}
 
 @* P1: an activity the app can't read isn't planned around without saying so. *@
 @if (Model.Unreadable.Count > 0)
@@ -87,7 +92,7 @@ else
                             {
                                 <input type="hidden" name="@field.Key" value="@field.Value" />
                             }
-                            <button type="submit" class="btn btn-sm btn-primary">Every week<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
+                            <button type="submit" class="btn btn-sm btn-primary">@suggestion.EveryWeekLabel<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
                         </form>
                         <form asp-controller="Activities" asp-action="Create" method="post">
                             @foreach (var field in suggestion.JustThisWeek)

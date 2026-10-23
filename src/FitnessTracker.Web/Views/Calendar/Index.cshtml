@@ -34,8 +34,11 @@
     </div>
 }
 
+@* CAL-9: which routine and week the days shown are in, filled in by calendar.js as the days change. *@
+<p id="calendar-weeks" class="fw-semibold mb-2" aria-live="polite"></p>
 <div id="calendar" class="ft-calendar"
      data-events-url="@Model.EventsUrl"
+     data-weeks-url="@Url.Action("Weeks")"
      data-time-zone="@Model.TimeZoneId"
      data-first-day="@Model.FirstDay"
      data-hour12="@(Model.Hour12 ? "true" : "false")"

@@ -4,6 +4,7 @@ using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Activities;
+using FitnessTracker.Web.Models.Routines;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Http.Extensions;
 using NodaTime;
@@ -28,7 +29,11 @@ public sealed record SuggestionView(
     IReadOnlyDictionary<string, string> EveryWeek,
     IReadOnlyDictionary<string, string> JustThisWeek,
     string ChangeQuery,
-    string NoQuery);
+    string NoQuery)
+{
+    /// <summary>CAL-9: the "every week" button's words: "Every week", or "Every week B" for that week of A/B weeks.</summary>
+    public string EveryWeekLabel { get; init; } = "Every week";
+}
 
 /// <summary>SCH-5: sessions of a goal that don't fit, each day's reason, and what would.</summary>
 public sealed record ShortfallView(string Title, string Summary, IReadOnlyList<string> Days, string? Shorter, string? Blocked);
@@ -73,6 +78,9 @@ public sealed class PlanPageViewModel
     /// <summary>CAL-7: each day left, "Mon 2 Nov: 15 h free, the longest 15 h".</summary>
     public required IReadOnlyList<string> FreeTime { get; init; }
 
+    /// <summary>CAL-9: the week's routine and cycle week, "Usual week, week B", or null for a user with no routines.</summary>
+    public string? Routine { get; init; }
+
     /// <summary>SCH-4: a day said no to for a goal, as the page's address carries it: "{goal id}-20261104".</summary>
     public static string SkipFor(Guid goal, LocalDate date) => $"{goal:N}-{SkipDate.Format(date)}";
 
@@ -112,6 +120,8 @@ public sealed class PlanPageViewModel
                 no.Add("skip", skip);
             }
 
+            // CAL-9: "every week" is that week of the routine in use then, so planning week B builds week B.
+            var (weeks, everyWeekLabel) = RoutineDisplay.EveryWeekFor(start.Date, planned.Routines.Calendar, planned.Routines.All);
             var change = new QueryBuilder
             {
                 { "goal", goal.Id.ToString() },
@@ -120,6 +130,11 @@ public sealed class PlanPageViewModel
                 { "everyWeek", "true" },
                 { "returnToPlan", "true" },
             };
+            if (weeks.Length > 0)
+            {
+                change.Add("weeks", weeks);
+            }
+
             return new SuggestionView(
                 goal.Title,
                 ActivityDisplay.CategoryName(goal.Category),
@@ -129,10 +144,13 @@ public sealed class PlanPageViewModel
                 goal.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null,
                 Agenda.Trip(item, clock),
                 suggestion.Reasons,
-                FormFields(goal, start.LocalDateTime, everyWeek: true),
-                FormFields(goal, start.LocalDateTime, everyWeek: false),
+                FormFields(goal, start.LocalDateTime, everyWeek: true, weeks),
+                FormFields(goal, start.LocalDateTime, everyWeek: false, weeks: ""),
                 change.ToString(),
-                no.ToString());
+                no.ToString())
+            {
+                EveryWeekLabel = everyWeekLabel,
+            };
         }
 
         var sameMonth = week.Start.Month == week.End.Month && week.Start.Year == week.End.Year;
@@ -170,12 +188,14 @@ public sealed class PlanPageViewModel
                     ? $"{DayPattern.Format(day.Date)}: no free time"
                     : $"{DayPattern.Format(day.Date)}: {ActivityDisplay.Length((int)day.Total.TotalMinutes)} free, the longest {ActivityDisplay.Length((int)day.Longest.TotalMinutes)}")
                 .ToList(),
+            Routine = RoutineDisplay.InUse(planned.Routines.Calendar.Across(week), planned.Routines.All),
         };
     }
 
     // The activity form's fields for a session of the goal starting then: movable, as the planner chose its time, and
-    // weekly on that day, from then on, or just once (Q12). Getting ready and changing are the goal's.
-    private static Dictionary<string, string> FormFields(WeeklyGoal goal, LocalDateTime start, bool everyWeek)
+    // weekly on that day, from then on, in the weeks given (CAL-9), or just once (Q12). Getting ready and changing are
+    // the goal's.
+    private static Dictionary<string, string> FormFields(WeeklyGoal goal, LocalDateTime start, bool everyWeek, string weeks)
     {
         var fields = new Dictionary<string, string>
         {
@@ -194,6 +214,7 @@ public sealed class PlanPageViewModel
             ["Repeats"] = everyWeek ? nameof(RepeatChoice.Weekly) : nameof(RepeatChoice.Never),
             ["RepeatEvery"] = "1",
             ["Ends"] = nameof(RepeatEndChoice.Never),
+            ["Weeks"] = weeks,
             ["GoalId"] = goal.Id.ToString(),
             ["ReturnToPlan"] = "true",
         };

@@ -124,6 +124,49 @@ public class RoutineCalendarTests
         Assert.False(calendar.Includes(Usual, 'A', new LocalDate(2026, 10, 18)));
     }
 
+    // For a page to say which routine and week each part of the days shown is in: one run for an ordinary week.
+    [Fact]
+    public void AcrossAWeek_IsOneRun_WhenOneRoutineAndWeekCoverIt()
+    {
+        var calendar = new RoutineCalendar(Cycles, Usual, []);
+
+        var runs = calendar.Across(new DateInterval(new(2026, 10, 12), new(2026, 10, 18)));
+
+        Assert.Equal([new RoutineRun(new DateInterval(new(2026, 10, 12), new(2026, 10, 18)), new RoutineWeek(Usual, 'B'))], runs);
+    }
+
+    [Fact]
+    public void Across_StartsANewRun_WhereTheRoutineOrItsWeekChanges()
+    {
+        var calendar = new RoutineCalendar(Cycles, Usual, [new RoutineDates(Brighton, new DateInterval(new(2026, 10, 9), new(2026, 10, 11)))]);
+
+        var runs = calendar.Across(new DateInterval(new(2026, 10, 5), new(2026, 10, 14)));
+
+        RoutineRun[] expected =
+        [
+            new(new DateInterval(new(2026, 10, 5), new(2026, 10, 8)), new RoutineWeek(Usual, 'A')),
+            new(new DateInterval(new(2026, 10, 9), new(2026, 10, 11)), new RoutineWeek(Brighton, 'A')),
+            new(new DateInterval(new(2026, 10, 12), new(2026, 10, 14)), new RoutineWeek(Usual, 'B')),
+        ];
+        Assert.Equal(expected, runs);
+    }
+
+    [Fact]
+    public void Across_DaysWithNoRoutine_AreARunWithNone()
+    {
+        var calendar = new RoutineCalendar(Cycles, usual: null, [new RoutineDates(Holiday, new DateInterval(new(2026, 10, 7), new(2026, 10, 8)))]);
+
+        var runs = calendar.Across(new DateInterval(new(2026, 10, 5), new(2026, 10, 9)));
+
+        RoutineRun[] expected =
+        [
+            new(new DateInterval(new(2026, 10, 5), new(2026, 10, 6)), null),
+            new(new DateInterval(new(2026, 10, 7), new(2026, 10, 8)), new RoutineWeek(Holiday, 'A')),
+            new(new DateInterval(new(2026, 10, 9), new(2026, 10, 9)), null),
+        ];
+        Assert.Equal(expected, runs);
+    }
+
     // Week C of a two-week cycle never comes round (the pages don't offer it).
     [Fact]
     public void AWeekBeyondTheCycle_NeverComesRound()

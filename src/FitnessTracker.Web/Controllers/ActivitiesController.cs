@@ -45,16 +45,18 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     }
 
     // From the calendar: the date and time selected there, and back to the calendar once saved. From "Plan my week"
-    // (SCH-4, "Change"): a session of the user's own weekly goal at the suggested time, back to the plan once saved; a
-    // goal that isn't theirs is simply not found, and the form starts empty.
+    // (SCH-4, "Change"): a session of the user's own weekly goal at the suggested time, in the weeks of the routine in
+    // use then (CAL-9), back to the plan once saved; a goal that isn't theirs is simply not found, and the form starts
+    // empty. Weeks that aren't the user's are refused when the form is saved, like any choice.
     [HttpGet]
     public async Task<IActionResult> Create(
-        string? date, string? time, bool returnToCalendar = false, Guid? goal = null, bool everyWeek = false, bool returnToPlan = false)
+        string? date, string? time, bool returnToCalendar = false, Guid? goal = null, bool everyWeek = false, bool returnToPlan = false,
+        string? weeks = null)
     {
         var forGoal = goal is { } goalId ? await db.WeeklyGoals.AsNoTracking().SingleOrDefaultAsync(saved => saved.Id == goalId) : null;
         var model = forGoal is null
             ? ActivityFormViewModel.ForNew(date, time, returnToCalendar)
-            : ActivityFormViewModel.ForGoal(forGoal, date, time, everyWeek, returnToPlan);
+            : ActivityFormViewModel.ForGoal(forGoal, date, time, everyWeek, returnToPlan, weeks);
         return View(await FillListsAsync(model));
     }
 
