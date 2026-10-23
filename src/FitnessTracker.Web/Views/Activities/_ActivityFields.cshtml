@@ -162,6 +162,36 @@
         </div>
     </fieldset>
 
+    @* CAL-9: every week, whenever one routine is in use, or one week of its cycle (A/B weeks). *@
+    <div class="mb-2">
+        @if (Model.Routines.Count == 0)
+        {
+            <p class="form-text mb-0">It happens every week. To have it in only some weeks, such as week A of A/B
+                weeks, add a <a asp-controller="Routines" asp-action="Index">routine</a> first.</p>
+            <input type="hidden" asp-for="Weeks" />
+        }
+        else
+        {
+            var weekChoices = new List<SelectListItem> { new("Every week, whatever the routine", "") };
+            foreach (var routine in Model.Routines)
+            {
+                var group = new SelectListGroup { Name = routine.Name };
+                weekChoices.Add(new SelectListItem($"Whenever {routine.Name} is in use", ActivityFormViewModel.WeeksValue(routine.Id, null)) { Group = group });
+                for (var week = 0; routine.CycleWeeks > 1 && week < routine.CycleWeeks; week++)
+                {
+                    var letter = (char)('A' + week);
+                    weekChoices.Add(new SelectListItem($"Week {letter} only", ActivityFormViewModel.WeeksValue(routine.Id, letter)) { Group = group });
+                }
+            }
+
+            <label asp-for="Weeks" class="form-label mb-0"></label>
+            <div class="form-text mt-0 mb-1" id="weeks-hint">Your routines are on the <a asp-controller="Routines" asp-action="Index">Routines</a> page.</div>
+            <span asp-validation-for="Weeks" class="d-block text-danger" id="weeks-error"></span>
+            <select asp-for="Weeks" class="form-select" asp-items="weekChoices"
+                    aria-describedby="weeks-hint weeks-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Weeks")"></select>
+        }
+    </div>
+
     <fieldset aria-describedby="ends-error">
         <legend class="fs-6 mb-1">Ends</legend>
         <span asp-validation-for="Ends" class="d-block text-danger" id="ends-error"></span>

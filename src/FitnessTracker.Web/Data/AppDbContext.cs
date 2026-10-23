@@ -104,6 +104,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             activity.HasOne<Location>().WithMany().HasForeignKey(a => a.LocationId).OnDelete(DeleteBehavior.SetNull);
             // Deleting a weekly goal keeps the activities added for it, as ordinary activities.
             activity.HasOne<WeeklyGoal>().WithMany().HasForeignKey(a => a.GoalId).OnDelete(DeleteBehavior.SetNull);
+            // A routine with activities isn't deleted (RoutinesController says which to change first): they would
+            // otherwise never happen, or quietly start happening every week. NO ACTION rather than RESTRICT, as SQLite
+            // checks it once the whole delete is done, so deleting an account still deletes both (ACC-9).
+            activity.HasOne<Routine>().WithMany().HasForeignKey(a => a.RoutineId).OnDelete(DeleteBehavior.NoAction);
             activity.HasOne<AppUser>().WithMany().HasForeignKey(a => a.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -1,6 +1,7 @@
 using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Templates;
 using NodaTime;
 
 namespace FitnessTracker.Web.Data;
@@ -108,16 +109,26 @@ public class Activity : IOwnedByUser, IVersioned
     public Guid? GoalId { get; set; }
 
     /// <summary>
+    /// CAL-9: the routine it belongs to, so it only happens while that routine is in use; null for every week, whatever
+    /// the routine. Always null for a one-off.
+    /// </summary>
+    public Guid? RoutineId { get; set; }
+
+    /// <summary>CAL-9: the one week of its routine's cycle it happens in ('A' to 'D'), or null for every week of it.</summary>
+    public char? RoutineWeek { get; set; }
+
+    /// <summary>
     /// The domain's view of this activity, for the check on save (SCH-1) and the home page. A one-off is a series that
     /// happens once, so both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward
-    /// is 02:30). Throws FormatException (or DateTimeZoneNotFoundException) for a row the app couldn't have written,
+    /// is 02:30). One in a routine happens only on the dates <paramref name="routines"/> says it is in use, in its week
+    /// (CAL-9). Throws FormatException (or DateTimeZoneNotFoundException) for a row the app couldn't have written,
     /// such as one edited by hand, so callers can leave it out.
     /// </summary>
-    public PlannedActivity ToPlannedActivity() => LengthMinutes <= 0
+    public PlannedActivity ToPlannedActivity(RoutineCalendar routines) => LengthMinutes <= 0
         ? throw new FormatException($"{Title} has a length of {LengthMinutes} minutes.")
         : new(Id,
             Title,
-            OccurrenceChangesText.Apply(UsualSeries(), OccurrenceChanges),
+            OccurrenceChangesText.Apply(UsualSeries(), OccurrenceChanges).OnlyOn(HappensOn(routines)),
             new Buffers(Duration.FromMinutes(PreparationMinutes), Duration.FromMinutes(ChangingMinutes)),
             LocationId)
         {
@@ -127,9 +138,10 @@ public class Activity : IOwnedByUser, IVersioned
 
     /// <summary>
     /// CAL-4, T8: after the whole activity is edited, keeps the one-off changes of <paramref name="before"/> on dates
-    /// it still falls on and removes the rest (all of them for a one-off). Returns how many of each, to tell the user.
+    /// it still falls on, in the weeks it is in now (CAL-9), and removes the rest (all of them for a one-off). Returns
+    /// how many of each, to tell the user.
     /// </summary>
-    public (int Kept, int Removed) KeepChangesFrom(Series before)
+    public (int Kept, int Removed) KeepChangesFrom(Series before, RoutineCalendar routines)
     {
         if (RepeatRule is null)
         {
@@ -137,10 +149,16 @@ public class Activity : IOwnedByUser, IVersioned
             return (0, before.Changes.Count);
         }
 
-        var edit = before.Edit(StartDate, StartTime, Duration.FromMinutes(LengthMinutes), RecurrenceRuleText.Parse(RepeatRule));
+        var edit = before.OnlyOn(HappensOn(routines))
+            .Edit(StartDate, StartTime, Duration.FromMinutes(LengthMinutes), RecurrenceRuleText.Parse(RepeatRule));
         OccurrenceChanges = OccurrenceChangesText.Format(edit.Series.Changes);
         return (edit.KeptChanges, edit.RemovedChanges);
     }
+
+    // CAL-9: the dates it may happen on, or null for every date its rule falls on.
+    private Func<LocalDate, bool>? HappensOn(RoutineCalendar routines) => RoutineId is { } routine
+        ? date => routines.Includes(routine, RoutineWeek, date)
+        : null;
 
     // The series as its rule makes it, without one-off changes.
     private Series UsualSeries() => new(

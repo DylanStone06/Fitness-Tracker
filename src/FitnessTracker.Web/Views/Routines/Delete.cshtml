@@ -1,6 +1,7 @@
 @model FitnessTracker.Web.Data.Routine
 @{
     ViewData["Title"] = "Delete routine";
+    var inIt = ViewData[FitnessTracker.Web.Controllers.RoutinesController.ActivitiesInIt] as IReadOnlyList<string> ?? [];
 }
 
 <div class="row">
@@ -9,13 +10,30 @@
         <partial name="_ErrorSummary" />
         <p class="fs-5 text-break mb-1" dir="auto">@Model.Name</p>
         <p>@RoutineDisplay.Cycle(Model)</p>
-        <p>This can't be undone.</p>
 
-        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
-            @* The version this page shows, so a routine changed in another tab since isn't deleted unseen. *@
-            <input type="hidden" name="version" value="@Model.Version" />
-            <button type="submit" class="btn btn-danger">Delete routine</button>
+        @* Its activities would otherwise never happen, or quietly start happening every week. Said once: in the
+           error summary after a refused delete, or here. *@
+        @if (inIt.Count > 0)
+        {
+            var message = FitnessTracker.Web.Controllers.RoutinesController.InItMessage(inIt);
+            if (!ViewData.ModelState.Values.SelectMany(entry => entry.Errors).Any(error => error.ErrorMessage == message))
+            {
+                <p>@message</p>
+            }
+
+            <a class="btn btn-primary" asp-controller="Activities" asp-action="Index">Go to activities</a>
             <a class="btn btn-link" asp-action="Index">Cancel</a>
-        </form>
+        }
+        else
+        {
+            <p>This can't be undone.</p>
+
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+                @* The version this page shows, so a routine changed in another tab since isn't deleted unseen. *@
+                <input type="hidden" name="version" value="@Model.Version" />
+                <button type="submit" class="btn btn-danger">Delete routine</button>
+                <a class="btn btn-link" asp-action="Index">Cancel</a>
+            </form>
+        }
     </div>
 </div>

@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Templates;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,9 @@ public sealed record UserPlanning(
     IReadOnlyList<TravelLeg> Legs,
     PlanningContext Context,
     ZonedDateTime Now);
+
+/// <summary>CAL-9: the signed-in user's routines, and which one is in use on each date.</summary>
+public sealed record UserRoutines(IReadOnlyList<Routine> All, RoutineCalendar Calendar);
 
 /// <summary>
 /// Reads the signed-in user's preferences (or the defaults), locations, travel times and "today" in their timezone,
@@ -63,10 +67,35 @@ public class PlanningData(AppDbContext db, IClock clock)
     }
 
     /// <summary>
+    /// CAL-9: the user's routines, and which is in use on each date. A routine whose cycle can't be read (edited by
+    /// hand) is left out, so its activities don't happen, rather than stopping every page.
+    /// </summary>
+    public async Task<UserRoutines> RoutinesAsync()
+    {
+        var all = await db.Routines.AsNoTracking().ToListAsync();
+        var cycles = new Dictionary<Guid, WeekCycle>();
+        foreach (var routine in all)
+        {
+            try
+            {
+                cycles[routine.Id] = routine.ToCycle();
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Left out: see above.
+            }
+        }
+
+        var usual = all.FirstOrDefault(routine => routine.IsUsual)?.Id;
+        return new UserRoutines(all, new RoutineCalendar(cycles, usual, []));
+    }
+
+    /// <summary>
     /// The user's activities that can fall on <paramref name="dates"/>: repeating ones that have started by then, and
-    /// one-offs on those dates. A repeating one with occurrences changed on their own (CAL-4) is loaded whatever its
-    /// first date, as one can have been moved to before it. One the app can't read (edited by hand, say) is left out
-    /// and named in <paramref name="unreadable"/>, rather than stopping the page.
+    /// one-offs on those dates, each in the weeks its routine allows (CAL-9). A repeating one with occurrences changed
+    /// on their own (CAL-4) is loaded whatever its first date, as one can have been moved to before it. One the app
+    /// can't read (edited by hand, say) is left out and named in <paramref name="unreadable"/>, rather than stopping
+    /// the page.
     /// </summary>
     public async Task<List<PlannedActivity>> ActivitiesOnAsync(DateInterval dates, List<string> unreadable, Guid? except = null)
     {
@@ -75,7 +104,7 @@ public class PlanningData(AppDbContext db, IClock clock)
                 && (activity.OccurrenceChanges != null
                     || (activity.StartDate <= dates.End && (activity.RepeatRule != null || activity.StartDate >= dates.Start))))
             .ToListAsync();
-        return Planned(stored, unreadable);
+        return Planned(stored, (await RoutinesAsync()).Calendar, unreadable);
     }
 
     /// <summary>
@@ -85,18 +114,18 @@ public class PlanningData(AppDbContext db, IClock clock)
     public async Task<List<string>> UnreadableAsync()
     {
         var unreadable = new List<string>();
-        Planned(await db.Activities.AsNoTracking().ToListAsync(), unreadable);
+        Planned(await db.Activities.AsNoTracking().ToListAsync(), RoutineCalendar.None, unreadable);
         return unreadable;
     }
 
-    private static List<PlannedActivity> Planned(List<Activity> stored, List<string> unreadable)
+    private static List<PlannedActivity> Planned(List<Activity> stored, RoutineCalendar routines, List<string> unreadable)
     {
         var planned = new List<PlannedActivity>();
         foreach (var activity in stored)
         {
             try
             {
-                planned.Add(activity.ToPlannedActivity());
+                planned.Add(activity.ToPlannedActivity(routines));
             }
             catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
             {

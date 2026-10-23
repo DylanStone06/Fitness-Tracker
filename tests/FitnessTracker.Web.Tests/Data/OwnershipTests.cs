@@ -136,6 +136,40 @@ public sealed class OwnershipTests : IDisposable
         Assert.Equal(["Sam's office"], check.Locations.IgnoreQueryFilters().Select(location => location.Name).ToList());
     }
 
+    // ACC-9 with CAL-9: an activity points at its routine, and a routine with activities can't be deleted on its own.
+    // Deleting the account must still delete both, by the database's cascade, without loading them.
+    [Fact]
+    public void DeletingAnAccount_DeletesItsRoutines_AndTheActivitiesInThem()
+    {
+        using (var db = ContextFor(Alex))
+        {
+            var routine = new Routine { Name = "Usual week", CycleWeeks = 2, WeekAStarts = new(2026, 10, 19), IsUsual = true };
+            db.Routines.Add(routine);
+            db.Activities.Add(new Activity
+            {
+                Title = "Gym",
+                StartDate = new(2026, 10, 19),
+                StartTime = new(7, 0),
+                TimeZoneId = "Europe/London",
+                LengthMinutes = 60,
+                RepeatRule = "FREQ=WEEKLY;BYDAY=MO",
+                RoutineId = routine.Id,
+                RoutineWeek = 'A',
+            });
+            db.SaveChanges();
+        }
+
+        using (var db = ContextFor(Alex))
+        {
+            db.Users.Remove(db.Users.Single(user => user.Id == Alex));
+            db.SaveChanges();
+        }
+
+        using var check = ContextFor(userId: null);
+        Assert.Empty(check.Routines.IgnoreQueryFilters().ToList());
+        Assert.Empty(check.Activities.IgnoreQueryFilters().ToList());
+    }
+
     // Phase 4 adds more owned records (activities, series, logs); each must get the same protection
     // just by implementing IOwnedByUser.
     [Fact]

@@ -66,6 +66,12 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("RoutineId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<char?>("RoutineWeek")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("StartDate")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -95,6 +101,8 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasIndex("LocationId");
 
                     b.HasIndex("OwnerId");
+
+                    b.HasIndex("RoutineId");
 
                     b.ToTable("Activities");
                 });
@@ -631,6 +639,11 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.Routine", null)
+                        .WithMany()
+                        .HasForeignKey("RoutineId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("FitnessTracker.Web.Data.CategoryBuffers", b =>

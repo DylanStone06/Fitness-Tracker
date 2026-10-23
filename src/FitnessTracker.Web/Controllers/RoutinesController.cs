@@ -72,6 +72,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         }
 
         await CheckFormAsync(model, exceptId: id);
+        await CheckWeeksStillUsedAsync(model, id);
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -109,12 +110,19 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         return RedirectToAction(nameof(Index));
     }
 
-    // Only asks; deleting needs the form post below.
+    // Only asks; deleting needs the form post below. A routine with activities can't be deleted: the page says which
+    // to change first.
     [HttpGet]
     public async Task<IActionResult> Delete(Guid id)
     {
         var routine = await FindAsync(id);
-        return routine is null ? NotFound() : View(routine);
+        if (routine is null)
+        {
+            return NotFound();
+        }
+
+        ViewData[ActivitiesInIt] = await ActivitiesInAsync(id);
+        return View(routine);
     }
 
     // version: the one the delete page was opened with. If another tab has changed the routine since, it isn't
@@ -127,6 +135,16 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         if (routine is null)
         {
             return NotFound();
+        }
+
+        // Its activities would otherwise never happen, or quietly start happening every week (the database refuses
+        // too: AppDbContext).
+        var inIt = await ActivitiesInAsync(id);
+        if (inIt.Count > 0)
+        {
+            ViewData[ActivitiesInIt] = inIt;
+            ModelState.AddModelError(string.Empty, InItMessage(inIt));
+            return View(nameof(Delete), routine);
         }
 
         db.Entry(routine).Property(saved => saved.Version).OriginalValue = version;
@@ -146,10 +164,50 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
             ModelState.AddModelError(string.Empty,
                 $"This routine was changed in another tab or window after you opened this page. It's now called " +
                 $"{current.Name}. Delete it anyway?");
+            ViewData[ActivitiesInIt] = await ActivitiesInAsync(id);
             return View(nameof(Delete), current);
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>ViewData: the titles of the activities in the routine about to be deleted.</summary>
+    public const string ActivitiesInIt = "ActivitiesInIt";
+
+    /// <summary>"1 activity is in this routine: Gym. …", for the delete page.</summary>
+    public static string InItMessage(IReadOnlyList<string> titles) =>
+        $"{(titles.Count == 1 ? "1 activity is" : $"{titles.Count} activities are")} in this routine: {string.Join(", ", titles)}. " +
+        "Change them to another routine, or to every week, before deleting it.";
+
+    // The titles of the activities in a routine, in name order.
+    private async Task<List<string>> ActivitiesInAsync(Guid routineId) =>
+        (await db.Activities.AsNoTracking().Where(activity => activity.RoutineId == routineId).Select(activity => activity.Title).ToListAsync())
+            .Order(StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
+
+    // CAL-9: an activity in week B (say) of a routine shortened to one week would never happen again. Named, so the
+    // user can change it first or keep the weeks.
+    private async Task CheckWeeksStillUsedAsync(RoutineFormViewModel model, Guid id)
+    {
+        if (!ModelState.IsValid)
+        {
+            return;
+        }
+
+        var stranded = (await db.Activities.AsNoTracking()
+                .Where(activity => activity.RoutineId == id && activity.RoutineWeek != null)
+                .Select(activity => new { activity.Title, activity.RoutineWeek })
+                .ToListAsync())
+            .Where(activity => activity.RoutineWeek!.Value - 'A' >= model.CycleWeeks)
+            .OrderBy(activity => activity.Title, StringComparer.InvariantCultureIgnoreCase)
+            .Select(activity => $"{activity.Title} (week {activity.RoutineWeek})")
+            .ToList();
+        if (stranded.Count > 0)
+        {
+            ModelState.AddModelError(nameof(model.CycleWeeks),
+                $"With {(model.CycleWeeks == 1 ? "1 week" : $"{model.CycleWeeks} weeks")}, these would never happen: {string.Join(", ", stranded)}. " +
+                "Change them to another week first, or keep more weeks.");
+        }
     }
 
     // Through the per-user filter.

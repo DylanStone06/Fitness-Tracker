@@ -88,6 +88,17 @@ public static class ActivityDisplay
         return $"{pattern} {at}, from {Date.Format(activity.StartDate)}{ending}";
     }
 
+    /// <summary>
+    /// CAL-9: the weeks a repeating activity happens in, when not every week: "Week B of Usual week only", or "Only
+    /// while Holiday is in use". Null for every week. <paramref name="routineNames"/> are the user's routines' names.
+    /// </summary>
+    public static string? Weeks(Activity activity, IReadOnlyDictionary<Guid, string> routineNames) =>
+        activity.RoutineId is { } routine && activity.RepeatRule is not null
+            ? activity.RoutineWeek is { } week
+                ? $"Week {week} of {routineNames.GetValueOrDefault(routine, "its routine")} only"
+                : $"Only while {routineNames.GetValueOrDefault(routine, "its routine")} is in use"
+            : null;
+
     /// <summary>For example "50 min", "8 h" or "1 h 30 min".</summary>
     public static string Length(int minutes) => (minutes / 60, minutes % 60) switch
     {

@@ -61,7 +61,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
     public async Task<OtherTimes?> OptionsAsync(Activity activity, LocalDate date, int most)
     {
         var user = await planning.LoadAsync();
-        var session = activity.ToPlannedActivity();
+        var session = activity.ToPlannedActivity((await planning.RoutinesAsync()).Calendar);
         if (ActivityCheck.OccurrenceOn(session.Series, date) is not { } occurrence)
         {
             return null;
