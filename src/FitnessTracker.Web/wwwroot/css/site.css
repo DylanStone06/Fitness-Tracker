@@ -1,17 +1,483 @@
-/* Site-wide styles. Bootstrap 5.3 supplies the base; keep additions small. */
+/* Site-wide styles: the look in docs/design.md, on top of Bootstrap 5.3. Every colour pair used for text meets WCAG
+   2.2 AA (4.5:1) in both themes, and form-box borders 3:1; the measured ratios are in docs/design.md. */
 
-/* Slightly darker blues than Bootstrap's defaults, for more contrast on white
-   (links about 4.7:1, primary buttons about 5.2:1; WCAG AA needs 4.5:1). */
-a {
-  color: #0077cc;
+:root {
+  --bs-border-radius: 0.6rem;
+  --bs-border-radius-sm: 0.4rem;
+  --bs-border-radius-lg: 1rem;
 }
 
+/* Light theme: the default, and the one used without JavaScript. Every variable set here is set again for the dark
+   theme below: this file loads after Bootstrap, so a light value left out there would win over Bootstrap's dark one. */
+:root,
+[data-bs-theme="light"] {
+  --bs-body-bg: #f7f5f0;
+  --bs-body-bg-rgb: 247, 245, 240;
+  --bs-body-color: #1f2328;
+  --bs-body-color-rgb: 31, 35, 40;
+  --bs-secondary-color: #59606a;
+  --bs-secondary-color-rgb: 89, 96, 106;
+  --bs-border-color: #e3dfd6;
+  --bs-link-color: #0b62b0;
+  --bs-link-color-rgb: 11, 98, 176;
+  --bs-link-hover-color: #084a86;
+  --bs-link-hover-color-rgb: 8, 74, 134;
+  --bs-primary: #1d63b0;
+  --bs-primary-rgb: 29, 99, 176;
+  --bs-form-invalid-color: #b42318;
+  --bs-form-invalid-border-color: #b42318;
+  --ft-surface: #ffffff;
+  --ft-input-border: #868c96;
+  --ft-danger-text: #b42318;
+  --ft-shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 2px 8px rgba(31, 35, 40, 0.04);
+  --ft-work: #2563eb;
+  --ft-work-bg: #e8effd;
+  --ft-work-text: #1e40af;
+  --ft-exercise: #15803d;
+  --ft-exercise-bg: #e7f5ec;
+  --ft-exercise-text: #166534;
+  --ft-meal: #c2410c;
+  --ft-meal-bg: #fdeee6;
+  --ft-meal-text: #9a3412;
+  --ft-social: #7e22ce;
+  --ft-social-bg: #f3e9fc;
+  --ft-social-text: #6b21a8;
+  --ft-other: #6b7280;
+  --ft-other-bg: #eef0f2;
+  --ft-other-text: #374151;
+}
+
+/* Dark theme: set on <html> by js/theme.js when the device asks for it. */
+[data-bs-theme="dark"] {
+  --bs-body-bg: #15171c;
+  --bs-body-bg-rgb: 21, 23, 28;
+  --bs-body-color: #e8e6e3;
+  --bs-body-color-rgb: 232, 230, 227;
+  --bs-secondary-color: #a9afb9;
+  --bs-secondary-color-rgb: 169, 175, 185;
+  --bs-border-color: #30343d;
+  --bs-link-color: #7cb4f5;
+  --bs-link-color-rgb: 124, 180, 245;
+  --bs-link-hover-color: #a8cdf8;
+  --bs-link-hover-color-rgb: 168, 205, 248;
+  --bs-primary: #1d63b0;
+  --bs-primary-rgb: 29, 99, 176;
+  --bs-form-invalid-color: #ff8a80;
+  --bs-form-invalid-border-color: #ff8a80;
+  --ft-surface: #1e2128;
+  --ft-input-border: #737b87;
+  --ft-danger-text: #ff8a80;
+  /* No shadow, written as an invisible one: "none" can't be part of a list of shadows (.ft-next adds its stripe). */
+  --ft-shadow: 0 0 0 transparent;
+  --ft-work: #6ea8fe;
+  --ft-work-bg: #1f2a44;
+  --ft-work-text: #bcd4ff;
+  --ft-exercise: #4ade80;
+  --ft-exercise-bg: #19362a;
+  --ft-exercise-text: #b7f0cb;
+  --ft-meal: #fb923c;
+  --ft-meal-bg: #3d2618;
+  --ft-meal-text: #ffd2b5;
+  --ft-social: #c084fc;
+  --ft-social-bg: #33224a;
+  --ft-social-text: #e4ccff;
+  --ft-other: #9ca3af;
+  --ft-other-bg: #2c3038;
+  --ft-other-text: #d6dae0;
+}
+
+h1, .h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2, .h2, h3, .h3, .h4, .h5 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Cards and lists sit on the page as white (dark: raised) surfaces. */
+.card {
+  --bs-card-bg: var(--ft-surface);
+  --bs-card-border-color: var(--bs-border-color);
+  box-shadow: var(--ft-shadow);
+}
+
+.list-group {
+  --bs-list-group-bg: var(--ft-surface);
+  --bs-list-group-border-color: var(--bs-border-color);
+  box-shadow: var(--ft-shadow);
+}
+
+/* A list inside a card already has the card's shadow. */
+.list-group-flush,
+.card .list-group {
+  box-shadow: none;
+}
+
+/* Buttons: Bootstrap's own blue, red and grey only just reach 4.5:1 on white, and not on the off-white page. */
 .btn-primary {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #1d63b0;
+  --bs-btn-border-color: #1d63b0;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #17538f;
+  --bs-btn-hover-border-color: #17538f;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #134779;
+  --bs-btn-active-border-color: #134779;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #1d63b0;
+  --bs-btn-disabled-border-color: #1d63b0;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+.btn-danger {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #b42318;
+  --bs-btn-border-color: #b42318;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #931c13;
+  --bs-btn-hover-border-color: #931c13;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #7a170f;
+  --bs-btn-active-border-color: #7a170f;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #b42318;
+  --bs-btn-disabled-border-color: #b42318;
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: var(--bs-secondary-color);
+  --bs-btn-border-color: var(--ft-input-border);
+  --bs-btn-hover-color: var(--ft-surface);
+  --bs-btn-hover-bg: var(--bs-secondary-color);
+  --bs-btn-hover-border-color: var(--bs-secondary-color);
+  --bs-btn-active-color: var(--ft-surface);
+  --bs-btn-active-bg: var(--bs-secondary-color);
+  --bs-btn-active-border-color: var(--bs-secondary-color);
+}
+
+/* Bootstrap's outline blue (#0d6efd) is 3.6:1 on a dark card; the link colour reaches 4.5:1 in both themes. */
+.btn-outline-primary {
+  --bs-btn-color: var(--bs-link-color);
+  --bs-btn-border-color: var(--bs-link-color);
+  --bs-btn-hover-color: var(--ft-surface);
+  --bs-btn-hover-bg: var(--bs-link-color);
+  --bs-btn-hover-border-color: var(--bs-link-color);
+  --bs-btn-active-color: var(--ft-surface);
+  --bs-btn-active-bg: var(--bs-link-color);
+  --bs-btn-active-border-color: var(--bs-link-color);
+}
+
+.btn-outline-danger {
+  --bs-btn-color: var(--ft-danger-text);
+  --bs-btn-border-color: var(--ft-danger-text);
+  --bs-btn-hover-color: var(--ft-surface);
+  --bs-btn-hover-bg: var(--ft-danger-text);
+  --bs-btn-hover-border-color: var(--ft-danger-text);
+  --bs-btn-active-color: var(--ft-surface);
+  --bs-btn-active-bg: var(--ft-danger-text);
+  --bs-btn-active-border-color: var(--ft-danger-text);
+}
+
+.text-danger {
+  color: var(--ft-danger-text) !important;
+}
+
+/* Form boxes are white (dark: raised) with a border of 3:1 or more, so they can be seen as boxes (WCAG 1.4.11). */
+.form-control,
+.form-select {
+  background-color: var(--ft-surface);
+  border-color: var(--ft-input-border);
+}
+
+.form-check-input {
+  --bs-form-check-bg: var(--ft-surface);
+  border-color: var(--ft-input-border);
+}
+
+.form-check-input:checked {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-select:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem var(--bs-body-bg), 0 0 0 0.25rem #258cfb;
+}
+
+/* Category colours (CAL-2, ActivityDisplay.CategoryStyle): a stripe down the side of an item (3:1 or more against the
+   card) and a label with the category's name (4.5:1 or more), so the colour is never the only signal. */
+.cat-work {
+  --ft-cat: var(--ft-work);
+  --ft-cat-bg: var(--ft-work-bg);
+  --ft-cat-text: var(--ft-work-text);
+}
+
+.cat-exercise {
+  --ft-cat: var(--ft-exercise);
+  --ft-cat-bg: var(--ft-exercise-bg);
+  --ft-cat-text: var(--ft-exercise-text);
+}
+
+.cat-meal {
+  --ft-cat: var(--ft-meal);
+  --ft-cat-bg: var(--ft-meal-bg);
+  --ft-cat-text: var(--ft-meal-text);
+}
+
+.cat-social {
+  --ft-cat: var(--ft-social);
+  --ft-cat-bg: var(--ft-social-bg);
+  --ft-cat-text: var(--ft-social-text);
+}
+
+.cat-other {
+  --ft-cat: var(--ft-other);
+  --ft-cat-bg: var(--ft-other-bg);
+  --ft-cat-text: var(--ft-other-text);
+}
+
+.ft-stripe {
+  box-shadow: inset 4px 0 0 var(--ft-cat, transparent);
+}
+
+.ft-chip {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ft-cat-text);
+  background-color: var(--ft-cat-bg);
+}
+
+/* Home page (GOL-2). Times line up in columns; the Next up card has a wider stripe and larger text. */
+.ft-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ft-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.ft-next.ft-stripe {
+  box-shadow: inset 6px 0 0 var(--ft-cat, transparent), var(--ft-shadow);
+}
+
+.ft-next-details .ft-time,
+.ft-next-details a {
+  font-size: 1.25rem;
+}
+
+.ft-progress {
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  accent-color: var(--bs-primary);
+}
+
+/* The calendar (CAL-1, FullCalendar): its colours come from the theme, through FullCalendar's own variables.
+   Activities use their category's label colours (each at least 6.34:1, docs/design.md) with the stripe colour as a
+   thicker left edge; getting ready, travel and changing are lighter, dashed bands in the same colour (CAL-5). */
+.ft-calendar {
+  --fc-border-color: var(--bs-border-color);
+  --fc-page-bg-color: var(--ft-surface);
+  --fc-neutral-bg-color: var(--bs-tertiary-bg);
+  --fc-list-event-hover-bg-color: var(--bs-tertiary-bg);
+  --fc-today-bg-color: rgba(var(--bs-primary-rgb), 0.08);
+  --fc-now-indicator-color: var(--ft-danger-text);
+  --fc-button-text-color: var(--bs-body-color);
+  --fc-button-bg-color: var(--ft-surface);
+  --fc-button-border-color: var(--ft-input-border);
+  --fc-button-hover-bg-color: var(--bs-tertiary-bg);
+  --fc-button-hover-border-color: var(--ft-input-border);
+  --fc-button-active-bg-color: var(--bs-primary);
+  --fc-button-active-border-color: var(--bs-primary);
+  padding: 0.75rem;
+  background-color: var(--ft-surface);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: var(--ft-shadow);
+}
+
+.ft-calendar .fc-button-primary:not(:disabled).fc-button-active,
+.ft-calendar .fc-button-primary:not(:disabled):active {
+  color: #fff;
+}
+
+.ft-calendar .fc-header-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ft-calendar .fc-toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.ft-calendar .ft-event {
+  --fc-event-bg-color: var(--ft-cat-bg);
+  --fc-event-border-color: var(--ft-cat);
+  --fc-event-text-color: var(--ft-cat-text);
+  border-left-width: 4px;
+}
+
+/* CAL-5: getting ready, travel and changing are bands behind the day, dashed in the activity's colour. */
+.ft-calendar .fc-bg-event.ft-segment {
+  background-color: var(--ft-surface);
+  border: 1px dashed var(--ft-cat);
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  opacity: 1;
+}
+
+.ft-calendar .fc-bg-event.ft-segment .ft-event-title {
+  margin: 0 0.25rem;
+  font-weight: 400;
+}
+
+/* break-ui: an activity's text stays inside its block, so it never lies over another (the list and the activity's
+   page say everything), and a long word breaks rather than widening the list past a phone's screen (WCAG 1.4.10). */
+.ft-calendar .fc-timegrid-event .fc-event-main {
+  overflow: hidden;
+}
+
+.ft-calendar .fc-event-main,
+.ft-calendar .fc-list-event-title,
+.ft-calendar .fc-bg-event {
+  overflow-wrap: anywhere;
+}
+
+/* "+3 more" opens a box whose close control would be an icon from FullCalendar's font, which the Content-Security-Policy
+   blocks: without this it is empty, 0 pixels wide. Escape closes the box too. */
+.ft-calendar .fc-popover-close {
+  display: inline-block;
+  min-width: 24px;
+  min-height: 24px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.ft-calendar .fc-popover-close::before {
+  content: "×";
+  font-size: 1.25rem;
+}
+
+/* The list's times can be long ("10:00pm – 7:00am the next day"), so they wrap too. */
+.ft-calendar .fc-list-event-time {
+  min-width: 5.5rem;
+  white-space: normal;
+}
+
+/* In the grid the time and the title share a line; a short block (a half hour) has room for one line, so its end is
+   only read out, not shown. */
+.ft-calendar .fc-timegrid-event .ft-event-time,
+.ft-calendar .fc-timegrid-event .ft-event-title {
+  display: inline;
+}
+
+.ft-calendar .fc-timegrid-event .ft-event-time {
+  margin-right: 0.35em;
+}
+
+.ft-calendar .fc-timegrid-event-short .ft-event-end {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* A clash is an inner red ring (and words, CAL-6), leaving the outline free to show focus. */
+.ft-calendar .ft-clash {
+  box-shadow: inset 0 0 0 2px var(--ft-danger-text);
+}
+
+/* WCAG 2.4.7: a clear focus ring on activities, unlike FullCalendar's faint shadow. */
+.ft-calendar .fc-event:focus-visible {
+  outline: 3px solid var(--bs-link-color);
+  outline-offset: 2px;
+}
+
+.ft-event-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ft-event-title {
+  font-weight: 600;
+}
+
+.ft-event-details {
+  font-size: 0.875rem;
+  color: var(--bs-secondary-color);
+}
+
+.ft-event-clash {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ft-danger-text);
+}
+
+/* In an activity's own colours the clash text keeps the label colour, which is what its contrast was measured on. */
+.ft-calendar .fc-timegrid .ft-event-clash {
+  color: inherit;
+}
+
+/* TRV-1: a location's days only show once "Set opening hours" is chosen. A browser without :has() shows them always,
+   as before. */
+.ft-hours:has(#HasOpeningHours:checked) .ft-opening-days {
+  display: none;
+}
+
+/* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it
+   (WCAG 2.4.11). */
+html {
+  scroll-padding-top: 5rem;
+}
+
+/* Long email addresses wrap (at any character) rather than running off a 320 px phone screen. */
+.account-email {
+  overflow-wrap: anywhere;
+}
+
+/* The header row (1200 px and wider): the name and links never break inside a word (at 800 px, with the menu laid out
+   in a row, the name stood one letter per line), and a long address is shortened with "…" rather than making the
+   header taller than the 5rem scroll-padding-top above allows for. The whole address is still read out, and shown
+   as a tooltip. */
+.navbar-brand,
+.navbar .nav-link {
+  white-space: nowrap;
+}
+
+.navbar-brand {
+  flex-shrink: 0;
+}
+
+@media (min-width: 1200px) {
+  .account-email {
+    display: inline-block;
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+}
+
+/* Up to 1400 px the header row is 1140 px wide, which nine links and a 16rem address overflowed (break-ui, Phase 6b:
+   the page scrolled sideways). A shorter address fits; the whole of it is still read out, and shown as a tooltip. */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+  .account-email {
+    max-width: 7rem;
+  }
 }

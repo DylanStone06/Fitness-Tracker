@@ -1,6 +1,163 @@
+@model FitnessTracker.Web.Models.Home.HomeViewModel
+@using FitnessTracker.Domain.Scheduling
+@using FitnessTracker.Web.Data
+@using NodaTime
+@using NodaTime.Text
 @{
     ViewData["Title"] = "Home";
+    var longDayPattern = LocalDatePattern.CreateWithInvariantCulture("dddd d MMMM");
+    var comingUp = Enumerable.Range(1, HomeViewModel.DaysAhead).Select(offset => Model.Today.PlusDays(offset)).Where(day => Model.On(day).Any()).ToList();
+
+    ActivityCategory? CategoryOf(AgendaItem item) => Model.Categories.TryGetValue(item.Activity.Id, out var category) ? category : null;
+    string StyleOf(AgendaItem item) => ActivityDisplay.CategoryStyle(CategoryOf(item) ?? ActivityCategory.Other);
+
+    // One activity: its time, title (opening its edit page), category, place, when to leave, and anything that
+    // couldn't be worked out or clashes. Async because the link is a tag helper.
+    async Task Details(AgendaItem item)
+    {
+        var activity = item.Activity;
+        <div class="d-flex flex-wrap align-items-baseline column-gap-2">
+            <span class="ft-time">@Agenda.Starts(item, Model.Clock)</span>
+            @if (Model.Repeating.Contains(activity.Id))
+            {
+                @* CAL-4: this occurrence, to change just this one (or every one from there). *@
+                <a class="fw-semibold text-break" asp-controller="Activities" asp-action="Occurrence" asp-route-id="@activity.Id"
+                   asp-route-date="@item.Occurrence.Date.ToString("uuuu-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">@activity.Title</a>
+            }
+            else
+            {
+                <a class="fw-semibold text-break" asp-controller="Activities" asp-action="Edit" asp-route-id="@activity.Id">@activity.Title</a>
+            }
+            @if (CategoryOf(item) is { } category)
+            {
+                @* CAL-2: the category's name, in its colour; never the colour alone. *@
+                <span class="ft-chip">@ActivityDisplay.CategoryName(category)</span>
+            }
+        </div>
+        @if (activity.LocationId is { } place && Model.PlaceNames.TryGetValue(place, out var placeName))
+        {
+            <span class="d-block small text-body-secondary text-break">at @placeName</span>
+        }
+        @if (Agenda.Trip(item, Model.Clock) is { } trip)
+        {
+            <span class="d-block small">@trip</span>
+        }
+        @if (item.Note is { } note)
+        {
+            @* P1: what couldn't be worked out is said; "Getting started" links to where to fix it. *@
+            <span class="d-block small">@note</span>
+        }
+        @if (item.ClashesWith.Count > 0)
+        {
+            @* CAL-6: an icon and words, not colour alone. *@
+            <span class="d-block small text-danger"><span aria-hidden="true">&#9888;</span> Clashes with @string.Join(", ", item.ClashesWith)</span>
+        }
+    }
+
+    async Task Day(LocalDate day, string nothing)
+    {
+        if (!Model.On(day).Any())
+        {
+            <p class="card card-body text-body-secondary mb-0">@nothing</p>
+            return;
+        }
+
+        <ul class="list-group">
+            @foreach (var item in Model.On(day))
+            {
+                <li class="list-group-item ft-stripe @StyleOf(item)">@{ await Details(item); }</li>
+            }
+        </ul>
+    }
 }
 
-<h1>Fitness Tracker</h1>
-<p>Plan fitness around work, travel, sleep and recovery, and see plainly when a week's goals won't fit.</p>
+<div class="mb-4">
+    <h1 class="mb-1">@Model.Greeting</h1>
+    <p class="text-body-secondary mb-0">@longDayPattern.Format(Model.Today). Fitness planned around work, travel, sleep and recovery.</p>
+</div>
+
+@if (Model.StillToSetUp)
+{
+    var done = Model.Steps.Count(step => step.Done);
+    <section class="card mb-4" aria-labelledby="setup-heading">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-baseline column-gap-3">
+                <h2 class="h5 mb-0" id="setup-heading">Getting started</h2>
+                <span class="small text-body-secondary">@done of @Model.Steps.Count done</span>
+            </div>
+            <progress class="ft-progress my-2" max="@Model.Steps.Count" value="@done" aria-label="Getting started: @done of @Model.Steps.Count done"></progress>
+            <p class="mb-2">The plan is only as good as what it knows. Still to do:</p>
+            <ul class="list-group">
+                @foreach (var step in Model.Steps)
+                {
+                    <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                        @* Done or not is said in words, not by colour alone. *@
+                        <span class="badge @(step.Done ? "text-bg-success" : "text-bg-secondary")">@(step.Done ? "Done" : "To do")</span>
+                        @if (step.Done)
+                        {
+                            <span class="flex-grow-1">@step.Text</span>
+                        }
+                        else
+                        {
+                            <a class="flex-grow-1" asp-controller="@step.Controller" asp-action="@step.Action">@step.Text</a>
+                        }
+                        @if (step.Progress is { } progress)
+                        {
+                            <span class="small text-body-secondary">@progress</span>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    </section>
+}
+
+@if (Model.Unreadable.Count > 0)
+{
+    <div class="alert alert-warning" role="status">
+        <ul class="mb-0">
+            @foreach (var problem in Model.Unreadable)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        @if (Model.Next is { } next)
+        {
+            @* GOL-2: the next thing to do, first. *@
+            <section class="card ft-next ft-stripe @StyleOf(next.Item) mb-4" aria-labelledby="next-up-heading">
+                <div class="card-body">
+                    <h2 class="ft-eyebrow mb-2" id="next-up-heading">Next up <span class="fw-normal">· @Model.NextWhen</span></h2>
+                    <div class="ft-next-details">@{ await Details(next.Item); }</div>
+                </div>
+            </section>
+        }
+
+        @* Today and the next 7 days each have a section, for screen reader navigation. *@
+        <section aria-labelledby="day-@Model.Today.ToString("uuuu-MM-dd", null)">
+            <h2 class="h4" id="day-@Model.Today.ToString("uuuu-MM-dd", null)">Today, @HomeViewModel.DayPattern.Format(Model.Today)</h2>
+            @{ await Day(Model.Today, "Nothing planned today."); }
+        </section>
+    </div>
+
+    <div class="col-lg-7">
+        <section aria-labelledby="coming-up-heading">
+            <h2 class="h4" id="coming-up-heading">The next @HomeViewModel.DaysAhead days</h2>
+            @if (comingUp.Count == 0)
+            {
+                <p class="card card-body text-body-secondary">Nothing planned in the next @HomeViewModel.DaysAhead days. <a asp-controller="Activities" asp-action="Create">Add an activity</a>.</p>
+            }
+            @foreach (var day in comingUp)
+            {
+                <section class="mb-3" aria-labelledby="day-@day.ToString("uuuu-MM-dd", null)">
+                    <h3 class="h6 text-body-secondary mb-2" id="day-@day.ToString("uuuu-MM-dd", null)">@HomeViewModel.DayPattern.Format(day)</h3>
+                    @{ await Day(day, ""); }
+                </section>
+            }
+        </section>
+    </div>
+</div>

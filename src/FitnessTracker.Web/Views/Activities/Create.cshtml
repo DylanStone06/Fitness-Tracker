@@ -1,0 +1,33 @@
+@model ActivityFormViewModel
+@{
+    ViewData["Title"] = "Add an activity";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Add an activity</h1>
+        <p>Anything that takes up your time: work, the gym, a run, meal prep, seeing friends.</p>
+
+        <form asp-action="Create" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="ReturnToCalendar" />
+            <input type="hidden" asp-for="ReturnToPlan" />
+            <input type="hidden" asp-for="GoalId" />
+            <partial name="_ActivityFields" />
+
+            <button type="submit" class="btn btn-primary">Add activity</button>
+            @if (Model.ReturnToCalendar)
+            {
+                <a class="btn btn-link" asp-controller="Calendar" asp-action="Index" asp-route-date="@Model.SavedStartDate">Cancel</a>
+            }
+            else if (Model.ReturnToPlan)
+            {
+                <a class="btn btn-link" asp-controller="Plan" asp-action="Index" asp-route-date="@Model.SavedStartDate">Cancel</a>
+            }
+            else
+            {
+                <a class="btn btn-link" asp-action="Index">Cancel</a>
+            }
+        </form>
+    </div>
+</div>

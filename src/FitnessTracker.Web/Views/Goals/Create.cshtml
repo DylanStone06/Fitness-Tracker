@@ -1,0 +1,20 @@
+@model GoalFormViewModel
+@{
+    ViewData["Title"] = "Add a weekly goal";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Add a weekly goal</h1>
+        <p>Something you want to do a number of times each week, without choosing when: "Gym, 3 times a week". Plan my
+            week finds the times around everything else.</p>
+
+        <form asp-action="Create" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <partial name="_GoalFields" />
+
+            <button type="submit" class="btn btn-primary">Add goal</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

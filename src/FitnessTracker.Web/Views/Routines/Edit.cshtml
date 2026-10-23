@@ -1,0 +1,20 @@
+@model RoutineFormViewModel
+@{
+    ViewData["Title"] = "Edit routine";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Edit routine</h1>
+
+        @* Posts back to this page's own address, which carries the routine's id. *@
+        <form asp-action="Edit" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="Version" />
+            <partial name="_RoutineFields" />
+
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,20 @@
+@model RoutineFormViewModel
+@{
+    ViewData["Title"] = "Add a routine";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Add a routine</h1>
+        <p>A kind of week, such as your usual week or a holiday. If your weeks take turns (A/B weeks), choose how many
+            weeks it takes to repeat. Then choose, on each repeating activity, which weeks it happens in.</p>
+
+        <form asp-action="Create" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <partial name="_RoutineFields" />
+
+            <button type="submit" class="btn btn-primary">Add routine</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

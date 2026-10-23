@@ -1,0 +1,51 @@
+@model IReadOnlyList<FitnessTracker.Web.Data.WeeklyGoal>
+@{
+    ViewData["Title"] = "Weekly goals";
+    var names = (IReadOnlyDictionary<Guid, string>)ViewData["Names"]!;
+}
+
+<h1>Weekly goals</h1>
+<p>What you want to do each week, without choosing when: the gym 3 times, 2 runs, meal prep on Sunday. Plan my week
+    finds times for them around your work, travel, sleep and everything else on your calendar.</p>
+
+<p class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" asp-action="Create">Add a weekly goal</a>
+    @if (Model.Count > 0)
+    {
+        <a class="btn btn-outline-primary" asp-controller="Plan" asp-action="Index">Plan my week</a>
+    }
+</p>
+
+@if (Model.Count == 0)
+{
+    <p>You haven't added any weekly goals yet.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var goal in Model)
+        {
+            @* CAL-2: the category's colour as a stripe and a label, with its name in the label. *@
+            <li class="list-group-item ft-stripe @ActivityDisplay.CategoryStyle(goal.Category) d-flex flex-wrap align-items-center gap-2">
+                <span class="flex-grow-1 text-break">
+                    @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+                    <span class="fw-semibold" dir="auto">@goal.Title</span>
+                    <span class="d-block small">@GoalDisplay.HowOften(goal)</span>
+                    @if (GoalDisplay.Preferred(goal) is { } preferred)
+                    {
+                        <span class="d-block small">@preferred</span>
+                    }
+                    <span class="d-block small text-body-secondary mt-1">
+                        <span class="ft-chip">@ActivityDisplay.CategoryName(goal.Category)</span>@if (goal.LocationId is { } where && names.TryGetValue(where, out var place))
+                        {
+                            <text> at @place</text>
+                        }@(goal.Priority == FitnessTracker.Web.Data.ActivityPriority.Normal ? "" : $", {goal.Priority.ToString().ToLowerInvariant()} priority")@(goal.IsDemanding ? ", demanding" : "")
+                    </span>
+                </span>
+                @* The hidden title tells screen reader users which goal each button is for. *@
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@goal.Id">Edit<span class="visually-hidden"> @goal.Title</span></a>
+                <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@goal.Id">Delete<span class="visually-hidden"> @goal.Title</span></a>
+            </li>
+        }
+    </ul>
+}

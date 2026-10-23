@@ -1,0 +1,21 @@
+@model FitnessTracker.Web.Data.Activity
+@{
+    ViewData["Title"] = "Delete activity";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Delete this activity?</h1>
+        <partial name="_ErrorSummary" />
+        <p class="fs-5 text-break mb-1">@Model.Title</p>
+        <p>@ActivityDisplay.When(Model, ViewData["Clock"] as FitnessTracker.Domain.Time.ClockFormat? ?? FitnessTracker.Domain.Time.ClockFormat.TwentyFourHour)</p>
+        <p>@(Model.RepeatRule is null ? "This can't be undone." : "Every time it repeats is deleted. This can't be undone.")</p>
+
+        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+            @* The version this page shows, so an activity changed in another tab since isn't deleted unseen. *@
+            <input type="hidden" name="version" value="@Model.Version" />
+            <button type="submit" class="btn btn-danger">Delete activity</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>
