@@ -473,3 +473,11 @@ html {
     vertical-align: middle;
   }
 }
+
+/* Up to 1400 px the header row is 1140 px wide, which nine links and a 16rem address overflowed (break-ui, Phase 6b:
+   the page scrolled sideways). A shorter address fits; the whole of it is still read out, and shown as a tooltip. */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+  .account-email {
+    max-width: 7rem;
+  }
+}
