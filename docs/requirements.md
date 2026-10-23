@@ -344,3 +344,12 @@ Decided by the owner on 21 October 2026, during Phase 5:
 | # | Question | Decision |
 |---|---|---|
 | Q12 | What does accepting a "Plan my week" suggestion (SCH-4) add? | Either, chosen each time: the main button adds it every week at that day and time, from that week on (building a routine, since the owner plans a routine before knowing set times); a second button adds it for that week only. One week can then be changed on the calendar as any occurrence (CAL-4). Weekly targets (GOL-1) have no time of their own: the planner finds it. |
+
+Chosen as defaults in Phase 6b (23 October 2026), building A/B weeks; **not yet confirmed by the owner**, and easy to
+change:
+
+| # | Question | Default |
+|---|---|---|
+| Q13 | Does an A/B cycle keep counting through a holiday week (another routine), or pause? | Keeps counting by the calendar, as a rota does: the week after a holiday in week B is week A. |
+| Q14 | Which routine is in use on a date? | The one chosen for that date, if any (choosing routines for dates comes later in Phase 6b); otherwise the usual routine, if there is one. Activities not in a routine happen every week, whatever the routine, so every activity from before Phase 6b is unchanged. |
+| Q15 | When Plan my week plans week B and a session is added "every week", is it every week or every week B? | Every week B ("Week B only"), so planning week B builds week B. With a routine that is the same every week, it is added to that routine; with no routines, to every week, as before. |

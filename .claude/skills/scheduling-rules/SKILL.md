@@ -65,6 +65,31 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 `WeekCycle`: 1-4 weeks; week A is the week of the anchor date (requirements Q3: the week the template is first
 applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keeps its sign).
 
+Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
+- **Which routine is in use on a date** (`RoutineCalendar.On`): a routine chosen for a range of dates
+  (`RoutineDates`, inclusive) wins there; every other date uses the usual routine, or none. Overlapping ranges (the
+  pages will refuse them) are settled the same way every time: later start, then shorter, then id. A routine or usual
+  id with no cycle is left out. Choosing routines for dates has no page yet, so only the usual routine is in use.
+- **Each cycle counts by the calendar from its own week A**, through dates another routine is used on (Q13: a rota
+  doesn't pause for a holiday). A routine keeps the week start it was added with (`Routine.WeekStart`), as a rule
+  keeps its WKST.
+- **An activity in a routine** (`Activity.RoutineId`, `RoutineWeek` 'A'-'D' or null for every week of it) happens on a
+  date its rule falls on only when `RoutineCalendar.Includes` says so. This is applied in one place:
+  `Activity.ToPlannedActivity(routines)` limits the series with `Series.OnlyOn`, so the calendar, home page, check on
+  save, planner and Find another time all see it. The routine calendar is a **required** argument, so a new caller
+  can't forget it. One-offs are never in a routine.
+- **`Series.OnlyOn`** replaces the dates allowed (null: all). Occurrences on other dates are left out, and so is a
+  move *from* such a date; a move by the user *into* a week the activity isn't usually in still happens. `FallsOn`
+  (public) is rule and filter; changes on dates left out are kept as data and refused as new changes. `Edit` keeps
+  the filter and counts a change on a date no longer allowed as removed (P5), so changing an activity from every week
+  to week A only removes its week B changes and says so. `RecurrenceRule` itself knows nothing of routines: "after N
+  times" counts the dates its rule falls on, so the form refuses a count for an activity in a routine.
+- `RoutineCalendar.Across(dates)`: the dates in runs of the same routine and week, for "Usual week, week B" on the
+  calendar (`/Calendar/Weeks`) and Plan my week.
+- Plan my week's "Every week" adds a session to the routine and week in use that day (`RoutineDisplay.EveryWeekFor`:
+  "Every week B"), so planning week B builds week B.
+- Tests: `RoutineCalendarTests`, `SeriesOnlyOnTests`; web `Routines/*Tests`.
+
 ## Footprints (`Domain/Footprints`, §7.1, H8, TRV-2)
 
 - `Footprint.Around(activity, buffers, journeys)`: preparation, travel out, activity, changing, travel back, in that
@@ -264,7 +289,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | Area | Requirements | Phase |
 |---|---|---|
 | The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
-| Templates and their base location | CAL-9, TRV-4, T15 | 6 (if the owner still wants them) |
+| Routines chosen for a range of dates (the domain is built: `RoutineDates`), duplicating a routine, and a routine's base location | CAL-9, TRV-4, T15 | 6b |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code
@@ -305,11 +330,11 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
 | T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
-| T15 | "Brighton weekend" template | Not built (Phase 6b, after A/B weeks) | |
+| T15 | "Brighton weekend" template | Not built (Phase 6b, after A/B weeks); a weekend in the middle of a week is in the domain | `RoutineCalendarTests.ARoutineCanBeChosenForPartOfAWeek` |
 | T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
-| T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
-| T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, preferences) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests` |
+| T18 | A/B template: three weeks later is week B | **Covered** (domain and pages) | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA`, `RoutineCalendarTests.TheUsualRoutine_IsInUseOnEveryDate_*`, web `RoutinesTests.TheList_SaysWhichWeekThisIs`, `ActivitiesInRoutinesTests.TheCalendar_ShowsAWeekAActivity_InWeekAOnly` |
+| T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, goals, routines, preferences, the calendar's feeds) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests`, `RoutineWeeksShownTests.TheCalendarsRoutineFeed_IsOnlyTheSignedInUsersOwn` |
 | T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
 | T21 | Calendar at 320 px | **Checked by hand** (a browser check, Phase 5) | |
 | T22 | Same week planned twice: identical | **Covered** (domain) | `PlannerTests.TheSameWeekPlannedTwice_GivesTheSameSuggestions` |
