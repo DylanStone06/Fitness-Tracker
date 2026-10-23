@@ -1,0 +1,37 @@
+@model RoutineFormViewModel
+@* The fields shared by the add and edit forms for a routine (CAL-9). Checked on the server only. autocomplete is off
+   so browsers don't offer the user's own name. *@
+@{
+    var cycles = Enumerable.Range(1, FitnessTracker.Domain.Templates.WeekCycle.MaxWeeks)
+        .Select(weeks => new SelectListItem(weeks == 1 ? "1 week: the same every week" : $"{weeks} weeks: {RoutineDisplay.Letters(weeks)}", weeks.ToString()))
+        .ToList();
+}
+<div class="mb-3">
+    <label asp-for="Name" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="name-hint">For example, Usual week, Holiday or Brighton weekend.</div>
+    <span asp-validation-for="Name" class="d-block text-danger" id="name-error"></span>
+    <input asp-for="Name" class="form-control" autocomplete="off"
+           aria-describedby="name-hint name-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Name")" />
+</div>
+
+<div class="mb-3">
+    <label asp-for="CycleWeeks" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="cycle-hint">Choose 2 for A/B weeks: a week A, then a week B, then week A again.</div>
+    <span asp-validation-for="CycleWeeks" class="d-block text-danger" id="cycle-error"></span>
+    <select asp-for="CycleWeeks" class="form-select" asp-items="cycles"
+            aria-describedby="cycle-hint cycle-error" aria-invalid="@ViewData.ModelState.AriaInvalid("CycleWeeks")"></select>
+</div>
+
+<div class="mb-3">
+    <label asp-for="WeekA" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="week-a-hint">Any day of a week that is week A. The weeks then take turns from there, in the past too.</div>
+    <span asp-validation-for="WeekA" class="d-block text-danger" id="week-a-error"></span>
+    <input asp-for="WeekA" type="date" class="form-control"
+           aria-describedby="week-a-hint week-a-error" aria-invalid="@ViewData.ModelState.AriaInvalid("WeekA")" />
+</div>
+
+<div class="mb-3 form-check">
+    <input asp-for="IsUsual" class="form-check-input" aria-describedby="usual-hint" />
+    <label asp-for="IsUsual" class="form-check-label"></label>
+    <div class="form-text" id="usual-hint">Used on every date you haven't chosen another routine for. Only one routine can be your usual one.</div>
+</div>

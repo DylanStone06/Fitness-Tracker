@@ -267,6 +267,49 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.ToTable("LocationOpeningTimes");
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.Routine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CycleWeeks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsUsual")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WeekAStarts")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WeekStart")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Routines_OneUsualPerOwner")
+                        .HasFilter("\"IsUsual\" = 1");
+
+                    b.ToTable("Routines");
+                });
+
             modelBuilder.Entity("FitnessTracker.Web.Data.TravelLeg", b =>
                 {
                     b.Property<Guid>("Id")
@@ -616,6 +659,15 @@ namespace FitnessTracker.Web.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.Routine", b =>
+                {
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")

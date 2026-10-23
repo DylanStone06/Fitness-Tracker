@@ -214,6 +214,31 @@ public sealed partial class TestBrowser
     }
 
     /// <summary>
+    /// CAL-9: adds a routine: one week that repeats, with week A this week (Monday 19 October 2026 in tests), not the
+    /// usual one, unless <paramref name="changes"/> says otherwise.
+    /// </summary>
+    public Task<HttpResponseMessage> AddRoutineAsync(string name, Dictionary<string, string>? changes = null) =>
+        SubmitFormAsync("/Routines/Create", "/Routines/Create", RoutineForm(name, changes));
+
+    /// <summary>Every field of the routine form, filled in as for <see cref="AddRoutineAsync"/>, with the given changes.</summary>
+    public static Dictionary<string, string> RoutineForm(string name, Dictionary<string, string>? changes = null)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["Name"] = name,
+            ["CycleWeeks"] = "1",
+            ["WeekA"] = "2026-10-19",
+            ["IsUsual"] = "false",
+        };
+        foreach (var (field, value) in changes ?? [])
+        {
+            form[field] = value;
+        }
+
+        return form;
+    }
+
+    /// <summary>
     /// Every row of the default-buffers form (ACC-6) as a new user's page fills it (the built-in defaults), with the
     /// given changes. Rows are in ActivityCategory order: Gym is row 2, Run row 3.
     /// </summary>

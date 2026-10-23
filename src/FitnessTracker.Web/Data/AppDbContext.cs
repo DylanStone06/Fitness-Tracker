@@ -36,6 +36,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<WeeklyGoal> WeeklyGoals => Set<WeeklyGoal>();
 
+    public DbSet<Routine> Routines => Set<Routine>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -118,6 +120,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // Deleting a location keeps its goals, with no location.
             goal.HasOne<Location>().WithMany().HasForeignKey(g => g.LocationId).OnDelete(DeleteBehavior.SetNull);
             goal.HasOne<AppUser>().WithMany().HasForeignKey(g => g.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Routine>(routine =>
+        {
+            routine.Property(r => r.Name).HasMaxLength(Routine.NameMaxLength);
+            // At most one usual routine per person, even if two tabs make different ones usual at once.
+            routine.HasIndex(r => r.OwnerId).IsUnique().HasFilter($"\"{nameof(Routine.IsUsual)}\" = 1").HasDatabaseName("IX_Routines_OneUsualPerOwner");
+            routine.HasOne<AppUser>().WithMany().HasForeignKey(r => r.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every owned entity type gets the same protection, so a new one can't be forgotten.
