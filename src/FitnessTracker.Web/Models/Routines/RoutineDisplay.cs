@@ -79,9 +79,14 @@ public static class RoutineDisplay
             return ("", "Every week");
         }
 
-        return routine.CycleWeeks > 1
-            ? (ActivityFormViewModel.WeeksValue(routine.Id, inUse.Week), $"Every week {inUse.Week}")
-            : (ActivityFormViewModel.WeeksValue(routine.Id, null), routine.IsUsual ? "Every week" : $"Whenever {routine.Name} is in use");
+        // A routine other than the usual one is named: the session is only in it (scheduling review, Phase 6b).
+        return (routine.CycleWeeks > 1, routine.IsUsual) switch
+        {
+            (true, true) => (ActivityFormViewModel.WeeksValue(routine.Id, inUse.Week), $"Every week {inUse.Week}"),
+            (true, false) => (ActivityFormViewModel.WeeksValue(routine.Id, inUse.Week), $"Week {inUse.Week} whenever {routine.Name} is in use"),
+            (false, true) => (ActivityFormViewModel.WeeksValue(routine.Id, null), "Every week"),
+            (false, false) => (ActivityFormViewModel.WeeksValue(routine.Id, null), $"Whenever {routine.Name} is in use"),
+        };
     }
 
     private static string Dates(DateInterval dates) => dates.Start == dates.End
