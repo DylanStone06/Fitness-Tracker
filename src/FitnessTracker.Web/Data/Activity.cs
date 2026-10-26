@@ -181,10 +181,19 @@ public class Activity : IOwnedByUser, IVersioned
         return (edit.KeptChanges, edit.RemovedChanges);
     }
 
-    // CAL-9: the dates it may happen on, or null for every date its rule falls on.
-    private Func<LocalDate, bool>? HappensOn(RoutineCalendar routines) => RoutineId is { } routine
-        ? date => routines.Includes(routine, RoutineWeek, date)
-        : null;
+    // CAL-9: the dates it may happen on, or null for every date its rule falls on. The routine and week are copied now,
+    // not read when a date is asked about: a series made before an edit must keep the weeks it was made with
+    // (scheduling review, Phase 6b: the week was read after the form had changed it).
+    private Func<LocalDate, bool>? HappensOn(RoutineCalendar routines)
+    {
+        if (RoutineId is not { } routine)
+        {
+            return null;
+        }
+
+        var week = RoutineWeek;
+        return date => routines.Includes(routine, week, date);
+    }
 
     // The series as its rule makes it, without one-off changes.
     private Series UsualSeries() => new(

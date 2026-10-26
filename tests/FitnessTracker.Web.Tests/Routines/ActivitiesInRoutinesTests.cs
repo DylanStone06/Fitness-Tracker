@@ -171,6 +171,28 @@ public sealed class ActivitiesInRoutinesTests(TestAppFactory factory) : IClassFi
         Assert.Contains("1 change was on a day it no longer happens, so it was removed", list);
     }
 
+    // ... and from every week of a routine to its week A only, the same (scheduling review, Phase 6b: the week was read
+    // after the form had changed it, so the week B change was kept, hidden, and said to be kept).
+    [Fact]
+    public async Task ChangingFromEveryWeekOfARoutineToWeekA_RemovesWeekBChanges_AndSaysSo()
+    {
+        var (browser, routine) = await SignedInWithABRoutineAsync();
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, MondaysFromToday(new() { ["Weeks"] = routine.ToString() }));
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+        var cancelled = await browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date=2026-10-26", $"/Activities/Occurrence/{id}",
+            new() { ["Date"] = "2026-10-26", ["Change"] = "Cancel" });
+        Assert.Equal(HttpStatusCode.Redirect, cancelled.StatusCode);
+
+        var edited = await browser.SubmitFormAsync($"/Activities/Edit/{id}", $"/Activities/Edit/{id}",
+            TestBrowser.ActivityForm(title, MondaysFromToday(new() { ["Weeks"] = $"{routine}/A" })));
+        var list = await (await browser.GetAsync("/Activities")).Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Redirect, edited.StatusCode);
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.OccurrenceChanges);
+        Assert.Contains("1 change was on a day it no longer happens, so it was removed", list);
+    }
+
     [Fact]
     public async Task TheList_SaysWhichWeeksEachActivityIsIn()
     {
