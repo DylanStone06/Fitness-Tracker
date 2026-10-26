@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
@@ -103,15 +105,26 @@ public class ActivityChecker(PlanningData planning)
 
     /// <summary>
     /// What a change broke: the findings in <paramref name="after"/> that weren't in <paramref name="before"/>, at most
-    /// <see cref="MostFindingsShown"/> of them, then "And 22 more." for the rest.
+    /// <see cref="MostFindingsShown"/> of them, then "And 22 more." for the rest. A rule broken on several dates is one
+    /// sentence counting the rest ("The same happens on 1 more date up to …"), so the same sentence on fewer dates isn't
+    /// new (the change fixed some), and on more dates is (scheduling review, Phase 6b).
     /// </summary>
     public static string[] NewFindings(IReadOnlyList<string> after, IReadOnlyList<string> before)
     {
-        var added = after.Except(before).ToList();
+        var datesBefore = before.Select(Dates).GroupBy(finding => finding.Sentence).ToDictionary(group => group.Key, group => group.Max(finding => finding.Count));
+        var added = after.Where(finding => Dates(finding) is var (sentence, count) && (!datesBefore.TryGetValue(sentence, out var was) || count > was)).ToList();
         return added.Count <= MostFindingsShown
             ? [.. added]
             : [.. added.Take(MostFindingsShown), $"And {added.Count - MostFindingsShown} more. The calendar shows each one."];
     }
+
+    // " The same happens on 2 more dates up to Tue 19 Oct 2027." at the end of a rule's sentence (ActivityCheck).
+    private static readonly Regex MoreDates = new(@" The same happens on (\d+) more dates? up to [^.]+\.$", RegexOptions.CultureInvariant);
+
+    // A finding without its count of further dates, and how many dates it is on.
+    private static (string Sentence, int Count) Dates(string finding) => MoreDates.Match(finding) is { Success: true } more
+        ? (finding[..more.Index], 1 + int.Parse(more.Groups[1].Value, CultureInfo.InvariantCulture))
+        : (finding, 1);
 
     /// <summary>
     /// CAL-4: the check for a change to one occurrence of <paramref name="candidate"/> (as it would be saved), on that
