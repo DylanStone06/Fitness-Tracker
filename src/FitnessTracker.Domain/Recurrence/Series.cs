@@ -129,13 +129,24 @@ public sealed class Series
     /// result says how many were kept and how many were removed. A move to what is now the usual time and length is no
     /// longer a change, so it is neither: the occurrence simply follows the series, where it already was.
     /// </summary>
-    public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule)
+    public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule) =>
+        Edit(firstDate, startTime, length, rule, _happensOn);
+
+    /// <summary>
+    /// <see cref="Edit(LocalDate, LocalTime, Duration, RecurrenceRule)"/>, allowed on the dates <paramref name="happensOn"/>
+    /// says (CAL-9: its routine's weeks, as they are now) instead of this series' own. A change on a date this series
+    /// already left out (a week since given to another routine) wasn't taken away by the edit: it is kept while the
+    /// edited rule still falls on that date, so it shows again if the date is allowed again.
+    /// </summary>
+    public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule, Func<LocalDate, bool>? happensOn)
     {
-        var edited = new Series(firstDate, startTime, length, Zone, rule, FrozenDictionary<LocalDate, OccurrenceChange>.Empty, _happensOn);
+        // Built on every date the rule falls on, so a change kept on a date left out can be added; limited at the end.
+        var edited = new Series(firstDate, startTime, length, Zone, rule, FrozenDictionary<LocalDate, OccurrenceChange>.Empty, happensOn: null);
         var removed = 0;
         foreach (var (date, change) in Changes)
         {
-            if (!edited.FallsOn(date))
+            var allowedAfter = happensOn?.Invoke(date) ?? true;
+            if (!edited.FallsOn(date) || (!allowedAfter && Allows(date)))
             {
                 removed++;
                 continue;
@@ -144,7 +155,8 @@ public sealed class Series
             edited = edited.WithChange(date, change);
         }
 
-        return new SeriesEdit(edited, KeptChanges: edited.Changes.Count, RemovedChanges: removed);
+        var limited = edited.OnlyOn(happensOn);
+        return new SeriesEdit(limited, KeptChanges: limited.Changes.Count, RemovedChanges: removed);
     }
 
     /// <summary>

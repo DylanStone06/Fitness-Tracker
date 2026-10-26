@@ -137,9 +137,11 @@ public class Activity : IOwnedByUser, IVersioned
         };
 
     /// <summary>
-    /// CAL-4, T8: after the whole activity is edited, keeps the one-off changes of <paramref name="before"/> on dates
-    /// it still falls on, in the weeks it is in now (CAL-9), and removes the rest (all of them for a one-off). Returns
-    /// how many of each, to tell the user.
+    /// CAL-4, T8: after the whole activity is edited, keeps the one-off changes of <paramref name="before"/> (the
+    /// activity as it was, in the weeks it was in) on dates it still falls on, in the weeks it is in now (CAL-9), and
+    /// removes the rest (all of them for a one-off). A change on a date it already didn't happen on (a week since given
+    /// to a holiday routine, Q14) wasn't taken away by the edit, so it is kept while the repeat still falls on that
+    /// date. Returns how many of each, to tell the user.
     /// </summary>
     public (int Kept, int Removed) KeepChangesFrom(Series before, RoutineCalendar routines)
     {
@@ -149,8 +151,7 @@ public class Activity : IOwnedByUser, IVersioned
             return (0, before.Changes.Count);
         }
 
-        var edit = before.OnlyOn(HappensOn(routines))
-            .Edit(StartDate, StartTime, Duration.FromMinutes(LengthMinutes), RecurrenceRuleText.Parse(RepeatRule));
+        var edit = before.Edit(StartDate, StartTime, Duration.FromMinutes(LengthMinutes), RecurrenceRuleText.Parse(RepeatRule), HappensOn(routines));
         OccurrenceChanges = OccurrenceChangesText.Format(edit.Series.Changes);
         return (edit.KeptChanges, edit.RemovedChanges);
     }

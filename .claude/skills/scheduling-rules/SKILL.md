@@ -36,7 +36,11 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 - **One-off changes** (cancelled, or moved/resized) are keyed by the **date the rule put the occurrence on**, never by
   its time, so editing the series' time keeps track of them. A moved occurrence shows on the day it now starts.
 - **Editing the series** keeps changes for dates the edited series still falls on, removes the rest, and reports
-  both counts (`SeriesEdit`), so the app never loses a change silently (P5). Restoring, or moving an occurrence back
+  both counts (`SeriesEdit`), so the app never loses a change silently (P5). With routines (CAL-9), only the dates
+  the edit itself stops it happening on count as removed: a change on a date it already didn't happen on (a week
+  since given to a holiday, Q14) is kept while the repeat still falls on it, and shows again if that date is
+  allowed again (`Series.Edit(..., happensOn)`, given the series as it was with its own dates; tests
+  `SeriesOnlyOnTests.AnEdit_*`, web `RoutineDatesTests.EditingAnActivity_KeepsAChangeInAWeekGivenToAHoliday`). Restoring, or moving an occurrence back
   to its usual **moment** and length, removes its change (compared as moments: a 01:30 series happens at 02:30 on
   the night the clocks go forward).
 - A move is stored as a **clock time**, so a drop in the second 01:00-01:59 on the night the clocks go back resolves

@@ -86,7 +86,7 @@ public class SeriesOnlyOnTests
     }
 
     // CAL-4, P5: changing an activity from every week to week A only is an edit of the whole series. A change on a week
-    // B date is on a day it no longer happens, so it is removed and counted, like a change on a day the rule left.
+    // B date is on a day the edit stops it happening, so it is removed and counted, like a change on a day the rule left.
     [Fact]
     public void AnEdit_KeepsOnlyChangesOnDatesStillAllowed_AndCountsTheRest()
     {
@@ -94,13 +94,45 @@ public class SeriesOnlyOnTests
             .CancelOccurrence(new LocalDate(2026, 10, 7))
             .CancelOccurrence(new LocalDate(2026, 10, 12));
 
-        var edit = changed.OnlyOn(WeekA).Edit(changed.FirstDate, changed.StartTime, changed.Length, changed.Rule);
+        var edit = changed.Edit(changed.FirstDate, changed.StartTime, changed.Length, changed.Rule, WeekA);
 
         Assert.Equal(1, edit.KeptChanges);
         Assert.Equal(1, edit.RemovedChanges);
         Assert.Equal([new LocalDate(2026, 10, 7)], edit.Series.Changes.Keys);
         Assert.False(edit.Series.FallsOn(new LocalDate(2026, 10, 12)));
     }
+
+    // CAL-9, Q14: a change on a date already left out before the edit (Monday 12 October moved to 19:00, then that week
+    // given to a holiday routine) wasn't taken away by the edit, so it is kept while the rule still falls on that date,
+    // and shows again once the date is allowed again (Phase 6b: any edit of the activity removed it).
+    [Fact]
+    public void AnEdit_KeepsAChangeOnADateAlreadyLeftOut()
+    {
+        var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 12, 19, 0), Duration.FromMinutes(50))
+            .OnlyOn(NotOnHoliday);
+
+        var edit = moved.Edit(moved.FirstDate, new LocalTime(7, 30), moved.Length, moved.Rule, NotOnHoliday);
+
+        Assert.Equal((1, 0), (edit.KeptChanges, edit.RemovedChanges));
+        Assert.Empty(edit.Series.OccurrencesBetween(new(2026, 10, 12), new(2026, 10, 18)));
+        var back = Assert.Single(edit.Series.OnlyOn(null).OccurrencesBetween(new(2026, 10, 12), new(2026, 10, 12)));
+        Assert.Equal(Instant.FromUtc(2026, 10, 12, 18, 0), back.Time.Start);
+    }
+
+    // ... but not once the edited rule no longer falls on it (Mondays dropped): then nothing could show it again.
+    [Fact]
+    public void AnEdit_RemovesAChangeOnALeftOutDate_WhenTheRuleNoLongerFallsOnIt()
+    {
+        var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 12, 19, 0), Duration.FromMinutes(50))
+            .OnlyOn(NotOnHoliday);
+
+        var edit = moved.Edit(moved.FirstDate, moved.StartTime, moved.Length, RecurrenceRule.Weekly([IsoDayOfWeek.Wednesday]), NotOnHoliday);
+
+        Assert.Equal((0, 1), (edit.KeptChanges, edit.RemovedChanges));
+    }
+
+    // The week of 12 October 2026 given to a holiday routine.
+    private static readonly Func<LocalDate, bool> NotOnHoliday = date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18);
 
     [Fact]
     public void AnotherTimezone_KeepsTheDatesAllowed()

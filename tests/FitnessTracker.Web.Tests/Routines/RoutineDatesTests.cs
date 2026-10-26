@@ -242,6 +242,38 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
         Assert.DoesNotContain("need a look", html);
     }
 
+    // CAL-4 with Q14: a one-off change (Monday 2 November cancelled) in a week later given to a holiday isn't removed by
+    // editing the activity, which didn't take that day away, and is back when the holiday is removed (the known
+    // limitation "a change made in a week later given to a holiday routine would be removed by any edit").
+    [Fact]
+    public async Task EditingAnActivity_KeepsAChangeInAWeekGivenToAHoliday()
+    {
+        var (browser, usual, holiday) = await SignedInWithUsualAndHolidayAsync();
+        var office = await AddMondaysAsync(browser, "Office", usual);
+        var id = (await StoredData.ActivityTitledAsync(factory, office))!.Id;
+        var cancelled = await browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date=2026-11-02", $"/Activities/Occurrence/{id}",
+            new() { ["Date"] = "2026-11-02", ["Change"] = "Cancel" });
+        Assert.Equal(HttpStatusCode.Redirect, cancelled.StatusCode);
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-02", "2026-11-08");
+
+        var edited = await browser.SubmitFormAsync($"/Activities/Edit/{id}", $"/Activities/Edit/{id}", TestBrowser.ActivityForm(office, new()
+        {
+            ["StartDate"] = "2026-10-19",
+            ["StartTime"] = "07:30",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[0]"] = "true",
+            ["Weeks"] = usual.Id.ToString(),
+        }));
+        var list = await (await browser.GetAsync("/Activities")).Content.ReadAsStringAsync();
+        var dates = Assert.Single(await StoredData.DatesChosenForAsync(factory, holiday.Id)).Id;
+        await browser.SubmitFormAsync($"/RoutineDates/Delete/{dates}", $"/RoutineDates/Delete/{dates}", []);
+
+        Assert.Equal(HttpStatusCode.Redirect, edited.StatusCode);
+        Assert.DoesNotContain("removed", list);
+        Assert.DoesNotContain(office, await TitlesAsync(browser, "2026-11-02", "2026-11-03"));
+        Assert.Contains(office, await TitlesAsync(browser, "2026-11-09", "2026-11-10"));
+    }
+
     // The activities list says when an activity in a routine other than the usual one happens.
     [Fact]
     public async Task TheActivitiesList_SaysWhichDatesAnActivityInAnotherRoutineHappensOn()
