@@ -903,6 +903,33 @@ public class ActivityCheckTests
         Assert.Equal("On Sun 25 Oct 2026 there's already a demanding session, Night ride; your preferences allow 1 a day.", problem.Message);
     }
 
+    // CAL-9, SCH-1: an activity that only happens on some dates months ahead (a holiday routine's, 21-27 December) is
+    // checked for clashes from the first of them, not for 8 weeks in which it doesn't happen at all (scheduling review,
+    // Phase 6b). The other activities to load reach there too.
+    [Fact]
+    public void AnActivityLimitedToDatesMonthsAhead_IsCheckedForClashesThere()
+    {
+        var weekly = Weekly(new LocalDate(2026, 10, 19), [IsoDayOfWeek.Monday], new LocalTime(18, 0));
+        var holidayOnly = weekly with { Series = weekly.Series.OnlyOn(date => date >= new LocalDate(2026, 12, 21) && date <= new LocalDate(2026, 12, 27)) };
+        var party = OneOff("Party", new LocalDate(2026, 12, 21), new LocalTime(18, 0), minutes: 120, at: Home);
+
+        var result = ActivityCheck.Check(holidayOnly, [party], Context());
+
+        Assert.Equal("Party", Assert.Single(result.Clashes).Other.Label);
+        Assert.Equal(new LocalDate(2026, 12, 21), result.Checked.Start);
+        Assert.True(ActivityCheck.OthersThatCanClash(holidayOnly, Today).Contains(new LocalDate(2026, 12, 21)));
+    }
+
+    // ... while one that happens within the 8 weeks is checked from today, as ever.
+    [Fact]
+    public void AnActivityHappeningSoon_IsStillCheckedFromToday()
+    {
+        var weekly = Weekly(new LocalDate(2026, 10, 19), [IsoDayOfWeek.Monday], new LocalTime(18, 0));
+        var fromNovember = weekly with { Series = weekly.Series.OnlyOn(date => date >= new LocalDate(2026, 11, 2)) };
+
+        Assert.Equal(Today, ActivityCheck.Check(fromNovember, [], Context()).Checked.Start);
+    }
+
     // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks. Taken
     // from the activity itself, so a caller can't leave it out (code review, Phase 6).
     [Fact]

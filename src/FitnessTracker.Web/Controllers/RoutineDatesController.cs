@@ -4,6 +4,7 @@ using FitnessTracker.Web.Models.Routines;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace FitnessTracker.Web.Controllers;
 
@@ -32,12 +33,13 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return View(model);
         }
 
-        var before = await checker.RoutineActivityFindingsAsync();
         var chosen = new RoutineDateRange();
         model.ApplyTo(chosen);
+        LocalDate[] changedFrom = [chosen.StartDate];
+        var before = await checker.RoutineActivityFindingsAsync(changedFrom);
         db.RoutineDateRanges.Add(chosen);
         await db.SaveChangesAsync();
-        await SayWhatBrokeAsync(before);
+        await SayWhatBrokeAsync(before, changedFrom);
         return RedirectToAction(nameof(RoutinesController.Index), "Routines");
     }
 
@@ -69,7 +71,9 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return View(model);
         }
 
-        var before = await checker.RoutineActivityFindingsAsync();
+        // Both the dates it had and the dates it has now change which routine is in use.
+        LocalDate[] changedFrom = [chosen.StartDate, FormInput.ParseDate(model.From)!.Value];
+        var before = await checker.RoutineActivityFindingsAsync(changedFrom);
         // Saved only if nobody has saved these dates since the form was opened (requirements §9).
         db.Entry(chosen).Property(saved => saved.Version).OriginalValue = model.Version;
         model.ApplyTo(chosen);
@@ -95,7 +99,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return View(model);
         }
 
-        await SayWhatBrokeAsync(before);
+        await SayWhatBrokeAsync(before, changedFrom);
         return RedirectToAction(nameof(RoutinesController.Index), "Routines");
     }
 
@@ -123,7 +127,8 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return NotFound();
         }
 
-        var before = await checker.RoutineActivityFindingsAsync();
+        LocalDate[] changedFrom = [chosen.StartDate];
+        var before = await checker.RoutineActivityFindingsAsync(changedFrom);
         db.Entry(chosen).Property(saved => saved.Version).OriginalValue = version;
         db.RoutineDateRanges.Remove(chosen);
         try
@@ -144,7 +149,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return View(nameof(Delete), current);
         }
 
-        await SayWhatBrokeAsync(before);
+        await SayWhatBrokeAsync(before, changedFrom);
         return RedirectToAction(nameof(RoutinesController.Index), "Routines");
     }
 
@@ -152,9 +157,10 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
     public const string RoutineName = "RoutineName";
 
     // SCH-1, CLAUDE.md rule 3: what the change put on dates where it now breaks a rule or clashes, on the Routines page.
-    private async Task SayWhatBrokeAsync(List<string> before)
+    // Checked from the first day of each range that changed, as before was.
+    private async Task SayWhatBrokeAsync(List<string> before, IReadOnlyCollection<LocalDate> changedFrom)
     {
-        var broken = await checker.RoutineActivityFindingsSinceAsync(before);
+        var broken = await checker.RoutineActivityFindingsSinceAsync(before, changedFrom);
         if (broken.Length > 0)
         {
             TempData[RoutinesController.RoutineChangeFindings] = broken;

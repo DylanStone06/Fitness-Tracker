@@ -232,8 +232,8 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
     }
 
     // ... but at most 20, counting the rest: the list travels in a cookie to the next page, and hundreds would be too
-    // big for it (code review, Phase 6b). Work and a holiday run every day at 07:00; the holiday from 2 November is
-    // checked to 13 December (8 weeks from today): 42 clashes.
+    // big for it (code review, Phase 6b). Work and a holiday run every day at 07:00; the holiday is checked from its
+    // first day, 2 November, for 8 weeks, to 27 December: 56 clashes.
     [Fact]
     public async Task Choosing_ShowsAtMost20OfWhatItBreaks_AndCountsTheRest()
     {
@@ -246,7 +246,64 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
 
         var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
         Assert.Equal(20, html.Split($"<li>{beach}: ").Length - 1);
-        Assert.Contains("And 22 more.", html);
+        Assert.Contains("And 36 more.", html);
+    }
+
+    // ... also for dates more than 8 weeks ahead (21 December is 9 weeks after today), which are checked from their first
+    // day (scheduling review, Phase 6b: only the 8 weeks from today were checked, where the holiday has nothing).
+    [Fact]
+    public async Task Choosing_DatesMoreThanEightWeeksAhead_ShowsWhatItBreaksThere()
+    {
+        var (browser, _, holiday) = await SignedInWithUsualAndHolidayAsync();
+        var work = await AddMondaysAsync(browser, "Work", routine: null);
+        var beach = await AddMondaysAsync(browser, "Beach run", holiday);
+
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-12-21", "2026-12-27");
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Contains($"{beach}: On Mon 21 Dec 2026", html);
+        Assert.Contains(work, html);
+    }
+
+    // ... and for a second holiday after one that is soon (2-8 November, then 21-27 December): the holiday activity
+    // happens in the 8 weeks from today, so its own check stops on 13 December, but choosing December's dates checks
+    // them from their first day.
+    [Fact]
+    public async Task Choosing_ASecondHolidayMonthsAhead_ShowsWhatItBreaksThere()
+    {
+        var (browser, _, holiday) = await SignedInWithUsualAndHolidayAsync();
+        await AddMondaysAsync(browser, "Work", routine: null);
+        var beach = await AddMondaysAsync(browser, "Beach run", holiday);
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-02", "2026-11-08");
+        await browser.GetAsync("/Routines");
+
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-12-21", "2026-12-27");
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Contains($"{beach}: On Mon 21 Dec 2026", html);
+        Assert.DoesNotContain($"{beach}: On Mon 2 Nov 2026", html);
+    }
+
+    // ... and an activity added to that routine afterwards is checked there when it is saved.
+    [Fact]
+    public async Task AddingAnActivityToARoutineChosenMonthsAhead_IsCheckedThere()
+    {
+        var (browser, _, holiday) = await SignedInWithUsualAndHolidayAsync();
+        await AddMondaysAsync(browser, "Work", routine: null);
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-12-21", "2026-12-27");
+
+        var response = await browser.AddActivityAsync(TestBrowser.NewName("Beach run"), new()
+        {
+            ["StartDate"] = "2026-10-19",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[0]"] = "true",
+            ["Weeks"] = holiday.Id.ToString(),
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("It clashes with your other activities", html);
+        Assert.Contains("On Mon 21 Dec 2026", html);
     }
 
     // ... and says nothing when nothing breaks.

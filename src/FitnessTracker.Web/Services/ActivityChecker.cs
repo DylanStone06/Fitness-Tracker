@@ -15,12 +15,18 @@ public class ActivityChecker(PlanningData planning)
     /// <summary>
     /// The check's explanations write times as the user chose (ACC-3), or as <paramref name="clock"/> says, and the rest
     /// rules are the saved ones, or <paramref name="rest"/>: two checks whose findings are compared (before and after a
-    /// change) must write times the same way and keep the same rules.
+    /// change) must write times the same way and keep the same rules. With <paramref name="checkFrom"/> (later than
+    /// today), it is checked as if that were today: for a change to some dates months ahead (a holiday chosen), whose
+    /// clashes the usual 8 weeks from today wouldn't reach.
     /// </summary>
-    public async Task<ActivityCheckResult> CheckAsync(Activity candidate, ClockFormat? clock = null, RestRules? rest = null)
+    public async Task<ActivityCheckResult> CheckAsync(Activity candidate, ClockFormat? clock = null, RestRules? rest = null, LocalDate? checkFrom = null)
     {
         var loaded = await planning.LoadAsync();
-        var user = loaded with { Context = loaded.Context with { Clock = clock ?? loaded.Context.Clock, Rest = rest ?? loaded.Context.Rest } };
+        var today = checkFrom is { } from && from > loaded.Context.Today ? from : loaded.Context.Today;
+        var user = loaded with
+        {
+            Context = loaded.Context with { Clock = clock ?? loaded.Context.Clock, Rest = rest ?? loaded.Context.Rest, Today = today },
+        };
 
         // Only activities that can fall near the dates checked (for a demanding one, as far ahead as its rest rules are
         // checked and as far either side as the rest between demanding sessions reaches, H5-H7), not every one the user
@@ -41,13 +47,14 @@ public class ActivityChecker(PlanningData planning)
     /// timezone change, a routine chosen for some dates): run before and after, what is new is what the change broke.
     /// Both runs must write times the same way (<paramref name="clock"/>) and keep the same rest rules
     /// (<paramref name="rest"/>, or the saved ones), so a change of either alone doesn't make a finding look new.
+    /// <paramref name="checkFrom"/> as for <see cref="CheckAsync"/>.
     /// </summary>
-    public async Task<List<string>> FindingsAsync(IEnumerable<Activity> activities, ClockFormat clock, RestRules? rest = null)
+    public async Task<List<string>> FindingsAsync(IEnumerable<Activity> activities, ClockFormat clock, RestRules? rest = null, LocalDate? checkFrom = null)
     {
         var findings = new List<string>();
         foreach (var activity in activities)
         {
-            var result = await CheckAsync(activity, clock, rest);
+            var result = await CheckAsync(activity, clock, rest, checkFrom);
             var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
             findings.AddRange(result.Problems.Select(problem => $"{activity.Title}: {problem.Message}"));
             findings.AddRange(result.Clashes.Select(clash => $"{activity.Title}: {ActivityCheck.Describe(clash, zone, clock)}"));
@@ -59,17 +66,34 @@ public class ActivityChecker(PlanningData planning)
     /// <summary>
     /// CAL-9, SCH-1: <see cref="FindingsAsync"/> for every activity in a routine, for a change to which routine is in use
     /// when (dates chosen for a routine, another made usual): run before and after it, what is new is what it broke
-    /// (<see cref="RoutineActivityFindingsSinceAsync"/>).
+    /// (<see cref="RoutineActivityFindingsSinceAsync"/>). Checked from today, or, for a change to some dates
+    /// (<paramref name="changedFrom"/>: the first day of each range chosen or no longer chosen), from each of those, so
+    /// a holiday months ahead is checked where it is (scheduling review, Phase 6b).
     /// </summary>
-    public async Task<List<string>> RoutineActivityFindingsAsync()
+    public async Task<List<string>> RoutineActivityFindingsAsync(IReadOnlyCollection<LocalDate>? changedFrom = null)
     {
         var clock = (await planning.LoadAsync()).Preferences.TimesShownAs();
-        return await FindingsAsync(await planning.ActivitiesInRoutinesAsync(), clock);
+        var activities = await planning.ActivitiesInRoutinesAsync();
+        if (changedFrom is null || changedFrom.Count == 0)
+        {
+            return await FindingsAsync(activities, clock);
+        }
+
+        var findings = new List<string>();
+        foreach (var from in changedFrom.Distinct().Order())
+        {
+            findings.AddRange(await FindingsAsync(activities, clock, checkFrom: from));
+        }
+
+        return findings.Distinct().ToList();
     }
 
-    /// <summary>What <see cref="RoutineActivityFindingsAsync"/> finds now that it didn't <paramref name="before"/>, to show.</summary>
-    public async Task<string[]> RoutineActivityFindingsSinceAsync(IReadOnlyList<string> before) =>
-        NewFindings(await RoutineActivityFindingsAsync(), before);
+    /// <summary>
+    /// What <see cref="RoutineActivityFindingsAsync"/> finds now that it didn't <paramref name="before"/> (found with the
+    /// same <paramref name="changedFrom"/>), to show.
+    /// </summary>
+    public async Task<string[]> RoutineActivityFindingsSinceAsync(IReadOnlyList<string> before, IReadOnlyCollection<LocalDate>? changedFrom = null) =>
+        NewFindings(await RoutineActivityFindingsAsync(changedFrom), before);
 
     /// <summary>
     /// The most findings a page is sent after a change. They travel to it in a cookie (TempData), and hundreds (a clash

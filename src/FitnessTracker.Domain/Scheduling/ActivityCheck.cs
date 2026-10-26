@@ -412,11 +412,26 @@ public static class ActivityCheck
 
     // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
     // today on (a one-off in the past, a series that has ended) is checked from its own first date, so nothing is saved
-    // unchecked.
+    // unchecked. And one that doesn't happen at all in the 8 weeks from then, but does later in the year (CAL-9: a
+    // holiday routine's, months ahead), is checked from the first date it does, rather than for 8 weeks of nothing
+    // (scheduling review, Phase 6b).
     private static LocalDate FirstCheckedDate(Series series, LocalDate today)
     {
         var fromToday = LocalDate.Max(series.FirstDate, today);
-        return fromToday > series.FirstDate && !HappensFrom(series, fromToday) ? series.FirstDate : fromToday;
+        if (fromToday > series.FirstDate && !HappensFrom(series, fromToday))
+        {
+            return series.FirstDate;
+        }
+
+        // A length of zero or less can't be turned into occurrences; Check says so first.
+        if (series.Length > Duration.Zero
+            && series.OccurrencesBetween(fromToday, fromToday.PlusWeeks(WeeksAhead).PlusDays(-1)).Count == 0
+            && series.OccurrencesBetween(fromToday, fromToday.PlusWeeks(WeeksAheadForFixedRules)).FirstOrDefault() is { } first)
+        {
+            return LocalDate.Max(fromToday, first.Time.Start.InZone(series.Zone).Date);
+        }
+
+        return fromToday;
     }
 
     // Whether any of the series is on date or later: in the year H4 and H8 look at, by its rule after that (a rule every
