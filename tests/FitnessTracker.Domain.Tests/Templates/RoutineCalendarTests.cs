@@ -92,6 +92,24 @@ public class RoutineCalendarTests
         Assert.Equal(new RoutineWeek(Brighton, 'A'), calendar.On(new LocalDate(2026, 10, 16)));
     }
 
+    // ... and with the same start, the shorter wins, in whatever order they are given (scheduling review, Phase 6b: no
+    // test had the same start).
+    [Fact]
+    public void OverlappingChosenDates_WithTheSameStart_TheShorterWins()
+    {
+        RoutineDates week = new(Holiday, new DateInterval(new(2026, 10, 12), new(2026, 10, 18)));
+        RoutineDates weekend = new(Brighton, new DateInterval(new(2026, 10, 12), new(2026, 10, 13)));
+
+        var oneWay = new RoutineCalendar(Cycles, Usual, [week, weekend]);
+        var otherWay = new RoutineCalendar(Cycles, Usual, [weekend, week]);
+
+        Assert.All([oneWay, otherWay], calendar =>
+        {
+            Assert.Equal(new RoutineWeek(Brighton, 'A'), calendar.On(new LocalDate(2026, 10, 13)));
+            Assert.Equal(new RoutineWeek(Holiday, 'A'), calendar.On(new LocalDate(2026, 10, 14)));
+        });
+    }
+
     // A routine that has gone (deleted in another tab while a page was reading) is skipped rather than stopping the page.
     [Fact]
     public void DatesOrAUsualRoutineWithNoCycle_AreLeftOut()

@@ -119,6 +119,25 @@ public class SeriesOnlyOnTests
         Assert.Equal(Instant.FromUtc(2026, 10, 12, 18, 0), back.Time.Start);
     }
 
+    // §8, T5: the same on the night the clocks go forward. A daily 01:30 series has its Sunday 28 March 2027 occurrence
+    // (really 02:30, BST) moved to 08:00; that weekend is then given to a holiday; editing the series to 45 minutes keeps
+    // the hidden move, which is back at 08:00 BST (07:00 UTC) when the date is allowed again (scheduling review, Phase 6b:
+    // no test on a clock-change night).
+    [Fact]
+    public void AnEdit_KeepsAChangeOnADateAlreadyLeftOut_OnTheNightTheClocksGoForward()
+    {
+        var nightly = new Series(new(2027, 3, 22), new(1, 30), Duration.FromMinutes(30), London, RecurrenceRule.Daily());
+        Func<LocalDate, bool> notThatWeekend = date => date < new LocalDate(2027, 3, 27) || date > new LocalDate(2027, 3, 28);
+        var moved = nightly.MoveOccurrence(new LocalDate(2027, 3, 28), new LocalDateTime(2027, 3, 28, 8, 0), Duration.FromMinutes(30))
+            .OnlyOn(notThatWeekend);
+
+        var edit = moved.Edit(moved.FirstDate, moved.StartTime, Duration.FromMinutes(45), moved.Rule, notThatWeekend);
+
+        Assert.Equal((1, 1, 0), (edit.KeptChanges, edit.HiddenChanges, edit.RemovedChanges));
+        var back = Assert.Single(edit.Series.OnlyOn(null).OccurrencesBetween(new(2027, 3, 28), new(2027, 3, 28)));
+        Assert.Equal(Instant.FromUtc(2027, 3, 28, 7, 0), back.Time.Start);
+    }
+
     // ... but not once the edited rule no longer falls on it (Mondays dropped): then nothing could show it again.
     [Fact]
     public void AnEdit_RemovesAChangeOnALeftOutDate_WhenTheRuleNoLongerFallsOnIt()
