@@ -354,3 +354,12 @@ confirmed by the owner**, and easy to change:
 | Q14 | Which routine is in use on a date? | The one chosen for that date, if any (on the Routines page; ranges can't overlap); otherwise the usual routine, if there is one. Activities not in a routine happen every week, whatever the routine, so every activity from before Phase 6b is unchanged. |
 | Q15 | When Plan my week plans week B and a session is added "every week", is it every week or every week B? | Every week B ("Week B only"), so planning week B builds week B. With a routine that is the same every week, it is added to that routine; with no routines, to every week, as before. |
 | Q16 | What does duplicating a routine copy? (Chosen 26 October 2026.) | A new routine with the name given (offered as "… copy"), the same cycle and week A, not the usual one and with no dates chosen, so nothing new happens until it is used. Each activity in it is copied, in the same weeks, without changes made to single occurrences (those are on the original's dates). Activities in every week aren't in a routine, so aren't copied. |
+
+Open, for the owner (raised by the scheduling review of routine dates, 26 October 2026); the app does what the third
+column says until decided:
+
+| # | Question | What happens now |
+|---|---|---|
+| Q17 | An occurrence moved out of a week that is later given to a holiday (Monday 2 November moved to Friday 30 October, then 2-8 November chosen for Holiday): should it still happen where it was moved to? | It doesn't: a move shows only if the date its repeat put it on is in use, and nothing says it has gone (known limitations). |
+| Q18 | A holiday routine with its own A/B cycle: is its week A the week it is first used (Q3), or the week it was added (what its form offers)? | The week it was added, or whatever the form was given: chosen for 9-22 November but added on 19 October, its first holiday week is week B. |
+| Q19 | Find another time, for a session inside a holiday's dates: should it only offer days inside them? | It offers any day later that week, like any other session; a session moved out of the holiday still happens. |
