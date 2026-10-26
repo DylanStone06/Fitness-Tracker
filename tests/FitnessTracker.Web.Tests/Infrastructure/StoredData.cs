@@ -35,6 +35,12 @@ public static class StoredData
     public static Task<Routine?> RoutineNamedAsync(TestAppFactory factory, string name) =>
         ReadAsync(factory, db => db.Routines.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(routine => routine.Name == name));
 
+    /// <summary>CAL-9: the activities in this routine, by title.</summary>
+    public static Task<List<Activity>> ActivitiesInRoutineAsync(TestAppFactory factory, Guid routine) =>
+        ReadAsync(factory, async db => (await db.Activities.IgnoreQueryFilters().AsNoTracking()
+                .Where(activity => activity.RoutineId == routine).ToListAsync())
+            .OrderBy(activity => activity.Title, StringComparer.Ordinal).ToList());
+
     /// <summary>CAL-9: the dates chosen for this routine, earliest first.</summary>
     public static Task<List<RoutineDateRange>> DatesChosenForAsync(TestAppFactory factory, Guid routine) =>
         ReadAsync(factory, async db => (await db.RoutineDateRanges.IgnoreQueryFilters().AsNoTracking()

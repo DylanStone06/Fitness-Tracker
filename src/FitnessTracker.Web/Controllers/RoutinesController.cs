@@ -159,6 +159,83 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>TempData: what duplicating a routine made, for the list to say.</summary>
+    public const string Duplicated = "Duplicated";
+
+    // CAL-9: a copy of a routine (a holiday week that starts like the usual one). Only its name is asked for.
+    [HttpGet]
+    public async Task<IActionResult> Duplicate(Guid id)
+    {
+        if (await FindAsync(id) is not { } original)
+        {
+            return NotFound();
+        }
+
+        return View(new DuplicateRoutineViewModel
+        {
+            Name = DuplicateRoutineViewModel.NameFor(original),
+            Original = original,
+            Activities = await db.Activities.CountAsync(activity => activity.RoutineId == id),
+        });
+    }
+
+    // A new routine with the same weeks, not the usual one and with no dates chosen, so nothing new happens until the
+    // user chooses dates or makes it usual; with a copy of each of its activities, in the same week of it, saved
+    // together. Activities in every week aren't in a routine, so aren't copied.
+    [HttpPost]
+    public async Task<IActionResult> Duplicate(Guid id, DuplicateRoutineViewModel model)
+    {
+        if (await FindAsync(id) is not { } original)
+        {
+            return NotFound();
+        }
+
+        var activities = await db.Activities.AsNoTracking().Where(activity => activity.RoutineId == id).ToListAsync();
+        model.Original = original;
+        model.Activities = activities.Count;
+        await CheckNameIsNewAsync(model.Name, nameof(model.Name), exceptId: null);
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var copy = new Routine
+        {
+            Name = model.Name,
+            CycleWeeks = original.CycleWeeks,
+            WeekAStarts = original.WeekAStarts,
+            WeekStart = original.WeekStart,
+            IsUsual = false,
+        };
+        var copies = activities.Select(activity => activity.CopyInto(copy.Id)).ToList();
+
+        // CLAUDE.md rule 3: every save goes through the check. The copy isn't in use on any date yet, so its activities
+        // can only have problems their originals already had; any are said, and nothing is saved.
+        foreach (var activity in copies)
+        {
+            foreach (var problem in (await checker.CheckAsync(activity)).Problems)
+            {
+                ModelState.AddModelError(string.Empty, $"{activity.Title}: {problem.Message}");
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        db.Routines.Add(copy);
+        db.Activities.AddRange(copies);
+        await db.SaveChangesAsync();
+        TempData[Duplicated] = copies.Count switch
+        {
+            0 => $"{copy.Name} was added. It has no activities yet: choose it for an activity's weeks.",
+            1 => $"{copy.Name} was added, with a copy of its activity. It happens once you choose dates for it, or make it your usual routine.",
+            var count => $"{copy.Name} was added, with copies of its {count} activities. They happen once you choose dates for it, or make it your usual routine.",
+        };
+        return RedirectToAction(nameof(Index));
+    }
+
     // Only asks; deleting needs the form post below. A routine with activities can't be deleted: the page says which
     // to change first.
     [HttpGet]
@@ -346,15 +423,21 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
             }
         }
 
-        if (ModelState.GetFieldValidationState(nameof(model.Name)) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid)
+        await CheckNameIsNewAsync(model.Name, nameof(model.Name), exceptId);
+    }
+
+    // Unless the name already has a problem: refused if another of the user's routines has it, capitals ignored.
+    private async Task CheckNameIsNewAsync(string name, string field, Guid? exceptId)
+    {
+        if (ModelState.GetFieldValidationState(field) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid)
         {
             return;
         }
 
         var otherNames = await db.Routines.Where(routine => routine.Id != exceptId).Select(routine => routine.Name).ToListAsync();
-        if (otherNames.Contains(model.Name, StringComparer.InvariantCultureIgnoreCase))
+        if (otherNames.Contains(name, StringComparer.InvariantCultureIgnoreCase))
         {
-            ModelState.AddModelError(nameof(model.Name), $"You already have a routine called {model.Name}. Choose a different name.");
+            ModelState.AddModelError(field, $"You already have a routine called {name}. Choose a different name.");
         }
     }
 }

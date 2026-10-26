@@ -17,6 +17,11 @@
     <div class="alert alert-info" role="status">@usualChanged</div>
 }
 
+@if (TempData[FitnessTracker.Web.Controllers.RoutinesController.Duplicated] is string duplicated)
+{
+    <div class="alert alert-info" role="status">@duplicated</div>
+}
+
 @* SCH-1: what a change to which routine is in use when put on dates where it breaks a rule or clashes. *@
 @if (TempData[FitnessTracker.Web.Controllers.RoutinesController.RoutineChangeFindings] is string[] { Length: > 0 } findings)
 {
@@ -61,6 +66,7 @@ else
                 {
                     <a class="btn btn-sm btn-outline-secondary" asp-controller="RoutineDates" asp-action="Create" asp-route-routine="@routine.Id">Choose dates<span class="visually-hidden"> for @routine.Name</span></a>
                 }
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Duplicate" asp-route-id="@routine.Id">Duplicate<span class="visually-hidden"> @routine.Name</span></a>
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@routine.Id">Edit<span class="visually-hidden"> @routine.Name</span></a>
                 <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@routine.Id">Delete<span class="visually-hidden"> @routine.Name</span></a>
             </li>

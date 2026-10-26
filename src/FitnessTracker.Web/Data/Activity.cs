@@ -118,6 +118,31 @@ public class Activity : IOwnedByUser, IVersioned
     public char? RoutineWeek { get; set; }
 
     /// <summary>
+    /// CAL-9: a copy of this activity in <paramref name="routine"/> (a duplicated routine), in the same week of it, as a
+    /// new activity. Changes made to single occurrences aren't copied: they are on dates in this one's weeks.
+    /// </summary>
+    public Activity CopyInto(Guid routine) => new()
+    {
+        Title = Title,
+        Category = Category,
+        LocationId = LocationId,
+        IsFixed = IsFixed,
+        Priority = Priority,
+        IsDemanding = IsDemanding,
+        PreparationMinutes = PreparationMinutes,
+        ChangingMinutes = ChangingMinutes,
+        Notes = Notes,
+        StartDate = StartDate,
+        StartTime = StartTime,
+        TimeZoneId = TimeZoneId,
+        LengthMinutes = LengthMinutes,
+        RepeatRule = RepeatRule,
+        GoalId = GoalId,
+        RoutineId = routine,
+        RoutineWeek = RoutineWeek,
+    };
+
+    /// <summary>
     /// The domain's view of this activity, for the check on save (SCH-1) and the home page. A one-off is a series that
     /// happens once, so both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward
     /// is 02:30). One in a routine happens only on the dates <paramref name="routines"/> says it is in use, in its week

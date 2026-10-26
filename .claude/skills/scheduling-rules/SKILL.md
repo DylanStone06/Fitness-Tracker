@@ -299,7 +299,7 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | Area | Requirements | Phase |
 |---|---|---|
 | The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
-| Duplicating a routine, and a routine's base location | CAL-9, TRV-4, T15 | 6b |
+| A routine's base location | TRV-4, T15 | 6b |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code

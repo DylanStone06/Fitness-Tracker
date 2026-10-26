@@ -39,6 +39,8 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Routines/Edit/{id}" },
         { "GET", "/Routines/Delete/{id}" },
         { "POST", "/Routines/Delete/{id}" },
+        { "GET", "/Routines/Duplicate/{id}" },
+        { "POST", "/Routines/Duplicate/{id}" },
         { "GET", "/RoutineDates/Edit/{id}" },
         { "POST", "/RoutineDates/Edit/{id}" },
         { "GET", "/RoutineDates/Delete/{id}" },
