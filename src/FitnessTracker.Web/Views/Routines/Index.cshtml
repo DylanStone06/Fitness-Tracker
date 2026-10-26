@@ -83,7 +83,12 @@ else
                 var name = names.GetValueOrDefault(chosen.RoutineId, "a routine");
                 <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
                     @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
-                    <span class="flex-grow-1 text-break">@RoutineDisplay.Dates(chosen): <span dir="auto">@name</span></span>
+                    <span class="flex-grow-1 text-break">@RoutineDisplay.Dates(chosen): <span dir="auto">@name</span>
+                        @if (chosen.StartDate > chosen.EndDate)
+                        {
+                            <span class="d-block small text-danger">These dates can't be used: the last is before the first.</span>
+                        }
+                    </span>
                     <a class="btn btn-sm btn-outline-secondary" asp-controller="RoutineDates" asp-action="Edit" asp-route-id="@chosen.Id">Change<span class="visually-hidden"> @RoutineDisplay.Dates(chosen), @name</span></a>
                     <a class="btn btn-sm btn-outline-danger" asp-controller="RoutineDates" asp-action="Delete" asp-route-id="@chosen.Id">Remove<span class="visually-hidden"> @RoutineDisplay.Dates(chosen), @name</span></a>
                 </li>

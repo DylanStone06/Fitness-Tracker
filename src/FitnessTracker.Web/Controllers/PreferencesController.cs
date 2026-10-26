@@ -99,7 +99,7 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
 
         TempData[Saved] = true;
         var after = await checker.FindingsAsync(moved, saved.TimesShownAs(), rest);
-        TempData[MoveFindings] = after.Except(before).ToArray();
+        TempData[MoveFindings] = ActivityChecker.NewFindings(after, before);
         return RedirectToAction(nameof(Index));
     }
 

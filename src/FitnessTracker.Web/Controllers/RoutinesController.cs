@@ -1,4 +1,6 @@
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Models;
 using FitnessTracker.Web.Models.Routines;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -26,7 +28,8 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
     public async Task<IActionResult> Index()
     {
         ViewData[Today] = (await planning.LoadAsync()).Now.Date;
-        ViewData[DatesChosen] = (await planning.RoutinesAsync()).Dates;
+        // All of them, those the app can't use too (P1: edited by hand), so they can be seen and removed.
+        ViewData[DatesChosen] = (await db.RoutineDateRanges.AsNoTracking().ToListAsync()).OrderBy(chosen => chosen.StartDate).ToList();
         var routines = await db.Routines.AsNoTracking().ToListAsync();
         // The usual routine first, then by name. Sorted here rather than by SQLite, which puts every capital letter
         // before every lower-case one.
@@ -55,7 +58,8 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
 
         // Its weeks start as the user's do now, and keep doing so (Routine.WeekStart).
         var weekStart = (await planning.LoadAsync()).Preferences.WeekStart;
-        var before = await checker.RoutineActivityFindingsAsync();
+        // A new routine has no activities or dates yet: only becoming the usual one changes what happens when.
+        var before = model.IsUsual ? await checker.RoutineActivityFindingsAsync() : null;
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: null);
         var routine = new Routine();
@@ -107,7 +111,10 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
             return View(model);
         }
 
-        var before = await checker.RoutineActivityFindingsAsync();
+        // Only being usual or not, the cycle and week A change which of its activities' dates happen; a new name doesn't.
+        var changesWhatHappens = model.IsUsual != routine.IsUsual || model.CycleWeeks != routine.CycleWeeks
+            || CalendarWeeks.StartOf(FormInput.ParseDate(model.WeekA)!.Value, routine.WeekStart) != routine.WeekAStarts;
+        var before = changesWhatHappens ? await checker.RoutineActivityFindingsAsync() : null;
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: id);
         if (routine.IsUsual && !model.IsUsual)
@@ -192,8 +199,8 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
 
         // The dates chosen for it are deleted with it (AppDbContext) and go back to the usual routine, whose
-        // activities then happen on them again.
-        var before = await checker.RoutineActivityFindingsAsync();
+        // activities then happen on them again. With none, nothing else changes.
+        var before = await db.RoutineDateRanges.AnyAsync(chosen => chosen.RoutineId == id) ? await checker.RoutineActivityFindingsAsync() : null;
         db.Entry(routine).Property(saved => saved.Version).OriginalValue = version;
         db.Routines.Remove(routine);
         try
@@ -227,10 +234,16 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
             .ToList();
 
     // SCH-1, CLAUDE.md rule 3: what a change to which routine is in use when put on dates where it now breaks a rule or
-    // clashes, said on the list (as for a timezone change). Activities in every week are never affected.
-    private async Task SayWhatBrokeAsync(List<string> before)
+    // clashes, said on the list (as for a timezone change). Activities in every week are never affected. Nothing to
+    // say when nothing was checked (before is null: the change couldn't move anything).
+    private async Task SayWhatBrokeAsync(List<string>? before)
     {
-        var broken = (await checker.RoutineActivityFindingsAsync()).Except(before).ToArray();
+        if (before is null)
+        {
+            return;
+        }
+
+        var broken = await checker.RoutineActivityFindingsSinceAsync(before);
         if (broken.Length > 0)
         {
             TempData[RoutineChangeFindings] = broken;

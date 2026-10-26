@@ -154,7 +154,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
     // SCH-1, CLAUDE.md rule 3: what the change put on dates where it now breaks a rule or clashes, on the Routines page.
     private async Task SayWhatBrokeAsync(List<string> before)
     {
-        var broken = (await checker.RoutineActivityFindingsAsync()).Except(before).ToArray();
+        var broken = await checker.RoutineActivityFindingsSinceAsync(before);
         if (broken.Length > 0)
         {
             TempData[RoutinesController.RoutineChangeFindings] = broken;
@@ -199,7 +199,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
         }
 
         var overlapping = (await db.RoutineDateRanges.AsNoTracking()
-                .Where(other => other.Id != exceptId && other.StartDate <= to && other.EndDate >= from)
+                .Where(other => other.Id != exceptId && other.StartDate <= other.EndDate && other.StartDate <= to && other.EndDate >= from)
                 .ToListAsync())
             .OrderBy(other => other.StartDate)
             .FirstOrDefault();

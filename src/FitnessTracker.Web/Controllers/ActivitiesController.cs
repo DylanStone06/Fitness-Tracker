@@ -33,12 +33,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     {
         ViewData[CheckNotes] = TempData[CheckNotes] as string[] ?? [];
         ViewData[SeriesEdit] = TempData[SeriesEdit] as string;
-        ViewData[Clock] = (await PreferencesAsync()).TimesShownAs();
+        var user = await planning.LoadAsync();
+        ViewData[Clock] = user.Preferences.TimesShownAs();
         var activities = await db.Activities.AsNoTracking().ToListAsync();
         ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
-        ViewData["Routines"] = (await MyRoutinesAsync()).ToDictionary(routine => routine.Id);
-        ViewData["RoutineDates"] = (await planning.RoutinesAsync()).Dates;
-        ViewData["Today"] = (await planning.LoadAsync()).Now.Date;
+        var routines = await planning.RoutinesAsync();
+        ViewData["Routines"] = routines.All.ToDictionary(routine => routine.Id);
+        ViewData["RoutineDates"] = routines.Dates;
+        ViewData["Today"] = user.Now.Date;
         return View(activities
             .OrderBy(activity => activity.StartDate)
             .ThenBy(activity => activity.StartTime)
@@ -135,8 +137,10 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
         model.ApplyTo(activity, weekStart);
         // An activity that couldn't be read as it was (edited by hand: a length of 0, say) keeps changes that can be
-        // read with it as it is now. Others can't be kept.
-        before ??= activity.OccurrenceChanges is null ? null : SeriesOf(activity, routines);
+        // read with it as it is now. Others can't be kept. Its weeks as they were aren't known (the form has replaced
+        // them), so it is taken to have happened on every date: a change on a date the edit leaves out is removed and
+        // said, rather than kept unseen.
+        before ??= activity.OccurrenceChanges is null ? null : SeriesOf(activity, routines)?.OnlyOn(null);
         var unreadableChanges = before is null && activity.OccurrenceChanges is not null;
         var (kept, removed) = before is null ? (0, 0) : activity.KeepChangesFrom(before, routines);
         if (unreadableChanges)

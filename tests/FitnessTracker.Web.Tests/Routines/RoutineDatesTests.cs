@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using FitnessTracker.Web.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FitnessTracker.Web.Tests.Routines;
 
@@ -229,6 +231,24 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
         Assert.Contains(work, html);
     }
 
+    // ... but at most 20, counting the rest: the list travels in a cookie to the next page, and hundreds would be too
+    // big for it (code review, Phase 6b). Work and a holiday run every day at 07:00; the holiday from 2 November is
+    // checked to 13 December (8 weeks from today): 42 clashes.
+    [Fact]
+    public async Task Choosing_ShowsAtMost20OfWhatItBreaks_AndCountsTheRest()
+    {
+        var (browser, _, holiday) = await SignedInWithUsualAndHolidayAsync();
+        await browser.AddActivityAsync(TestBrowser.NewName("Work"), new() { ["StartDate"] = "2026-10-19", ["Repeats"] = "Daily" });
+        var beach = TestBrowser.NewName("Beach run");
+        await browser.AddActivityAsync(beach, new() { ["StartDate"] = "2026-10-19", ["Repeats"] = "Daily", ["Weeks"] = holiday.Id.ToString() });
+
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-02", "2026-12-31");
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Equal(20, html.Split($"<li>{beach}: ").Length - 1);
+        Assert.Contains("And 22 more.", html);
+    }
+
     // ... and says nothing when nothing breaks.
     [Fact]
     public async Task Choosing_SaysNothingMore_WhenNothingBreaks()
@@ -272,6 +292,30 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
         Assert.DoesNotContain("removed", list);
         Assert.DoesNotContain(office, await TitlesAsync(browser, "2026-11-02", "2026-11-03"));
         Assert.Contains(office, await TitlesAsync(browser, "2026-11-09", "2026-11-10"));
+    }
+
+    // P1: dates the app can't use (edited by hand so the last is before the first) are listed, saying so, so they can be
+    // removed, and don't stop other dates being chosen (code review, Phase 6b: they were hidden but still in the way).
+    [Fact]
+    public async Task DatesThatCantBeUsed_AreListed_AndNotInTheWay()
+    {
+        var (browser, _, holiday) = await SignedInWithUsualAndHolidayAsync();
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-02", "2026-11-08");
+        var id = Assert.Single(await StoredData.DatesChosenForAsync(factory, holiday.Id)).Id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<FitnessTracker.Web.Data.AppDbContext>().RoutineDateRanges.IgnoreQueryFilters()
+                .Where(dates => dates.Id == id)
+                .ExecuteUpdateAsync(set => set.SetProperty(dates => dates.StartDate, new NodaTime.LocalDate(2026, 11, 9)));
+        }
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        var chosen = await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-03", "2026-11-05");
+
+        Assert.Contains("Mon 9 Nov 2026 – Sun 8 Nov 2026: ", html);
+        Assert.Contains("These dates can't be used: the last is before the first.", html);
+        Assert.Contains($"href=\"/RoutineDates/Delete/{id}\"", html);
+        Assert.Equal(HttpStatusCode.Redirect, chosen.StatusCode);
     }
 
     // The activities list says when an activity in a routine other than the usual one happens.

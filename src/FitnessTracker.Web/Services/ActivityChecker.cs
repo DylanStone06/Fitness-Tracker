@@ -58,12 +58,35 @@ public class ActivityChecker(PlanningData planning)
 
     /// <summary>
     /// CAL-9, SCH-1: <see cref="FindingsAsync"/> for every activity in a routine, for a change to which routine is in use
-    /// when (dates chosen for a routine, another made usual): run before and after it, what is new is what it broke.
+    /// when (dates chosen for a routine, another made usual): run before and after it, what is new is what it broke
+    /// (<see cref="RoutineActivityFindingsSinceAsync"/>).
     /// </summary>
     public async Task<List<string>> RoutineActivityFindingsAsync()
     {
         var clock = (await planning.LoadAsync()).Preferences.TimesShownAs();
         return await FindingsAsync(await planning.ActivitiesInRoutinesAsync(), clock);
+    }
+
+    /// <summary>What <see cref="RoutineActivityFindingsAsync"/> finds now that it didn't <paramref name="before"/>, to show.</summary>
+    public async Task<string[]> RoutineActivityFindingsSinceAsync(IReadOnlyList<string> before) =>
+        NewFindings(await RoutineActivityFindingsAsync(), before);
+
+    /// <summary>
+    /// The most findings a page is sent after a change. They travel to it in a cookie (TempData), and hundreds (a clash
+    /// each day for 8 weeks, for several activities) would be too big for one (code review, Phase 6b).
+    /// </summary>
+    public const int MostFindingsShown = 20;
+
+    /// <summary>
+    /// What a change broke: the findings in <paramref name="after"/> that weren't in <paramref name="before"/>, at most
+    /// <see cref="MostFindingsShown"/> of them, then "And 22 more." for the rest.
+    /// </summary>
+    public static string[] NewFindings(IReadOnlyList<string> after, IReadOnlyList<string> before)
+    {
+        var added = after.Except(before).ToList();
+        return added.Count <= MostFindingsShown
+            ? [.. added]
+            : [.. added.Take(MostFindingsShown), $"And {added.Count - MostFindingsShown} more. The calendar shows each one."];
     }
 
     /// <summary>
