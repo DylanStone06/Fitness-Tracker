@@ -142,7 +142,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         // said, rather than kept unseen.
         before ??= activity.OccurrenceChanges is null ? null : SeriesOf(activity, routines)?.OnlyOn(null);
         var unreadableChanges = before is null && activity.OccurrenceChanges is not null;
-        var (kept, removed) = before is null ? (0, 0) : activity.KeepChangesFrom(before, routines);
+        var (kept, hidden, removed) = before is null ? (0, 0, 0) : activity.KeepChangesFrom(before, routines);
         if (unreadableChanges)
         {
             activity.OccurrenceChanges = null;
@@ -174,7 +174,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return View(model);
         }
 
-        if (SeriesEditMessage(kept, removed, unreadableChanges) is { } message)
+        if (SeriesEditMessage(kept, hidden, removed, unreadableChanges) is { } message)
         {
             TempData[SeriesEdit] = message;
         }
@@ -182,8 +182,9 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         return AfterSaving(model);
     }
 
-    // CAL-4: what happened to the occurrences changed on their own, in plain English (P5: never silently).
-    private static string? SeriesEditMessage(int kept, int removed, bool unreadable)
+    // CAL-4: what happened to the occurrences changed on their own, in plain English (P5: never silently). Those kept
+    // on dates another routine is in use can't be seen now, so are said apart (CAL-9).
+    private static string? SeriesEditMessage(int kept, int hidden, int removed, bool unreadable)
     {
         var parts = new List<string>();
         if (kept > 0)
@@ -191,6 +192,13 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             parts.Add(kept == 1
                 ? "1 occurrence you changed on its own keeps its change"
                 : $"{kept} occurrences you changed on their own keep their changes");
+        }
+
+        if (hidden > 0)
+        {
+            parts.Add(hidden == 1
+                ? "1 change is on a date another routine is in use, so it is kept for when this one is again"
+                : $"{hidden} changes are on dates another routine is in use, so they are kept for when this one is again");
         }
 
         if (removed > 0)

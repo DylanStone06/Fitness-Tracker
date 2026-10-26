@@ -27,7 +27,14 @@ public abstract record OccurrenceChange
 /// The result of editing a whole series. One-off changes are kept where the edited series still falls on their
 /// date and removed otherwise; both are counted so the user can be told (CAL-4, principle P5).
 /// </summary>
-public sealed record SeriesEdit(Series Series, int KeptChanges, int RemovedChanges);
+public sealed record SeriesEdit(Series Series, int KeptChanges, int RemovedChanges)
+{
+    /// <summary>
+    /// Of <see cref="KeptChanges"/>, those on dates it doesn't happen on now (CAL-9: another routine in use), kept for
+    /// when it does: they can't be seen, so they are told apart.
+    /// </summary>
+    public int HiddenChanges { get; init; }
+}
 
 /// <summary>
 /// A repeating activity, defined in clock time plus a timezone (requirements §8). It starts at the same clock time
@@ -125,9 +132,10 @@ public sealed class Series
 
     /// <summary>
     /// The whole series with a new first date, clock time, length or rule, on the dates it is allowed to happen on
-    /// now (<see cref="OnlyOn"/>). One-off changes are kept for every date the edited series still falls on (T8); the
-    /// result says how many were kept and how many were removed. A move to what is now the usual time and length is no
-    /// longer a change, so it is neither: the occurrence simply follows the series, where it already was.
+    /// now (<see cref="OnlyOn"/>). One-off changes are kept for every date the edited series still falls on (T8), and
+    /// for dates already left out on which its rule still falls (see the overload below); the result says how many
+    /// were kept and how many were removed. A move to what is now the usual time and length is no longer a change, so
+    /// it is neither: the occurrence simply follows the series, where it already was.
     /// </summary>
     public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule) =>
         Edit(firstDate, startTime, length, rule, _happensOn);
@@ -156,7 +164,10 @@ public sealed class Series
         }
 
         var limited = edited.OnlyOn(happensOn);
-        return new SeriesEdit(limited, KeptChanges: limited.Changes.Count, RemovedChanges: removed);
+        return new SeriesEdit(limited, KeptChanges: limited.Changes.Count, RemovedChanges: removed)
+        {
+            HiddenChanges = limited.Changes.Keys.Count(date => !(happensOn?.Invoke(date) ?? true)),
+        };
     }
 
     /// <summary>

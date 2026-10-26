@@ -166,19 +166,20 @@ public class Activity : IOwnedByUser, IVersioned
     /// activity as it was, in the weeks it was in) on dates it still falls on, in the weeks it is in now (CAL-9), and
     /// removes the rest (all of them for a one-off). A change on a date it already didn't happen on (a week since given
     /// to a holiday routine, Q14) wasn't taken away by the edit, so it is kept while the repeat still falls on that
-    /// date. Returns how many of each, to tell the user.
+    /// date. Returns how many of each, to tell the user: those kept and seen, those kept but hidden for now, and those
+    /// removed.
     /// </summary>
-    public (int Kept, int Removed) KeepChangesFrom(Series before, RoutineCalendar routines)
+    public (int Kept, int Hidden, int Removed) KeepChangesFrom(Series before, RoutineCalendar routines)
     {
         if (RepeatRule is null)
         {
             OccurrenceChanges = null;
-            return (0, before.Changes.Count);
+            return (0, 0, before.Changes.Count);
         }
 
         var edit = before.Edit(StartDate, StartTime, Duration.FromMinutes(LengthMinutes), RecurrenceRuleText.Parse(RepeatRule), HappensOn(routines));
         OccurrenceChanges = OccurrenceChangesText.Format(edit.Series.Changes);
-        return (edit.KeptChanges, edit.RemovedChanges);
+        return (edit.KeptChanges - edit.HiddenChanges, edit.HiddenChanges, edit.RemovedChanges);
     }
 
     // CAL-9: the dates it may happen on, or null for every date its rule falls on. The routine and week are copied now,

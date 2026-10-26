@@ -113,7 +113,7 @@ public class SeriesOnlyOnTests
 
         var edit = moved.Edit(moved.FirstDate, new LocalTime(7, 30), moved.Length, moved.Rule, NotOnHoliday);
 
-        Assert.Equal((1, 0), (edit.KeptChanges, edit.RemovedChanges));
+        Assert.Equal((1, 1, 0), (edit.KeptChanges, edit.HiddenChanges, edit.RemovedChanges));
         Assert.Empty(edit.Series.OccurrencesBetween(new(2026, 10, 12), new(2026, 10, 18)));
         var back = Assert.Single(edit.Series.OnlyOn(null).OccurrencesBetween(new(2026, 10, 12), new(2026, 10, 12)));
         Assert.Equal(Instant.FromUtc(2026, 10, 12, 18, 0), back.Time.Start);

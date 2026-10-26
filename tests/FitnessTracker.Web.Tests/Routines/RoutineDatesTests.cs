@@ -347,6 +347,9 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
 
         Assert.Equal(HttpStatusCode.Redirect, edited.StatusCode);
         Assert.DoesNotContain("removed", list);
+        // Said apart from changes that can be seen (scheduling review, Phase 6b: it said "keeps its change").
+        Assert.Contains("1 change is on a date another routine is in use, so it is kept for when this one is again", WebUtility.HtmlDecode(list));
+        Assert.DoesNotContain("keeps its change", list);
         Assert.DoesNotContain(office, await TitlesAsync(browser, "2026-11-02", "2026-11-03"));
         Assert.Contains(office, await TitlesAsync(browser, "2026-11-09", "2026-11-10"));
     }
