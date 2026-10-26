@@ -143,9 +143,9 @@ public static class Planner
                 continue;
             }
 
-            if (Travel.KnownJourneys(goal.LocationId, request.Context) is not { } journeys)
+            if (Travel.KnownJourneysFromHome(goal.LocationId, request.Context) is not { } journeys)
             {
-                shortfalls.Add(new Shortfall(goal, missing, [], Blocked: Sentence(Travel.WhyUnknown(goal.LocationId, request.Context))));
+                shortfalls.Add(new Shortfall(goal, missing, [], Blocked: Sentence(Travel.WhyUnknownFromHome(goal.LocationId, request.Context))));
                 continue;
             }
 
@@ -174,7 +174,7 @@ public static class Planner
         // given (scheduling review M-4).
         for (var i = 0; i < shortfalls.Count; i++)
         {
-            if (shortfalls[i].Blocked is null && Travel.KnownJourneys(shortfalls[i].Goal.LocationId, request.Context) is { } journeys)
+            if (shortfalls[i].Blocked is null && Travel.KnownJourneysFromHome(shortfalls[i].Goal.LocationId, request.Context) is { } journeys)
             {
                 shortfalls[i] = shortfalls[i] with { Shorter = week.Shorter(shortfalls[i].Goal, journeys, ShortestOffered) };
             }
@@ -201,9 +201,9 @@ public static class Planner
     public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null)
     {
         var week = new WeekState(request) { NotAt = notAt };
-        if (Travel.KnownJourneys(session.LocationId, request.Context) is not { } journeys)
+        if (Travel.KnownJourneysFromHome(session.LocationId, request.Context) is not { } journeys)
         {
-            return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: Sentence(Travel.WhyUnknown(session.LocationId, request.Context))));
+            return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: Sentence(Travel.WhyUnknownFromHome(session.LocationId, request.Context))));
         }
 
         if (Footprint.ProblemsWith(session.Length, session.Buffers, journeys).Count > 0)
@@ -334,12 +334,12 @@ public static class Planner
             foreach (var activity in request.Activities)
             {
                 // Travel that can't be worked out is left out, as on the home page, and said (P1).
-                var known = Travel.KnownJourneys(activity.LocationId, request.Context);
+                var known = Travel.KnownJourneysFromHome(activity.LocationId, request.Context);
                 var journeys = known ?? Journeys.None;
                 var occurrences = activity.Series.OccurrencesBetween(loaded.Start, loaded.End);
                 if (known is null && occurrences.Count > 0)
                 {
-                    _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknown(activity.LocationId, request.Context)}");
+                    _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknownFromHome(activity.LocationId, request.Context)}");
                 }
 
                 foreach (var occurrence in occurrences)

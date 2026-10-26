@@ -1,6 +1,7 @@
 using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Locations;
 using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Templates;
 using FitnessTracker.Domain.Time;
 using NodaTime;
 using NodaTime.Text;
@@ -29,6 +30,19 @@ public sealed record PlanningContext(
 {
     /// <summary>ACC-7: H5-H7 from the user's preferences; <see cref="RestRules.None"/> checks none.</summary>
     public RestRules Rest { get; init; } = RestRules.None;
+
+    /// <summary>CAL-9: which routine is in use on each date, for <see cref="BaseOn"/>.</summary>
+    public RoutineCalendar Routines { get; init; } = RoutineCalendar.None;
+
+    /// <summary>TRV-4: routines with a base of their own (a Brighton weekend's flat), by routine.</summary>
+    public IReadOnlyDictionary<Guid, Guid> RoutineBases { get; init; } = new Dictionary<Guid, Guid>();
+
+    /// <summary>
+    /// TRV-4: where travel starts and ends on <paramref name="date"/> (§7.1): the base of the routine in use then, if it
+    /// has one, otherwise home (null when no location is marked as home).
+    /// </summary>
+    public Guid? BaseOn(LocalDate date) =>
+        Routines.On(date) is { } inUse && RoutineBases.TryGetValue(inUse.Routine, out var routineBase) ? routineBase : Home;
 }
 
 /// <summary>What a problem is about, so a form can show it next to the right field.</summary>
@@ -95,15 +109,13 @@ public static class ActivityCheck
         }
 
         var problems = new List<CheckProblem>();
-        var journeys = JourneysFor(candidate, context, problems);
-        var travel = journeys ?? Journeys.None;
 
-        // The usual length against an ordinary day (no limit given: 24 hours). A length of zero or less can't even be
-        // turned into occurrences, so it is the only thing left to say.
-        (Duration Length, Duration? Longest) usual = (series.Length, null);
+        // A length of zero or less can't even be turned into occurrences, so it, with the travel from the first date's
+        // base, is all there is to say.
         if (series.Length <= Duration.Zero)
         {
-            problems.AddRange(LengthProblems([usual], candidate.Buffers, travel));
+            problems.AddRange(TravelProblems(candidate, [firstChecked], context));
+            problems.AddRange(LengthProblems([(series.Length, null, JourneysOn(candidate, context, firstChecked))], candidate.Buffers));
             return new ActivityCheckResult(problems, [], dates);
         }
 
@@ -119,12 +131,18 @@ public static class ActivityCheck
             ? longerDates.End
             : LocalDate.Max(longerDates.End, longerOccurrences[^1].Time.Start.InZone(series.Zone).Date);
 
-        // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
-        // clocks go back is allowed (Q7). The usual length is also checked against an ordinary day whenever the rule
-        // still falls on dates after these, which can't all be checked one by one (a 25-hour Sunday every 60 weeks
-        // lands on an ordinary Sunday next time). When every date left is inside them, each has been checked already.
-        var lengths = longerOccurrences.Select(occurrence => (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone)));
-        problems.AddRange(LengthProblems(FallsAfter(series, longerDates.End) ? lengths.Prepend(usual) : lengths, candidate.Buffers, travel));
+        // P1, TRV-4: travel from the base of each day it happens on, never guessed.
+        problems.AddRange(TravelProblems(candidate, longerOccurrences.Select(occurrence => DayOf(occurrence, series.Zone)), context));
+
+        // H8 on every occurrence, each against its own day and with its own day's travel: a moved one can be longer, and
+        // the whole 25-hour day the clocks go back is allowed (Q7). The usual length is also checked against an ordinary
+        // day (no limit given: 24 hours), from the base after these dates, whenever the rule still falls on dates after
+        // these, which can't all be checked one by one (a 25-hour Sunday every 60 weeks lands on an ordinary Sunday next
+        // time). When every date left is inside them, each has been checked already.
+        var lengths = longerOccurrences.Select(occurrence =>
+            (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone), JourneysOn(candidate, context, DayOf(occurrence, series.Zone))));
+        (Duration, Duration?, Journeys) usual = (series.Length, null, JourneysOn(candidate, context, longerDates.End.PlusDays(1)));
+        problems.AddRange(LengthProblems(FallsAfter(series, longerDates.End) ? lengths.Prepend(usual) : lengths, candidate.Buffers));
         if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, checkedUpTo) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
@@ -135,7 +153,8 @@ public static class ActivityCheck
         // near it.
         problems.AddRange(RestProblems(candidate, longerOccurrences, others, context, checkedUpTo));
 
-        if (problems.Count > 0 || journeys is not { } knownJourneys)
+        // Travel that can't be worked out is among the problems, so past here every day's travel is known.
+        if (problems.Count > 0)
         {
             return new ActivityCheckResult(problems, [], dates);
         }
@@ -151,7 +170,8 @@ public static class ActivityCheck
             .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
             .ToList();
         var candidateBookings = occurrences
-            .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys, Times.LongestFor(occurrence.Time, series.Zone))))
+            .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers,
+                JourneysOn(candidate, context, DayOf(occurrence, series.Zone)), Times.LongestFor(occurrence.Time, series.Zone))))
             .ToList();
 
         // H1 also within the activity itself: a very long one can run into its own next occurrence on the night the
@@ -181,10 +201,10 @@ public static class ActivityCheck
 
         var day = occurrence.Time.Start.InZone(series.Zone).Date;
         var dates = new DateInterval(day, day);
-        var problems = new List<CheckProblem>();
-        var journeys = JourneysFor(candidate, context, problems);
+        var problems = new List<CheckProblem>(TravelProblems(candidate, [day], context));
+        var journeys = Travel.KnownJourneys(candidate.LocationId, context, day);
         var longest = Times.LongestFor(occurrence.Time, series.Zone);
-        problems.AddRange(LengthProblems([(occurrence.Time.Duration, longest)], candidate.Buffers, journeys ?? Journeys.None));
+        problems.AddRange(LengthProblems([(occurrence.Time.Duration, longest, journeys ?? Journeys.None)], candidate.Buffers));
         if (OpeningHoursProblem(candidate, [occurrence], context, series.Zone, day) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
@@ -458,34 +478,50 @@ public static class ActivityCheck
                $"({other} is {Span(clash.Other.Footprint.Activity, zone, onDate: date, clock)}).";
     }
 
-    // Null, with a problem added, when travel can't be worked out. None at home or at no particular place (§7.1).
-    private static Journeys? JourneysFor(PlannedActivity activity, PlanningContext context, List<CheckProblem> problems)
+    // P1, TRV-4: travel to it that can't be worked out from the base of a day it happens on (a routine's own base on the
+    // dates it is in use, home otherwise): a problem for each such base, naming the first date it is needed from one
+    // that isn't home. None at the base or at no particular place (§7.1).
+    private static IEnumerable<CheckProblem> TravelProblems(PlannedActivity activity, IEnumerable<LocalDate> days, PlanningContext context)
     {
-        if (activity.LocationId is not { } at || at == context.Home)
+        if (activity.LocationId is not { } at)
         {
-            return Journeys.None;
+            yield break;
         }
 
-        if (context.Home is not { } home)
+        // In date order, so each base's first date comes first in its group.
+        foreach (var fromBase in days.Distinct().Order().GroupBy(context.BaseOn))
         {
-            problems.Add(new CheckProblem(CheckAspect.Location,
-                $"Travel to {NameOf(at, context)} can't be worked out, because none of your locations is marked as home. " +
-                "Mark your home on the Locations page, or choose \"Nowhere in particular\"."));
-            return null;
-        }
+            if (fromBase.Key == at)
+            {
+                continue;
+            }
 
-        var lookup = context.Travel.JourneysFor(at, home);
-        if (lookup.Journeys is { } journeys)
-        {
-            return journeys;
-        }
+            if (fromBase.Key is not { } from)
+            {
+                yield return new CheckProblem(CheckAspect.Location,
+                    $"Travel to {NameOf(at, context)} can't be worked out, because none of your locations is marked as home. " +
+                    "Mark your home on the Locations page, or choose \"Nowhere in particular\".");
+                continue;
+            }
 
-        var missing = string.Join(", or ", lookup.MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}"));
-        problems.Add(new CheckProblem(CheckAspect.Location,
-            $"There's no travel time {missing}. Add {(lookup.MissingLegs.Count == 1 ? "it" : "them")} on the Travel times page, " +
-            "or choose \"Nowhere in particular\"."));
-        return null;
+            var lookup = context.Travel.JourneysFor(at, from);
+            if (lookup.Journeys is not null)
+            {
+                continue;
+            }
+
+            var them = lookup.MissingLegs.Count == 1 ? "it" : "them";
+            yield return new CheckProblem(CheckAspect.Location, from == context.Home
+                ? $"There's no travel time {Travel.MissingLegs(at, from, context)}. Add {them} on the Travel times page, " +
+                  "or choose \"Nowhere in particular\"."
+                : $"On {Date.Format(fromBase.First())} your base is {NameOf(from, context)}, and there's no travel time " +
+                  $"{Travel.MissingLegs(at, from, context)}. Add {them} on the Travel times page, choose \"Nowhere in particular\", " +
+                  "or choose weeks for it that don't use that base.");
+        }
     }
+
+    // The day an occurrence starts on, whose base its travel is from (§8: an occurrence belongs to the day it starts).
+    private static LocalDate DayOf(Occurrence occurrence, DateTimeZone zone) => occurrence.Time.Start.InZone(zone).Date;
 
     // Whether the series' rule falls on any date after `after`. Without an end it always does; with an end date, if one
     // is left; with a count, if fewer than that many fall up to `after` (counted from the first date).
@@ -500,20 +536,28 @@ public static class ActivityCheck
         return rule.Count is not { } count || rule.Dates(series.FirstDate, from: series.FirstDate, through: after).Count() < count;
     }
 
-    // Each H8 problem once, for whichever lengths break their day's limit (none given: an ordinary day's 24 hours).
-    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration? Longest)> lengths, Buffers buffers, Journeys journeys)
+    // Each H8 problem once, for whichever lengths break their day's limit (none given: an ordinary day's 24 hours), each
+    // with its own day's travel (TRV-4). Explained with the longest that breaks it.
+    private static IEnumerable<CheckProblem> LengthProblems(IEnumerable<(Duration Length, Duration? Longest, Journeys Journeys)> lengths, Buffers buffers)
     {
         var found = lengths.Distinct()
-            .SelectMany(length => Footprint.ProblemsWith(length.Length, buffers, journeys, length.Longest).Select(problem => (problem, length.Length)))
+            .SelectMany(length => Footprint.ProblemsWith(length.Length, buffers, length.Journeys, length.Longest).Select(problem => (problem, length.Length, length.Journeys)))
             .ToList();
         return found
             .Select(item => item.problem)
             .Distinct()
             .Order()
             .Select(problem => new CheckProblem(CheckAspect.Length, problem == FootprintProblem.LongerThanADay
-                ? TooLong(found.Where(item => item.problem == problem).Max(item => item.Length), buffers, journeys)
+                ? TooLong(found.Where(item => item.problem == problem).MaxBy(item => item.Length + item.Journeys.Out + item.Journeys.Back), buffers)
                 : Footprint.Describe(problem)));
     }
+
+    private static string TooLong((FootprintProblem, Duration Length, Journeys Journeys) longest, Buffers buffers) =>
+        TooLong(longest.Length, buffers, longest.Journeys);
+
+    // Travel to it from the base on that day; none when that can't be worked out, which is said as a problem.
+    private static Journeys JourneysOn(PlannedActivity activity, PlanningContext context, LocalDate day) =>
+        Travel.KnownJourneys(activity.LocationId, context, day) ?? Journeys.None;
 
     // P1: what makes up the total, so a default filled in for a blank box (ACC-6) or the travel isn't a hidden reason.
     // "With 25 min there, 10 min changing and 45 min back, it would take up 24 h 20 min: more than a day allows ...".
@@ -561,21 +605,24 @@ public static class ActivityCheck
         return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date, context.Clock)}.{more}");
     }
 
-    // Another activity's occurrences on any of the dates as bookings, each once. Stored activities can't stop this
-    // check, but what can't be worked out is said in a note, never assumed (P1): travel that can't be worked out (a
-    // travel time deleted since) is left out, and an occurrence whose footprint breaks H8 is skipped.
+    // Another activity's occurrences on any of the dates as bookings, each once, with travel from the base of the day
+    // each starts (TRV-4). Stored activities can't stop this check, but what can't be worked out is said in a note,
+    // never assumed (P1): travel that can't be worked out (a travel time deleted since) is left out, said once for each
+    // reason, and an occurrence whose footprint breaks H8 is skipped.
     private static List<Booking> BookingsOf(PlannedActivity other, IReadOnlyList<DateInterval> nearby, PlanningContext context, List<string> notes, DateTimeZone zone)
     {
-        var known = Travel.KnownJourneys(other.LocationId, context);
-        if (known is null)
-        {
-            notes.Add($"{other.Title} was checked without its travel, because {Travel.WhyUnknown(other.LocationId, context)}.");
-        }
-
-        var journeys = known ?? Journeys.None;
         var bookings = new List<Booking>();
+        var unknownTravel = new HashSet<string>();
         foreach (var occurrence in nearby.SelectMany(dates => other.Series.OccurrencesBetween(dates.Start, dates.End)).Distinct())
         {
+            var day = DayOf(occurrence, other.Series.Zone);
+            var known = Travel.KnownJourneys(other.LocationId, context, day);
+            if (known is null && unknownTravel.Add(Travel.WhyUnknown(other.LocationId, context, day)))
+            {
+                notes.Add($"{other.Title} was checked without its travel, because {Travel.WhyUnknown(other.LocationId, context, day)}.");
+            }
+
+            var journeys = known ?? Journeys.None;
             var longest = Times.LongestFor(occurrence.Time, other.Series.Zone);
             if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys, longest).Count > 0)
             {

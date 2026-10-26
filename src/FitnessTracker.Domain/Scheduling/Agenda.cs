@@ -35,11 +35,13 @@ public static class Agenda
         var entries = new List<(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note)>();
         foreach (var activity in activities)
         {
-            var journeys = Travel.KnownJourneys(activity.LocationId, context);
-            var travel = journeys ?? Journeys.None;
-            var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context)}." : null;
             foreach (var occurrence in activity.Series.OccurrencesBetween(from.PlusDays(-MarginDays), through.PlusDays(MarginDays)))
             {
+                // TRV-4: from the base of the day it starts.
+                var day = occurrence.Time.Start.InZone(activity.Series.Zone).Date;
+                var journeys = Travel.KnownJourneys(activity.LocationId, context, day);
+                var travel = journeys ?? Journeys.None;
+                var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context, day)}." : null;
                 var longest = Times.LongestFor(occurrence.Time, activity.Series.Zone);
                 if (Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel, longest).Count > 0)
                 {
@@ -186,31 +188,54 @@ public static class Agenda
     }
 }
 
-/// <summary>Travel around an activity, decided the same way for the check on save and the agenda (§7.1).</summary>
+/// <summary>
+/// Travel around an activity, decided the same way for the check on save, the agenda and the planner (§7.1): to and from
+/// the base on the day it starts (TRV-4: a routine's own base on the dates it is in use, otherwise home).
+/// </summary>
 internal static class Travel
 {
-    /// <summary>None at home or at no particular place; the journeys when known; null when they can't be worked out.</summary>
-    public static Journeys? KnownJourneys(Guid? locationId, PlanningContext context)
+    /// <summary>None at the base or at no particular place; the journeys when known; null when they can't be worked out.</summary>
+    public static Journeys? KnownJourneys(Guid? locationId, PlanningContext context, LocalDate date)
     {
-        if (locationId is not { } at || at == context.Home)
+        var from = context.BaseOn(date);
+        if (locationId is not { } at || at == from)
         {
             return Journeys.None;
         }
 
-        return context.Home is { } home ? context.Travel.JourneysFor(at, home).Journeys : null;
+        return from is { } fromBase ? context.Travel.JourneysFor(at, fromBase).Journeys : null;
     }
 
-    /// <summary>Why <see cref="KnownJourneys"/> is null, to finish a sentence: "none of your locations is marked as home".</summary>
-    public static string WhyUnknown(Guid? locationId, PlanningContext context)
+    /// <summary>
+    /// Why <see cref="KnownJourneys"/> is null on <paramref name="date"/>, to finish a sentence: "none of your locations
+    /// is marked as home", "there's no travel time from Home to Town gym", or, away from home, "your base is Brighton flat
+    /// that day, and there's no travel time …".
+    /// </summary>
+    public static string WhyUnknown(Guid? locationId, PlanningContext context, LocalDate date)
     {
-        if (context.Home is not { } home || locationId is not { } at)
+        if (context.BaseOn(date) is not { } fromBase || locationId is not { } at)
         {
             return "none of your locations is marked as home";
         }
 
-        var missing = context.Travel.JourneysFor(at, home).MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}");
-        return $"there's no travel time {string.Join(", or ", missing)}";
+        var missing = $"there's no travel time {MissingLegs(at, fromBase, context)}";
+        return fromBase == context.Home ? missing : $"your base is {NameOf(fromBase, context)} that day, and {missing}";
     }
+
+    /// <summary>"from Brighton flat to Town gym, or from Town gym to Brighton flat": the legs travel needs and lacks.</summary>
+    public static string MissingLegs(Guid at, Guid fromBase, PlanningContext context) =>
+        string.Join(", or ", context.Travel.JourneysFor(at, fromBase).MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}"));
+
+    /// <summary>
+    /// Until the planner works out each day's base: travel from home, as it was before routines had bases (TRV-4,
+    /// Phase 6b; replaced in the next change).
+    /// </summary>
+    public static Journeys? KnownJourneysFromHome(Guid? locationId, PlanningContext context) =>
+        KnownJourneys(locationId, context with { RoutineBases = new Dictionary<Guid, Guid>() }, default);
+
+    /// <summary>Why <see cref="KnownJourneysFromHome"/> is null.</summary>
+    public static string WhyUnknownFromHome(Guid? locationId, PlanningContext context) =>
+        WhyUnknown(locationId, context with { RoutineBases = new Dictionary<Guid, Guid>() }, default);
 
     public static string NameOf(Guid location, PlanningContext context) =>
         context.Places.TryGetValue(location, out var place) ? place.Name : "that location";
