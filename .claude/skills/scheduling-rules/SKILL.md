@@ -114,7 +114,15 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   counts as zero towards the limit.
 - Travel (`TravelTimes.JourneysFor`): **none** when the activity is at base or has no location; otherwise the leg
   base to activity and the leg back, which can differ. A missing leg gives no journeys and names the missing legs:
-  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6b, TRV-4).
+  it is **never zero minutes** (P1). The base is the day's (TRV-4, T15): `PlanningContext.BaseOn(date)` is the base of
+  the routine in use that day if it has one (`RoutineBases`, by routine), otherwise home. Every travel lookup goes
+  through `Travel.KnownJourneys(location, context, date)` with the day an occurrence **starts** (§8), so one activity
+  can have different travel on different days: the check on save (`TravelProblems`: a problem per base it can't be
+  worked out from, naming the first date, "On Sat 7 Nov 2026 your base is Brighton flat, and there's no travel time
+  …"; H8 and clashes with each day's own travel), the agenda (home page, calendar), and the planner (each day's travel;
+  a day it can't be worked out from gets a reason, "Your base then is Brighton flat, and …"; a goal is blocked only
+  when no day of the week can reach it). An activity at the base needs no travel. Tests: `RoutineBaseTests` (T15:
+  the home gym out of reach on the Brighton weekend, runs still suggested).
 - To put a footprint on a day, use `CalendarDays.DayOf(footprint.Activity, zone)`, not `Whole.Start`: an activity at
   00:10 with 25 min travel belongs to the day it starts, not the day before.
 
@@ -340,7 +348,7 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
 | T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
-| T15 | "Brighton weekend" template | Not built (Phase 6b, after A/B weeks); a weekend in the middle of a week is in the domain | `RoutineCalendarTests.ARoutineCanBeChosenForPartOfAWeek` |
+| T15 | "Brighton weekend" template | **Covered in the domain** (a routine's base on the page is next) | `RoutineCalendarTests.ARoutineCanBeChosenForPartOfAWeek`, `RoutineBaseTests.T15_TheHomeGymIsOutOfReach_ButRunsAreStillSuggested` and the rest of `RoutineBaseTests` |
 | T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** (domain and pages) | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA`, `RoutineCalendarTests.TheUsualRoutine_IsInUseOnEveryDate_*`, web `RoutinesTests.TheList_SaysWhichWeekThisIs`, `ActivitiesInRoutinesTests.TheCalendar_ShowsAWeekAActivity_InWeekAOnly` |

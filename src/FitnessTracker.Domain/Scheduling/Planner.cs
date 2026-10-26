@@ -143,24 +143,17 @@ public static class Planner
                 continue;
             }
 
-            if (Travel.KnownJourneysFromHome(goal.LocationId, request.Context) is not { } journeys)
+            if (week.Blocked(goal, tooLong: $"Counting getting ready, travel and changing, each {goal.Title} session would take up more than a day") is { } blocked)
             {
-                shortfalls.Add(new Shortfall(goal, missing, [], Blocked: Sentence(Travel.WhyUnknownFromHome(goal.LocationId, request.Context))));
-                continue;
-            }
-
-            if (Footprint.ProblemsWith(goal.Length, goal.Buffers, journeys).Count > 0)
-            {
-                shortfalls.Add(new Shortfall(goal, missing, [],
-                    Blocked: $"Counting getting ready, travel and changing, each {goal.Title} session would take up more than a day"));
+                shortfalls.Add(new Shortfall(goal, missing, [], Blocked: blocked));
                 continue;
             }
 
             for (var placed = 0; placed < missing; placed++)
             {
-                if (week.Best(goal, journeys) is not { } best)
+                if (week.Best(goal) is not { } best)
                 {
-                    var days = week.DayReasons(goal, journeys);
+                    var days = week.DayReasons(goal);
                     shortfalls.Add(new Shortfall(goal, missing - placed, days) { Note = days.Count == 0 ? week.NoDaysLeft(goal) : null });
                     break;
                 }
@@ -174,9 +167,9 @@ public static class Planner
         // given (scheduling review M-4).
         for (var i = 0; i < shortfalls.Count; i++)
         {
-            if (shortfalls[i].Blocked is null && Travel.KnownJourneysFromHome(shortfalls[i].Goal.LocationId, request.Context) is { } journeys)
+            if (shortfalls[i].Blocked is null)
             {
-                shortfalls[i] = shortfalls[i] with { Shorter = week.Shorter(shortfalls[i].Goal, journeys, ShortestOffered) };
+                shortfalls[i] = shortfalls[i] with { Shorter = week.Shorter(shortfalls[i].Goal, ShortestOffered) };
             }
         }
 
@@ -201,24 +194,18 @@ public static class Planner
     public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null)
     {
         var week = new WeekState(request) { NotAt = notAt };
-        if (Travel.KnownJourneysFromHome(session.LocationId, request.Context) is not { } journeys)
+        if (week.Blocked(session, tooLong: $"Counting getting ready, travel and changing, {session.Title} would take up more than a day") is { } blocked)
         {
-            return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: Sentence(Travel.WhyUnknownFromHome(session.LocationId, request.Context))));
+            return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: blocked));
         }
 
-        if (Footprint.ProblemsWith(session.Length, session.Buffers, journeys).Count > 0)
-        {
-            return new SessionAlternatives([], new Shortfall(session, 1, [],
-                Blocked: $"Counting getting ready, travel and changing, {session.Title} would take up more than a day"));
-        }
-
-        var options = week.BestEachDay(session, journeys).Take(most).ToList();
+        var options = week.BestEachDay(session).Take(most).ToList();
         if (options.Count > 0)
         {
             return new SessionAlternatives(options, null);
         }
 
-        var days = week.DayReasons(session, journeys);
+        var days = week.DayReasons(session);
         return new SessionAlternatives([], new Shortfall(session, 1, days) { Note = days.Count == 0 ? week.NoDaysLeft(session) : null });
     }
 
@@ -333,17 +320,18 @@ public static class Planner
             var loaded = DatesToLoadFor(request.Week, request.Rest.BetweenDemanding);
             foreach (var activity in request.Activities)
             {
-                // Travel that can't be worked out is left out, as on the home page, and said (P1).
-                var known = Travel.KnownJourneysFromHome(activity.LocationId, request.Context);
-                var journeys = known ?? Journeys.None;
-                var occurrences = activity.Series.OccurrencesBetween(loaded.Start, loaded.End);
-                if (known is null && occurrences.Count > 0)
+                foreach (var occurrence in activity.Series.OccurrencesBetween(loaded.Start, loaded.End))
                 {
-                    _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknownFromHome(activity.LocationId, request.Context)}");
-                }
+                    // From the base of the day it starts (TRV-4). Travel that can't be worked out is left out, as on the
+                    // home page, and said once for each reason (P1).
+                    var day = occurrence.Time.Start.InZone(activity.Series.Zone).Date;
+                    var known = Travel.KnownJourneys(activity.LocationId, request.Context, day);
+                    if (known is null)
+                    {
+                        _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknown(activity.LocationId, request.Context, day)}");
+                    }
 
-                foreach (var occurrence in occurrences)
-                {
+                    var journeys = known ?? Journeys.None;
                     var longest = Times.LongestFor(occurrence.Time, activity.Series.Zone);
                     var footprint = Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, journeys, longest).Count == 0
                         ? Footprint.Around(occurrence.Time, activity.Buffers, journeys, longest)
@@ -405,13 +393,34 @@ public static class Planner
             }
         }
 
+        // TRV-4: why no day this week can have a session of the goal, from any day's base: travel that can't be worked
+        // out (said for each base, from the first day needing it), or, failing that, a session that would take up more
+        // than a day with that travel (tooLong). Null when some day can. With every day at home, as it always was.
+        public string? Blocked(PlanGoal goal, string tooLong)
+        {
+            var unknown = new List<string>();
+            foreach (var date in _request.Week.GroupBy(_request.Context.BaseOn).Select(days => days.First()))
+            {
+                if (Travel.KnownJourneys(goal.LocationId, _request.Context, date) is not { } journeys)
+                {
+                    unknown.Add(Travel.WhyUnknown(goal.LocationId, _request.Context, date));
+                }
+                else if (Footprint.ProblemsWith(goal.Length, goal.Buffers, journeys).Count == 0)
+                {
+                    return null;
+                }
+            }
+
+            return unknown.Count > 0 ? Sentence(string.Join("; ", unknown)) : tooLong;
+        }
+
         // The best-scoring start time that keeps every rule, the earliest on a tie; null when none does.
-        public Suggestion? Best(PlanGoal goal, Journeys journeys)
+        public Suggestion? Best(PlanGoal goal)
         {
             (int Score, Verdict Verdict, LocalDate Date)? best = null;
             foreach (var date in _request.Week)
             {
-                if (BestOn(goal, journeys, date) is { } onDate && (best is null || onDate.Score > best.Value.Score))
+                if (BestOn(goal, date) is { } onDate && (best is null || onDate.Score > best.Value.Score))
                 {
                     best = onDate;
                 }
@@ -421,17 +430,29 @@ public static class Planner
         }
 
         // SCH-6: the best time on each day that has one, best first (the earliest on a tie).
-        public IEnumerable<Suggestion> BestEachDay(PlanGoal goal, Journeys journeys) =>
+        public IEnumerable<Suggestion> BestEachDay(PlanGoal goal) =>
             _request.Week
-                .Select(date => BestOn(goal, journeys, date))
+                .Select(date => BestOn(goal, date))
                 .OfType<(int Score, Verdict Verdict, LocalDate Date)>()
                 .OrderByDescending(best => best.Score)
                 .ThenBy(best => best.Verdict.Footprint.Activity.Start)
                 .Select(best => SuggestionFor(goal, best.Verdict, best.Date));
 
+        // TRV-4: travel to the goal's place from the date's base, when it can be worked out and a session with it fits
+        // in a day; null otherwise, so the date has no time for it (DayReasons says why).
+        private Journeys? UsableJourneysOn(PlanGoal goal, LocalDate date) =>
+            Travel.KnownJourneys(goal.LocationId, _request.Context, date) is { } journeys && Footprint.ProblemsWith(goal.Length, goal.Buffers, journeys).Count == 0
+                ? journeys
+                : null;
+
         // The best-scoring start time on the date that keeps every rule, the earliest on a tie.
-        private (int Score, Verdict Verdict, LocalDate Date)? BestOn(PlanGoal goal, Journeys journeys, LocalDate date)
+        private (int Score, Verdict Verdict, LocalDate Date)? BestOn(PlanGoal goal, LocalDate date)
         {
+            if (UsableJourneysOn(goal, date) is not { } journeys)
+            {
+                return null;
+            }
+
             (int Score, Verdict Verdict, LocalDate Date)? best = null;
             foreach (var start in StartsOn(date))
             {
@@ -454,12 +475,26 @@ public static class Planner
         private Suggestion SuggestionFor(PlanGoal goal, Verdict verdict, LocalDate date) =>
             new(goal, verdict.Footprint.Activity, verdict.Footprint, Score(goal, date, verdict.Footprint).Reasons);
 
-        // SCH-5: for each day not over and without a session of this goal, the rule that ruled it out, with numbers.
-        public IReadOnlyList<DayReason> DayReasons(PlanGoal goal, Journeys journeys)
+        // SCH-5: for each day not over and without a session of this goal, the rule that ruled it out, with numbers;
+        // first, travel from that day's base (TRV-4).
+        public IReadOnlyList<DayReason> DayReasons(PlanGoal goal)
         {
             var reasons = new List<DayReason>();
             foreach (var date in _request.Week)
             {
+                if (UsableJourneysOn(goal, date) is not { } journeys)
+                {
+                    var over = date.PlusDays(1).AtStartOfDayInZone(_zone).ToInstant() <= _request.Now;
+                    if (!over && SessionDates(goal.Id).Count(day => day == date) < SessionsPerDay(goal))
+                    {
+                        reasons.Add(new DayReason(date, Travel.KnownJourneys(goal.LocationId, _request.Context, date) is null
+                            ? Sentence(Travel.WhyUnknown(goal.LocationId, _request.Context, date))
+                            : $"Counting getting ready, travel and changing from your base then, a {goal.Title} session would take up more than a day"));
+                    }
+
+                    continue;
+                }
+
                 var verdicts = StartsOn(date).Select(start => Check(goal, journeys, date, start)).Where(verdict => verdict.Broken != Broken.Past).ToList();
                 if (verdicts.Count == 0 || verdicts.Any(verdict => verdict.Broken is Broken.GoalAlreadyThatDay or Broken.None))
                 {
@@ -473,11 +508,11 @@ public static class Planner
         }
 
         // SCH-5's "a shorter session": the longest, in steps of 5 minutes, that would fit somewhere this week.
-        public string? Shorter(PlanGoal goal, Journeys journeys, Duration shortest)
+        public string? Shorter(PlanGoal goal, Duration shortest)
         {
             for (var length = goal.Length - Duration.FromMinutes(5); length >= shortest; length -= Duration.FromMinutes(5))
             {
-                if (Best(goal with { Length = length }, journeys) is { } fits)
+                if (Best(goal with { Length = length }) is { } fits)
                 {
                     var start = fits.Time.Start.InZone(_zone);
                     return $"A session of {Times.Length(length)} would fit: {Times.Date.Format(start.Date)} at {Times.Clock(start, _request.Context.Clock)}";

@@ -208,8 +208,8 @@ internal static class Travel
 
     /// <summary>
     /// Why <see cref="KnownJourneys"/> is null on <paramref name="date"/>, to finish a sentence: "none of your locations
-    /// is marked as home", "there's no travel time from Home to Town gym", or, away from home, "your base is Brighton flat
-    /// that day, and there's no travel time …".
+    /// is marked as home", "there's no travel time from Home to Town gym", or, away from home, "your base then is Brighton
+    /// flat, and there's no travel time …".
     /// </summary>
     public static string WhyUnknown(Guid? locationId, PlanningContext context, LocalDate date)
     {
@@ -219,23 +219,12 @@ internal static class Travel
         }
 
         var missing = $"there's no travel time {MissingLegs(at, fromBase, context)}";
-        return fromBase == context.Home ? missing : $"your base is {NameOf(fromBase, context)} that day, and {missing}";
+        return fromBase == context.Home ? missing : $"your base then is {NameOf(fromBase, context)}, and {missing}";
     }
 
     /// <summary>"from Brighton flat to Town gym, or from Town gym to Brighton flat": the legs travel needs and lacks.</summary>
     public static string MissingLegs(Guid at, Guid fromBase, PlanningContext context) =>
         string.Join(", or ", context.Travel.JourneysFor(at, fromBase).MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}"));
-
-    /// <summary>
-    /// Until the planner works out each day's base: travel from home, as it was before routines had bases (TRV-4,
-    /// Phase 6b; replaced in the next change).
-    /// </summary>
-    public static Journeys? KnownJourneysFromHome(Guid? locationId, PlanningContext context) =>
-        KnownJourneys(locationId, context with { RoutineBases = new Dictionary<Guid, Guid>() }, default);
-
-    /// <summary>Why <see cref="KnownJourneysFromHome"/> is null.</summary>
-    public static string WhyUnknownFromHome(Guid? locationId, PlanningContext context) =>
-        WhyUnknown(locationId, context with { RoutineBases = new Dictionary<Guid, Guid>() }, default);
 
     public static string NameOf(Guid location, PlanningContext context) =>
         context.Places.TryGetValue(location, out var place) ? place.Name : "that location";

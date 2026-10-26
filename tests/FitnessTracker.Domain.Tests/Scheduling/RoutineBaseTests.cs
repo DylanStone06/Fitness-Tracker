@@ -114,9 +114,92 @@ public class RoutineBaseTests
 
         var items = Agenda.Between([gym], BrightonWeekend(flatToGymKnown: false), Saturday, Saturday.PlusDays(7));
 
-        Assert.StartsWith("Travel isn't counted, because your base is Brighton flat that day, and there's no travel time from Brighton flat to Town gym", items[0].Note);
+        Assert.StartsWith("Travel isn't counted, because your base then is Brighton flat, and there's no travel time from Brighton flat to Town gym", items[0].Note);
         Assert.Null(items[1].Note);
     }
+
+    // T15, SCH-5: planning the week of Monday 2 November (on Monday 26 October) with the Brighton weekend on Saturday and
+    // Sunday. The town gym can't be reached from the flat, so a gym session a day goes on Monday to Friday, and the
+    // weekend days say why; runs (no particular place) are still suggested every day, the weekend too.
+    [Fact]
+    public void T15_TheHomeGymIsOutOfReach_ButRunsAreStillSuggested()
+    {
+        var gym = Goal("Gym", sessions: 7, at: Gym);
+        var run = Goal("Run", sessions: 7, at: null);
+
+        var plan = Planner.Plan(WeekOf([gym, run], BrightonWeekend(flatToGymKnown: false)));
+
+        Assert.Equal(
+            [new(2026, 11, 2), new(2026, 11, 3), new(2026, 11, 4), new(2026, 11, 5), new(2026, 11, 6)],
+            plan.Suggestions.Where(suggestion => suggestion.Goal == gym).Select(suggestion => suggestion.Time.Start.InZone(London).Date).Order());
+        Assert.Equal(7, plan.Suggestions.Count(suggestion => suggestion.Goal == run));
+        var shortfall = Assert.Single(plan.Shortfalls);
+        Assert.Equal((gym, 2), (shortfall.Goal, shortfall.Missing));
+        Assert.Equal([Saturday, Saturday.PlusDays(1)], shortfall.Days.Select(day => day.Date));
+        Assert.All(shortfall.Days, day => Assert.StartsWith("Your base then is Brighton flat, and there's no travel time from Brighton flat to Town gym", day.Reason));
+    }
+
+    // With travel from the flat known, the Brighton Saturday's gym session is planned with the flat's hour each way.
+    [Fact]
+    public void ThePlanner_UsesTravelFromTheDaysBase()
+    {
+        var gym = Goal("Gym", sessions: 7, at: Gym);
+
+        var plan = Planner.Plan(WeekOf([gym], BrightonWeekend(flatToGymKnown: true)));
+
+        var saturday = Assert.Single(plan.Suggestions, suggestion => suggestion.Time.Start.InZone(London).Date == Saturday);
+        Assert.Equal(Duration.FromMinutes(60), saturday.Time.Start - saturday.Footprint.Whole.Start);
+        var monday = Assert.Single(plan.Suggestions, suggestion => suggestion.Time.Start.InZone(London).Date == Saturday.PlusDays(-5));
+        Assert.Equal(Duration.FromMinutes(25), monday.Time.Start - monday.Footprint.Whole.Start);
+    }
+
+    // A goal is only blocked outright when no day of the week can reach it: a whole week in Brighton.
+    [Fact]
+    public void AGoalNoDayCanReach_IsBlocked_SayingWhy()
+    {
+        var gym = Goal("Gym", sessions: 3, at: Gym);
+        var wholeWeek = BrightonWeekend(flatToGymKnown: false) with
+        {
+            Routines = new RoutineCalendar(
+                new Dictionary<Guid, WeekCycle> { [Brighton] = new(weeks: 1, anchor: Today) },
+                usual: null,
+                [new RoutineDates(Brighton, new DateInterval(new(2026, 11, 2), new(2026, 11, 8)))]),
+        };
+
+        var shortfall = Assert.Single(Planner.Plan(WeekOf([gym], wholeWeek)).Shortfalls);
+
+        Assert.StartsWith("Your base then is Brighton flat, and there's no travel time from Brighton flat to Town gym", shortfall.Blocked);
+    }
+
+    // Busy time is drawn from each day's base too. On the Brighton Saturday: breakfast at the flat until 08:25, a gym
+    // class from 10:00, and an afternoon out from 12:00. From the flat the class takes up from 09:00, leaving 35 minutes
+    // after breakfast, too short for a 50-minute run (from home it would be 09:35, room for one at 08:30), so a run a day
+    // has none that Saturday, which says why.
+    [Fact]
+    public void BusyTime_IsDrawnFromEachDaysBase()
+    {
+        PlannedActivity[] saturday =
+        [
+            OneOff("Breakfast", Saturday, new LocalTime(7, 30), minutes: 55, at: Flat),
+            OneOff("Gym class", Saturday, new LocalTime(10, 0), minutes: 60, at: Gym),
+            OneOff("Afternoon out", Saturday, new LocalTime(12, 0), minutes: 660, at: Flat),
+        ];
+        var run = Goal("Run", sessions: 7, at: null);
+
+        var plan = Planner.Plan(WeekOf([run], BrightonWeekend(flatToGymKnown: true), saturday));
+
+        Assert.DoesNotContain(plan.Suggestions, suggestion => suggestion.Time.Start.InZone(London).Date == Saturday);
+        Assert.Equal(Saturday, Assert.Single(Assert.Single(plan.Shortfalls).Days).Date);
+    }
+
+    private static PlanRequest WeekOf(PlanGoal[] goals, PlanningContext context, PlannedActivity[]? activities = null) =>
+        new(new DateInterval(new(2026, 11, 2), new(2026, 11, 8)), Instant.FromUtc(2026, 10, 26, 12, 0), London, activities ?? [], goals,
+            new SleepWindow(new LocalTime(23, 0), new LocalTime(7, 0), Duration.FromMinutes(30), Duration.FromMinutes(30)),
+            new RestRules(Duration.FromHours(24), 1, new HashSet<IsoDayOfWeek>()),
+            context);
+
+    private static PlanGoal Goal(string title, int sessions, Guid? at, IsoDayOfWeek[]? days = null) =>
+        new(Guid.NewGuid(), title, sessions, Duration.FromMinutes(50), Buffers.None, at, false, 1, new HashSet<IsoDayOfWeek>(days ?? []), TimeOfDay.Any);
 
     private static PlanningContext BrightonWeekend(bool flatToGymKnown)
     {
