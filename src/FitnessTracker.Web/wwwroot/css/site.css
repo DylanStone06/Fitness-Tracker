@@ -450,6 +450,13 @@ html {
   overflow-wrap: anywhere;
 }
 
+/* Messages name the user's activities and routines, which can be one long unbroken word: they wrap at any character
+   too, rather than widening the page (break-ui, Phase 6b: a 100-letter routine name made the page 735 px wide at
+   320 px). */
+.alert {
+  overflow-wrap: anywhere;
+}
+
 /* The header row (1200 px and wider): the name and links never break inside a word (at 800 px, with the menu laid out
    in a row, the name stood one letter per line), and a long address is shortened with "…" rather than making the
    header taller than the 5rem scroll-padding-top above allows for. The whole address is still read out, and shown
