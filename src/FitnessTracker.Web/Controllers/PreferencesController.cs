@@ -73,7 +73,7 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
         // (clashes kept with "Save anyway") is noted first, so only what the move itself breaks is reported. Both checks
         // keep the rest rules just chosen: stricter ones saved at the same time aren't the move's doing.
         var rest = PlanningData.RestRulesOf(saved);
-        var before = await FindingsAsync(moved, saved.TimesShownAs(), rest);
+        var before = await checker.FindingsAsync(moved, saved.TimesShownAs(), rest);
         foreach (var activity in moved)
         {
             activity.TimeZoneId = saved.TimeZoneId;
@@ -98,26 +98,9 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
         }
 
         TempData[Saved] = true;
-        var after = await FindingsAsync(moved, saved.TimesShownAs(), rest);
+        var after = await checker.FindingsAsync(moved, saved.TimesShownAs(), rest);
         TempData[MoveFindings] = after.Except(before).ToArray();
         return RedirectToAction(nameof(Index));
-    }
-
-    // Each activity's problems and clashes as the check on save sees them now, in plain English, by title.
-    // Both runs write times the way just chosen and keep the rest rules just chosen, so a change of clock or rules
-    // alone doesn't make a finding look new.
-    private async Task<List<string>> FindingsAsync(IReadOnlyList<Activity> activities, ClockFormat clock, RestRules rest)
-    {
-        var findings = new List<string>();
-        foreach (var activity in activities)
-        {
-            var result = await checker.CheckAsync(activity, clock, rest);
-            var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
-            findings.AddRange(result.Problems.Select(problem => $"{activity.Title}: {problem.Message}"));
-            findings.AddRange(result.Clashes.Select(clash => $"{activity.Title}: {ActivityCheck.Describe(clash, zone, clock)}"));
-        }
-
-        return findings;
     }
 
     // Keep what was typed, give the form the latest version, and ask: saving again is then a deliberate choice.

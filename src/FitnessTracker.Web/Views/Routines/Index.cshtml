@@ -2,6 +2,8 @@
 @{
     ViewData["Title"] = "Routines";
     var today = (NodaTime.LocalDate)ViewData[FitnessTracker.Web.Controllers.RoutinesController.Today]!;
+    var datesChosen = (IReadOnlyList<FitnessTracker.Web.Data.RoutineDateRange>)ViewData[FitnessTracker.Web.Controllers.RoutinesController.DatesChosen]!;
+    var names = Model.ToDictionary(routine => routine.Id, routine => routine.Name);
 }
 
 <h1>Routines</h1>
@@ -13,6 +15,20 @@
 @if (TempData[FitnessTracker.Web.Controllers.RoutinesController.UsualChanged] is string usualChanged)
 {
     <div class="alert alert-info" role="status">@usualChanged</div>
+}
+
+@* SCH-1: what a change to which routine is in use when put on dates where it breaks a rule or clashes. *@
+@if (TempData[FitnessTracker.Web.Controllers.RoutinesController.RoutineChangeFindings] is string[] { Length: > 0 } findings)
+{
+    <div class="alert alert-warning" role="status">
+        <p class="mb-1">The activities on the dates that changed were checked. Some now need a look:</p>
+        <ul class="mb-0">
+            @foreach (var finding in findings)
+            {
+                <li>@finding</li>
+            }
+        </ul>
+    </div>
 }
 
 <p><a class="btn btn-primary" asp-action="Create">Add a routine</a></p>
@@ -41,9 +57,37 @@ else
                     }
                 </span>
                 @* The hidden name tells screen reader users which routine each button is for. *@
+                @if (!routine.IsUsual)
+                {
+                    <a class="btn btn-sm btn-outline-secondary" asp-controller="RoutineDates" asp-action="Create" asp-route-routine="@routine.Id">Choose dates<span class="visually-hidden"> for @routine.Name</span></a>
+                }
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@routine.Id">Edit<span class="visually-hidden"> @routine.Name</span></a>
                 <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@routine.Id">Delete<span class="visually-hidden"> @routine.Name</span></a>
             </li>
         }
     </ul>
+
+    @* Q14: routines chosen for ranges of dates, earliest first. *@
+    <h2 class="h4 mt-4">Dates with another routine</h2>
+    <p>On these dates the routine named is used instead of your usual one: a holiday week, say.</p>
+    <p><a class="btn btn-outline-primary" asp-controller="RoutineDates" asp-action="Create">Choose a routine for some dates</a></p>
+    @if (datesChosen.Count == 0)
+    {
+        <p>None yet: your usual routine is used every day.</p>
+    }
+    else
+    {
+        <ul class="list-group">
+            @foreach (var chosen in datesChosen)
+            {
+                var name = names.GetValueOrDefault(chosen.RoutineId, "a routine");
+                <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                    @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+                    <span class="flex-grow-1 text-break">@RoutineDisplay.Dates(chosen): <span dir="auto">@name</span></span>
+                    <a class="btn btn-sm btn-outline-secondary" asp-controller="RoutineDates" asp-action="Edit" asp-route-id="@chosen.Id">Change<span class="visually-hidden"> @RoutineDisplay.Dates(chosen), @name</span></a>
+                    <a class="btn btn-sm btn-outline-danger" asp-controller="RoutineDates" asp-action="Delete" asp-route-id="@chosen.Id">Remove<span class="visually-hidden"> @RoutineDisplay.Dates(chosen), @name</span></a>
+                </li>
+            }
+        </ul>
+    }
 }

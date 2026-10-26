@@ -1,6 +1,7 @@
 @model FitnessTracker.Web.Data.Routine
 @{
     var inIt = ViewData[FitnessTracker.Web.Controllers.RoutinesController.ActivitiesInIt] as IReadOnlyList<string> ?? [];
+    var datesChosen = ViewData[FitnessTracker.Web.Controllers.RoutinesController.DatesChosen] as IReadOnlyList<FitnessTracker.Web.Data.RoutineDateRange> ?? [];
     ViewData["Title"] = inIt.Count > 0 ? "Routine can't be deleted yet" : "Delete routine";
 }
 
@@ -10,6 +11,11 @@
         <partial name="_ErrorSummary" />
         <p class="fs-5 text-break mb-1" dir="auto">@Model.Name</p>
         <p>@RoutineDisplay.Cycle(Model)</p>
+        @* Q14: the dates chosen for it are deleted with it, so they don't quietly change. *@
+        @if (datesChosen.Count > 0)
+        {
+            <p>It is chosen for @RoutineDisplay.Dates(datesChosen). Those dates go back to your usual routine.</p>
+        }
 
         @* Its activities would otherwise never happen, or quietly start happening every week. Said once: in the
            error summary after a refused delete, or here. *@

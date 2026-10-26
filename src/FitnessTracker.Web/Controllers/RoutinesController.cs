@@ -8,15 +8,25 @@ namespace FitnessTracker.Web.Controllers;
 
 // CAL-9: the signed-in user's routines, kinds of week that repeat over 1 to 4 weeks (A/B weeks). AppDbContext only
 // ever returns the signed-in user's rows, so another user's routine is simply not found (T19, ACC-2).
-public class RoutinesController(AppDbContext db, PlanningData planning) : Controller
+public class RoutinesController(AppDbContext db, PlanningData planning, ActivityChecker checker) : Controller
 {
     /// <summary>ViewData: today in the user's timezone, for "this week is week B".</summary>
     public const string Today = "Today";
+
+    /// <summary>ViewData: the dates chosen for routines (Q14), earliest first.</summary>
+    public const string DatesChosen = "DatesChosen";
+
+    /// <summary>
+    /// TempData: SCH-1, what a change to which routine is in use when (dates chosen, another made usual, one deleted)
+    /// broke, as the check on save sees it, for the list to show.
+    /// </summary>
+    public const string RoutineChangeFindings = "RoutineChangeFindings";
 
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         ViewData[Today] = (await planning.LoadAsync()).Now.Date;
+        ViewData[DatesChosen] = (await planning.RoutinesAsync()).Dates;
         var routines = await db.Routines.AsNoTracking().ToListAsync();
         // The usual routine first, then by name. Sorted here rather than by SQLite, which puts every capital letter
         // before every lower-case one.
@@ -45,6 +55,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
 
         // Its weeks start as the user's do now, and keep doing so (Routine.WeekStart).
         var weekStart = (await planning.LoadAsync()).Preferences.WeekStart;
+        var before = await checker.RoutineActivityFindingsAsync();
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: null);
         var routine = new Routine();
@@ -62,6 +73,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
 
         await transaction.CommitAsync();
         await SayWhatStoppedAsync(stopped);
+        await SayWhatBrokeAsync(before);
         return RedirectToAction(nameof(Index));
     }
 
@@ -95,6 +107,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
             return View(model);
         }
 
+        var before = await checker.RoutineActivityFindingsAsync();
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: id);
         if (routine.IsUsual && !model.IsUsual)
@@ -135,6 +148,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
 
         await transaction.CommitAsync();
         await SayWhatStoppedAsync(stopped);
+        await SayWhatBrokeAsync(before);
         return RedirectToAction(nameof(Index));
     }
 
@@ -150,6 +164,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         }
 
         ViewData[ActivitiesInIt] = await ActivitiesInAsync(id);
+        ViewData[DatesChosen] = await DatesChosenForAsync(id);
         return View(routine);
     }
 
@@ -171,10 +186,14 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
         if (inIt.Count > 0)
         {
             ViewData[ActivitiesInIt] = inIt;
+            ViewData[DatesChosen] = await DatesChosenForAsync(id);
             ModelState.AddModelError(string.Empty, InItMessage(inIt));
             return View(nameof(Delete), routine);
         }
 
+        // The dates chosen for it are deleted with it (AppDbContext) and go back to the usual routine, whose
+        // activities then happen on them again.
+        var before = await checker.RoutineActivityFindingsAsync();
         db.Entry(routine).Property(saved => saved.Version).OriginalValue = version;
         db.Routines.Remove(routine);
         try
@@ -193,10 +212,29 @@ public class RoutinesController(AppDbContext db, PlanningData planning) : Contro
                 $"This routine was changed in another tab or window after you opened this page. It's now called " +
                 $"{current.Name}. Delete it anyway?");
             ViewData[ActivitiesInIt] = await ActivitiesInAsync(id);
+            ViewData[DatesChosen] = await DatesChosenForAsync(id);
             return View(nameof(Delete), current);
         }
 
+        await SayWhatBrokeAsync(before);
         return RedirectToAction(nameof(Index));
+    }
+
+    // Q14: the dates chosen for a routine, earliest first.
+    private async Task<List<RoutineDateRange>> DatesChosenForAsync(Guid routineId) =>
+        (await db.RoutineDateRanges.AsNoTracking().Where(chosen => chosen.RoutineId == routineId).ToListAsync())
+            .OrderBy(chosen => chosen.StartDate)
+            .ToList();
+
+    // SCH-1, CLAUDE.md rule 3: what a change to which routine is in use when put on dates where it now breaks a rule or
+    // clashes, said on the list (as for a timezone change). Activities in every week are never affected.
+    private async Task SayWhatBrokeAsync(List<string> before)
+    {
+        var broken = (await checker.RoutineActivityFindingsAsync()).Except(before).ToArray();
+        if (broken.Length > 0)
+        {
+            TempData[RoutineChangeFindings] = broken;
+        }
     }
 
     /// <summary>ViewData: the titles of the activities in the routine about to be deleted.</summary>

@@ -38,6 +38,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<Routine> Routines => Set<Routine>();
 
+    public DbSet<RoutineDateRange> RoutineDateRanges => Set<RoutineDateRange>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -132,6 +134,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // At most one usual routine per person, even if two tabs make different ones usual at once.
             routine.HasIndex(r => r.OwnerId).IsUnique().HasFilter($"\"{nameof(Routine.IsUsual)}\" = 1").HasDatabaseName("IX_Routines_OneUsualPerOwner");
             routine.HasOne<AppUser>().WithMany().HasForeignKey(r => r.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RoutineDateRange>(dates =>
+        {
+            // Deleting a routine deletes the dates chosen for it: they go back to the usual routine (its delete page
+            // says so).
+            dates.HasOne<Routine>().WithMany().HasForeignKey(d => d.RoutineId).OnDelete(DeleteBehavior.Cascade);
+            dates.HasOne<AppUser>().WithMany().HasForeignKey(d => d.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every owned entity type gets the same protection, so a new one can't be forgotten.

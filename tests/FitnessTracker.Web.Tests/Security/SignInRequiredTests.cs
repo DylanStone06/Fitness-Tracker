@@ -16,6 +16,7 @@ public sealed class SignInRequiredTests(TestAppFactory factory) : IClassFixture<
     [InlineData("/Goals")]
     [InlineData("/Goals/Create")]
     [InlineData("/Plan")]
+    [InlineData("/RoutineDates/Create")]
     public async Task Page_RedirectsToSignIn_WhenSignedOut(string url)
     {
         var browser = TestBrowser.Open(factory);

@@ -238,6 +238,18 @@ public sealed partial class TestBrowser
         return form;
     }
 
+    /// <summary>CAL-9: chooses <paramref name="routine"/> for the dates from <paramref name="from"/> to <paramref name="to"/>.</summary>
+    public Task<HttpResponseMessage> ChooseRoutineDatesAsync(Guid routine, string from, string to) =>
+        SubmitFormAsync("/RoutineDates/Create", "/RoutineDates/Create", RoutineDatesForm(routine, from, to));
+
+    /// <summary>Every field of the form that chooses a routine for some dates.</summary>
+    public static Dictionary<string, string> RoutineDatesForm(Guid routine, string from, string to) => new()
+    {
+        ["RoutineId"] = routine.ToString(),
+        ["From"] = from,
+        ["To"] = to,
+    };
+
     /// <summary>
     /// Every row of the default-buffers form (ACC-6) as a new user's page fills it (the built-in defaults), with the
     /// given changes. Rows are in ActivityCategory order: Gym is row 2, Run row 3.

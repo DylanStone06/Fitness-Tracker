@@ -68,8 +68,14 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 - **Which routine is in use on a date** (`RoutineCalendar.On`): a routine chosen for a range of dates
   (`RoutineDates`, inclusive) wins there; every other date uses the usual routine, or none. Overlapping ranges (the
-  pages will refuse them) are settled the same way every time: later start, then shorter, then id. A routine or usual
-  id with no cycle is left out. Choosing routines for dates has no page yet, so only the usual routine is in use.
+  pages refuse them; two tabs at once could still save both) are settled the same way every time: later start, then
+  shorter, then id. A routine or usual id with no cycle is left out. The dates are stored as `Web/Data/RoutineDateRange`
+  and chosen on the Routines page (`RoutineDatesController`); `PlanningData.RoutinesAsync` passes them in, so every
+  page and check sees them. Deleting a routine deletes its dates (they go back to the usual routine).
+- **A change to which routine is in use when** (dates chosen, changed or removed; a routine added, edited or
+  deleted) re-runs the check on save for every activity in a routine, before and after, and the Routines page lists
+  what is new (`ActivityChecker.RoutineActivityFindingsAsync`, as for a timezone move, Q8). Activities in every week
+  never change. Tests: web `RoutineDatesTests`.
 - **Each cycle counts by the calendar from its own week A**, through dates another routine is used on (Q13: a rota
   doesn't pause for a holiday). A routine keeps the week start it was added with (`Routine.WeekStart`), as a rule
   keeps its WKST.
@@ -289,7 +295,7 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | Area | Requirements | Phase |
 |---|---|---|
 | The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
-| Routines chosen for a range of dates (the domain is built: `RoutineDates`), duplicating a routine, and a routine's base location | CAL-9, TRV-4, T15 | 6b |
+| Duplicating a routine, and a routine's base location | CAL-9, TRV-4, T15 | 6b |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code

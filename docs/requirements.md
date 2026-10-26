@@ -351,5 +351,5 @@ change:
 | # | Question | Default |
 |---|---|---|
 | Q13 | Does an A/B cycle keep counting through a holiday week (another routine), or pause? | Keeps counting by the calendar, as a rota does: the week after a holiday in week B is week A. |
-| Q14 | Which routine is in use on a date? | The one chosen for that date, if any (choosing routines for dates comes later in Phase 6b); otherwise the usual routine, if there is one. Activities not in a routine happen every week, whatever the routine, so every activity from before Phase 6b is unchanged. |
+| Q14 | Which routine is in use on a date? | The one chosen for that date, if any (on the Routines page; ranges can't overlap); otherwise the usual routine, if there is one. Activities not in a routine happen every week, whatever the routine, so every activity from before Phase 6b is unchanged. |
 | Q15 | When Plan my week plans week B and a session is added "every week", is it every week or every week B? | Every week B ("Week B only"), so planning week B builds week B. With a routine that is the same every week, it is added to that routine; with no routines, to every week, as before. |

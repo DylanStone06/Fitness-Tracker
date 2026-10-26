@@ -1,0 +1,20 @@
+@model RoutineDatesFormViewModel
+@{
+    ViewData["Title"] = "Choose a routine for some dates";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Choose a routine for some dates</h1>
+        <p>For a holiday, a weekend away or a different week: on these dates this routine is used instead of your usual
+            one, so its activities happen and your usual routine's don't. Activities you have every week still happen.</p>
+
+        <form asp-action="Create" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <partial name="_RoutineDatesFields" />
+
+            <button type="submit" class="btn btn-primary">Save dates</button>
+            <a class="btn btn-link" asp-controller="Routines" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

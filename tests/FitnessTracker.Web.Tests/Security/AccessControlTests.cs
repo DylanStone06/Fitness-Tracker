@@ -39,6 +39,10 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Routines/Edit/{id}" },
         { "GET", "/Routines/Delete/{id}" },
         { "POST", "/Routines/Delete/{id}" },
+        { "GET", "/RoutineDates/Edit/{id}" },
+        { "POST", "/RoutineDates/Edit/{id}" },
+        { "GET", "/RoutineDates/Delete/{id}" },
+        { "POST", "/RoutineDates/Delete/{id}" },
     };
 
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
@@ -222,6 +226,16 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
             return (await StoredData.RoutineNamedAsync(factory, name))!.Id;
         }
 
+        if (path.StartsWith("/RoutineDates/", StringComparison.Ordinal))
+        {
+            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+            var name = TestBrowser.NewName("Alex holiday");
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.AddRoutineAsync(name)).StatusCode);
+            var routine = (await StoredData.RoutineNamedAsync(factory, name))!.Id;
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.ChooseRoutineDatesAsync(routine, "2026-11-02", "2026-11-08")).StatusCode);
+            return Assert.Single(await StoredData.DatesChosenForAsync(factory, routine)).Id;
+        }
+
         throw new ArgumentOutOfRangeException(nameof(path), path, "Add a way to create Alex's record for this controller.");
     }
 
@@ -234,6 +248,7 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam")
             .Concat(TestBrowser.GoalForm("Changed by Sam"))
             .Concat(TestBrowser.RoutineForm("Changed by Sam"))
+            .Concat(TestBrowser.RoutineDatesForm(Guid.NewGuid(), "2026-12-01", "2026-12-02"))
             .DistinctBy(field => field.Key).ToDictionary())
         {
             ["Name"] = "Changed by Sam",

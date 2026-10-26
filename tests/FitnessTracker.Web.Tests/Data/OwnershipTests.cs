@@ -137,14 +137,16 @@ public sealed class OwnershipTests : IDisposable
     }
 
     // ACC-9 with CAL-9: an activity points at its routine, and a routine with activities can't be deleted on its own.
-    // Deleting the account must still delete both, by the database's cascade, without loading them.
+    // Deleting the account must still delete both, and the dates chosen for the routine, by the database's cascade,
+    // without loading them.
     [Fact]
-    public void DeletingAnAccount_DeletesItsRoutines_AndTheActivitiesInThem()
+    public void DeletingAnAccount_DeletesItsRoutines_TheirDates_AndTheActivitiesInThem()
     {
         using (var db = ContextFor(Alex))
         {
             var routine = new Routine { Name = "Usual week", CycleWeeks = 2, WeekAStarts = new(2026, 10, 19), IsUsual = true };
             db.Routines.Add(routine);
+            db.RoutineDateRanges.Add(new RoutineDateRange { RoutineId = routine.Id, StartDate = new(2026, 11, 2), EndDate = new(2026, 11, 8) });
             db.Activities.Add(new Activity
             {
                 Title = "Gym",
@@ -167,6 +169,7 @@ public sealed class OwnershipTests : IDisposable
 
         using var check = ContextFor(userId: null);
         Assert.Empty(check.Routines.IgnoreQueryFilters().ToList());
+        Assert.Empty(check.RoutineDateRanges.IgnoreQueryFilters().ToList());
         Assert.Empty(check.Activities.IgnoreQueryFilters().ToList());
     }
 

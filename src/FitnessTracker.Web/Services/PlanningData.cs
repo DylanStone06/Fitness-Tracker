@@ -20,8 +20,11 @@ public sealed record UserPlanning(
     PlanningContext Context,
     ZonedDateTime Now);
 
-/// <summary>CAL-9: the signed-in user's routines, and which one is in use on each date.</summary>
-public sealed record UserRoutines(IReadOnlyList<Routine> All, RoutineCalendar Calendar);
+/// <summary>
+/// CAL-9: the signed-in user's routines, which one is in use on each date, and the dates chosen for them (Q14),
+/// earliest first.
+/// </summary>
+public sealed record UserRoutines(IReadOnlyList<Routine> All, RoutineCalendar Calendar, IReadOnlyList<RoutineDateRange> Dates);
 
 /// <summary>
 /// Reads the signed-in user's preferences (or the defaults), locations, travel times and "today" in their timezone,
@@ -67,12 +70,18 @@ public class PlanningData(AppDbContext db, IClock clock)
     }
 
     /// <summary>
-    /// CAL-9: the user's routines, and which is in use on each date. A routine whose cycle can't be read (edited by
-    /// hand) is left out, so its activities don't happen, rather than stopping every page.
+    /// CAL-9: the user's routines, the dates chosen for them (Q14), and which is in use on each date. A routine whose
+    /// cycle can't be read, or dates whose last is before their first (edited by hand), are left out, rather than
+    /// stopping every page.
     /// </summary>
     public async Task<UserRoutines> RoutinesAsync()
     {
         var all = await db.Routines.AsNoTracking().ToListAsync();
+        var dates = (await db.RoutineDateRanges.AsNoTracking().ToListAsync())
+            .Where(chosen => chosen.StartDate <= chosen.EndDate)
+            .OrderBy(chosen => chosen.StartDate)
+            .ThenBy(chosen => chosen.EndDate)
+            .ToList();
         var cycles = new Dictionary<Guid, WeekCycle>();
         foreach (var routine in all)
         {
@@ -87,8 +96,15 @@ public class PlanningData(AppDbContext db, IClock clock)
         }
 
         var usual = all.FirstOrDefault(routine => routine.IsUsual)?.Id;
-        return new UserRoutines(all, new RoutineCalendar(cycles, usual, []));
+        return new UserRoutines(all, new RoutineCalendar(cycles, usual, dates.Select(chosen => chosen.ToRoutineDates())), dates);
     }
+
+    /// <summary>
+    /// CAL-9: the user's activities in a routine, as stored: the ones whose occurrences change when which routine is in
+    /// use changes (dates chosen for a routine, another made usual). Activities in every week are never affected.
+    /// </summary>
+    public Task<List<Activity>> ActivitiesInRoutinesAsync() =>
+        db.Activities.AsNoTracking().Where(activity => activity.RoutineId != null).ToListAsync();
 
     /// <summary>
     /// The user's activities that can fall on <paramref name="dates"/>: repeating ones that have started by then, and

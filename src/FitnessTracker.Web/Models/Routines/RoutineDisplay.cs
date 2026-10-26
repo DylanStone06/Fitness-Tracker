@@ -30,6 +30,18 @@ public static class RoutineDisplay
     /// <summary>"Week A is the week of Mon 2 Nov 2026".</summary>
     public static string WeekA(Routine routine) => $"Week A is the week of {DateText.Named.Format(routine.WeekAStarts)}";
 
+    /// <summary>Q14: dates chosen for a routine, "Mon 2 Nov 2026 – Sun 8 Nov 2026", or one day's.</summary>
+    public static string Dates(RoutineDateRange chosen) => chosen.StartDate == chosen.EndDate
+        ? DateText.Named.Format(chosen.StartDate)
+        : $"{DateText.Named.Format(chosen.StartDate)} – {DateText.Named.Format(chosen.EndDate)}";
+
+    /// <summary>"Mon 2 Nov 2026 – Sun 8 Nov 2026 and Mon 21 Dec 2026 – Sun 27 Dec 2026", for a sentence.</summary>
+    public static string Dates(IReadOnlyList<RoutineDateRange> chosen)
+    {
+        var each = chosen.Select(Dates).ToList();
+        return each.Count == 1 ? each[0] : $"{string.Join(", ", each[..^1])} and {each[^1]}";
+    }
+
     /// <summary>
     /// CAL-9, "each week shows its template and cycle week": "Usual week, week B" for days all in one routine and
     /// week, or each part with its dates ("Sun 25 Oct: Usual week, week A; Mon 26 Oct – Sat 31 Oct: Usual week, week
