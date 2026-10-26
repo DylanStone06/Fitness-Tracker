@@ -435,13 +435,15 @@ public static class ActivityCheck
     }
 
     // Whether any of the series is on date or later: in the year H4 and H8 look at, by its rule after that (a rule every
-    // 60 weeks can skip the whole year), or moved there.
+    // 60 weeks can skip the whole year), or moved there. A move from a date it is left out on (CAL-9) doesn't happen, so
+    // doesn't count (scheduling review, Phase 6b).
     private static bool HappensFrom(Series series, LocalDate date)
     {
         var yearEnd = date.PlusWeeks(WeeksAheadForFixedRules);
         return series.OccurrencesBetween(date, yearEnd).Count > 0
             || FallsAfter(series, yearEnd)
-            || series.Changes.Values.Any(change => change is OccurrenceChange.Moved move && move.Start.Date >= date);
+            || series.Changes.Any(change => change.Value is OccurrenceChange.Moved move && move.Start.Date >= date
+                && OccurrenceOn(series, change.Key) is not null);
     }
 
     /// <summary>

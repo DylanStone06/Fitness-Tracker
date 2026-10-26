@@ -920,6 +920,20 @@ public class ActivityCheckTests
         Assert.True(ActivityCheck.OthersThatCanClash(holidayOnly, Today).Contains(new LocalDate(2026, 12, 21)));
     }
 
+    // SCH-1: a series that has ended, whose only later occurrence is a move from a date its routine now leaves out (the
+    // week of 12 October given to a holiday), has nothing from today on, so it is checked from its own first date
+    // (scheduling review, Phase 6b: the hidden move counted as happening).
+    [Fact]
+    public void ASeriesWhoseOnlyFutureMoveIsLeftOut_IsCheckedFromItsFirstDate()
+    {
+        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(2026, 10, 12)))
+            .MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 11, 9, 7, 0), Duration.FromMinutes(50))
+            .OnlyOn(date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18));
+
+        Assert.Equal(new LocalDate(2026, 10, 5), ActivityCheck.Check(AtHome(series), [], Context()).Checked.Start);
+    }
+
     // ... while one that happens within the 8 weeks is checked from today, as ever.
     [Fact]
     public void AnActivityHappeningSoon_IsStillCheckedFromToday()
