@@ -4,6 +4,7 @@
     var today = (NodaTime.LocalDate)ViewData[FitnessTracker.Web.Controllers.RoutinesController.Today]!;
     var datesChosen = (IReadOnlyList<FitnessTracker.Web.Data.RoutineDateRange>)ViewData[FitnessTracker.Web.Controllers.RoutinesController.DatesChosen]!;
     var names = Model.ToDictionary(routine => routine.Id, routine => routine.Name);
+    var locationNames = (IReadOnlyDictionary<Guid, string>)ViewData[FitnessTracker.Web.Controllers.RoutinesController.LocationNames]!;
 }
 
 <h1>Routines</h1>
@@ -56,6 +57,11 @@ else
                         <span class="badge text-bg-primary ms-1">Your usual routine</span>
                     }
                     <span class="d-block small">@RoutineDisplay.Cycle(routine)</span>
+                    @if (routine.BaseLocationId is { } baseId && locationNames.TryGetValue(baseId, out var baseName))
+                    {
+                        @* TRV-4. dir="auto": a name in Arabic or Hebrew reads right to left. *@
+                        <span class="d-block small">Based at <span dir="auto">@baseName</span></span>
+                    }
                     @if (RoutineDisplay.ThisWeek(routine, today) is { } thisWeek)
                     {
                         <span class="d-block small">@thisWeek. @RoutineDisplay.WeekA(routine).</span>

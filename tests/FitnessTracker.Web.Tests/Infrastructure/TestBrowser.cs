@@ -229,6 +229,7 @@ public sealed partial class TestBrowser
             ["CycleWeeks"] = "1",
             ["WeekA"] = "2026-10-19",
             ["IsUsual"] = "false",
+            ["BaseLocationId"] = "",
         };
         foreach (var (field, value) in changes ?? [])
         {

@@ -307,7 +307,6 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | Area | Requirements | Phase |
 |---|---|---|
 | The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
-| A routine's base location | TRV-4, T15 | 6b |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code
@@ -348,7 +347,7 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
 | T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
-| T15 | "Brighton weekend" template | **Covered in the domain** (a routine's base on the page is next) | `RoutineCalendarTests.ARoutineCanBeChosenForPartOfAWeek`, `RoutineBaseTests.T15_TheHomeGymIsOutOfReach_ButRunsAreStillSuggested` and the rest of `RoutineBaseTests` |
+| T15 | "Brighton weekend" template | **Covered** (domain and pages) | `RoutineCalendarTests.ARoutineCanBeChosenForPartOfAWeek`, `RoutineBaseTests.T15_TheHomeGymIsOutOfReach_ButRunsAreStillSuggested` and the rest of `RoutineBaseTests`, web `RoutineBasePageTests.T15_PlanMyWeek_KeepsTheGymForWeekdays_AndStillSuggestsRuns` |
 | T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** (domain and pages) | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA`, `RoutineCalendarTests.TheUsualRoutine_IsInUseOnEveryDate_*`, web `RoutinesTests.TheList_SaysWhichWeekThisIs`, `ActivitiesInRoutinesTests.TheCalendar_ShowsAWeekAActivity_InWeekAOnly` |

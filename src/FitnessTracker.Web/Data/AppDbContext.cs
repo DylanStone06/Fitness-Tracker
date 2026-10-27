@@ -133,6 +133,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             routine.Property(r => r.Name).HasMaxLength(Routine.NameMaxLength);
             // At most one usual routine per person, even if two tabs make different ones usual at once.
             routine.HasIndex(r => r.OwnerId).IsUnique().HasFilter($"\"{nameof(Routine.IsUsual)}\" = 1").HasDatabaseName("IX_Routines_OneUsualPerOwner");
+            // Deleting its base keeps the routine, based at home again.
+            routine.HasOne<Location>().WithMany().HasForeignKey(r => r.BaseLocationId).OnDelete(DeleteBehavior.SetNull);
             routine.HasOne<AppUser>().WithMany().HasForeignKey(r => r.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 

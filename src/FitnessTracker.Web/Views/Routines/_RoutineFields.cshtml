@@ -30,6 +30,17 @@
            aria-describedby="week-a-hint week-a-error" aria-invalid="@ViewData.ModelState.AriaInvalid("WeekA")" />
 </div>
 
+<div class="mb-3">
+    <label asp-for="BaseLocationId" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="base-hint">Where travel starts and ends while this routine is in use: a flat
+        you stay at for the weekend, say. Activities that can't be reached from there aren't planned on those dates.</div>
+    <span asp-validation-for="BaseLocationId" class="d-block text-danger" id="base-error"></span>
+    <select asp-for="BaseLocationId" class="form-select" asp-items="@Model.Locations.Select(location => new SelectListItem(location.Name, location.Id.ToString()))"
+            aria-describedby="base-hint base-error" aria-invalid="@ViewData.ModelState.AriaInvalid("BaseLocationId")">
+        <option value="">Home, as usual</option>
+    </select>
+</div>
+
 <div class="mb-3 form-check">
     <input asp-for="IsUsual" class="form-check-input" aria-describedby="usual-hint" />
     <label asp-for="IsUsual" class="form-check-label"></label>

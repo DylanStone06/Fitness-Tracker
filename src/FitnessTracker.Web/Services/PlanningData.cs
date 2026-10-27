@@ -40,6 +40,7 @@ public class PlanningData(AppDbContext db, IClock clock)
         var legs = await db.TravelLegs.AsNoTracking().ToListAsync();
 
         var now = clock.GetCurrentInstant().InZone(DateTimeZoneProviders.Tzdb[preferences.TimeZoneId]);
+        var routines = await RoutinesAsync();
         var context = new PlanningContext(
             now.Date,
             locations.FirstOrDefault(location => location.IsHome)?.Id,
@@ -48,6 +49,11 @@ public class PlanningData(AppDbContext db, IClock clock)
             preferences.TimesShownAs())
         {
             Rest = RestRulesOf(preferences),
+            // TRV-4: travel starts from the base of the routine in use each day, if it has one.
+            Routines = routines.Calendar,
+            RoutineBases = routines.All
+                .Where(routine => routine.BaseLocationId is not null)
+                .ToDictionary(routine => routine.Id, routine => routine.BaseLocationId!.Value),
         };
         return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
     }

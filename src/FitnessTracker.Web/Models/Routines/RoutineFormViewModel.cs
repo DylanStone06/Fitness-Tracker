@@ -25,6 +25,13 @@ public class RoutineFormViewModel
     [Display(Name = "This is my usual routine")]
     public bool IsUsual { get; set; }
 
+    /// <summary>TRV-4: where travel starts and ends while it is in use, or null for home.</summary>
+    [Display(Name = "Base")]
+    public Guid? BaseLocationId { get; set; }
+
+    /// <summary>Filled by the controller, never posted: the user's locations to choose a base from.</summary>
+    public IReadOnlyList<Location> Locations { get; set; } = [];
+
     /// <summary>Edit only: the version of the routine the form was opened with (requirements §9).</summary>
     public Guid Version { get; set; }
 
@@ -41,6 +48,7 @@ public class RoutineFormViewModel
         CycleWeeks = routine.CycleWeeks,
         WeekA = FormInput.Date.Format(routine.WeekAStarts),
         IsUsual = routine.IsUsual,
+        BaseLocationId = routine.BaseLocationId,
         Version = routine.Version,
     };
 
@@ -72,5 +80,6 @@ public class RoutineFormViewModel
         routine.WeekStart = weekStart;
         routine.WeekAStarts = CalendarWeeks.StartOf(FormInput.ParseDate(WeekA)!.Value, weekStart);
         routine.IsUsual = IsUsual;
+        routine.BaseLocationId = BaseLocationId == Guid.Empty ? null : BaseLocationId;
     }
 }

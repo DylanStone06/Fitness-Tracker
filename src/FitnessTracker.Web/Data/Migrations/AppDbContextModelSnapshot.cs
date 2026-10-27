@@ -281,6 +281,9 @@ namespace FitnessTracker.Web.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("BaseLocationId")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("CycleWeeks")
                         .HasColumnType("INTEGER");
 
@@ -309,6 +312,8 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BaseLocationId");
 
                     b.HasIndex("OwnerId")
                         .IsUnique()
@@ -716,6 +721,11 @@ namespace FitnessTracker.Web.Data.Migrations
 
             modelBuilder.Entity("FitnessTracker.Web.Data.Routine", b =>
                 {
+                    b.HasOne("FitnessTracker.Web.Data.Location", null)
+                        .WithMany()
+                        .HasForeignKey("BaseLocationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")

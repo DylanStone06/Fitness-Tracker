@@ -18,6 +18,9 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
     /// <summary>ViewData: the dates chosen for routines (Q14), earliest first.</summary>
     public const string DatesChosen = "DatesChosen";
 
+    /// <summary>ViewData: the user's locations' names, by id, for each routine's base (TRV-4).</summary>
+    public const string LocationNames = "LocationNames";
+
     /// <summary>
     /// TempData: SCH-1, what a change to which routine is in use when (dates chosen, another made usual, one deleted)
     /// broke, as the check on save sees it, for the list to show.
@@ -30,6 +33,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         ViewData[Today] = (await planning.LoadAsync()).Now.Date;
         // All of them, those the app can't use too (P1: edited by hand), so they can be seen and removed.
         ViewData[DatesChosen] = (await db.RoutineDateRanges.AsNoTracking().ToListAsync()).OrderBy(chosen => chosen.StartDate).ToList();
+        ViewData[LocationNames] = await db.Locations.AsNoTracking().ToDictionaryAsync(location => location.Id, location => location.Name);
         var routines = await db.Routines.AsNoTracking().ToListAsync();
         // The usual routine first, then by name. Sorted here rather than by SQLite, which puts every capital letter
         // before every lower-case one.
@@ -44,7 +48,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
     {
         var user = await planning.LoadAsync();
         var firstUsual = !await db.Routines.AnyAsync(routine => routine.IsUsual);
-        return View(RoutineFormViewModel.ForNew(user.Now.Date, user.Preferences.WeekStart, firstUsual));
+        return await FormViewAsync(RoutineFormViewModel.ForNew(user.Now.Date, user.Preferences.WeekStart, firstUsual));
     }
 
     [HttpPost]
@@ -53,12 +57,13 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         await CheckFormAsync(model, exceptId: null);
         if (!ModelState.IsValid)
         {
-            return View(model);
+            return await FormViewAsync(model);
         }
 
         // Its weeks start as the user's do now, and keep doing so (Routine.WeekStart).
         var weekStart = (await planning.LoadAsync()).Preferences.WeekStart;
-        // A new routine has no activities or dates yet: only becoming the usual one changes what happens when.
+        // A new routine has no activities or dates yet: only becoming the usual one changes what happens when (or where
+        // travel starts from).
         var before = model.IsUsual ? await checker.RoutineActivityFindingsAsync() : null;
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: null);
@@ -72,7 +77,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         catch (DbUpdateException) when (model.IsUsual)
         {
             ModelState.AddModelError(nameof(model.IsUsual), UsualAtTheSameTime);
-            return View(model);
+            return await FormViewAsync(model);
         }
 
         await transaction.CommitAsync();
@@ -92,7 +97,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
     public async Task<IActionResult> Edit(Guid id)
     {
         var routine = await FindAsync(id);
-        return routine is null ? NotFound() : View(RoutineFormViewModel.From(routine));
+        return routine is null ? NotFound() : await FormViewAsync(RoutineFormViewModel.From(routine));
     }
 
     [HttpPost]
@@ -108,12 +113,14 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         await CheckWeeksStillUsedAsync(model, id);
         if (!ModelState.IsValid)
         {
-            return View(model);
+            return await FormViewAsync(model);
         }
 
-        // Only being usual or not, the cycle and week A change which of its activities' dates happen; a new name doesn't.
+        // Only being usual or not, the cycle and week A change which of its activities' dates happen, and the base where
+        // their travel starts (TRV-4); a new name doesn't.
         var changesWhatHappens = model.IsUsual != routine.IsUsual || model.CycleWeeks != routine.CycleWeeks
-            || CalendarWeeks.StartOf(FormInput.ParseDate(model.WeekA)!.Value, routine.WeekStart) != routine.WeekAStarts;
+            || CalendarWeeks.StartOf(FormInput.ParseDate(model.WeekA)!.Value, routine.WeekStart) != routine.WeekAStarts
+            || model.BaseLocationId != routine.BaseLocationId;
         var before = changesWhatHappens ? await checker.RoutineActivityFindingsAsync() : null;
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: id);
@@ -133,7 +140,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         catch (DbUpdateException error) when (error is not DbUpdateConcurrencyException && model.IsUsual)
         {
             ModelState.AddModelError(nameof(model.IsUsual), UsualAtTheSameTime);
-            return View(model);
+            return await FormViewAsync(model);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -150,7 +157,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
             // The hidden field shows what was posted unless the old value is cleared.
             ModelState.Remove(nameof(model.Version));
             model.Version = current.Version;
-            return View(model);
+            return await FormViewAsync(model);
         }
 
         await transaction.CommitAsync();
@@ -206,6 +213,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
             WeekAStarts = original.WeekAStarts,
             WeekStart = original.WeekStart,
             IsUsual = false,
+            BaseLocationId = original.BaseLocationId,
         };
         var copies = activities.Select(activity => activity.CopyInto(copy.Id)).ToList();
 
@@ -424,6 +432,21 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
 
         await CheckNameIsNewAsync(model.Name, nameof(model.Name), exceptId);
+
+        // TRV-4: the base must be one of the user's own locations (another user's is "not found" by the filter).
+        if (model.BaseLocationId is { } chosen && chosen != Guid.Empty && !await db.Locations.AnyAsync(location => location.Id == chosen))
+        {
+            ModelState.AddModelError(nameof(model.BaseLocationId), "Choose a base from the list.");
+        }
+    }
+
+    // The form, with the user's locations to choose a base from, by name.
+    private async Task<ViewResult> FormViewAsync(RoutineFormViewModel model)
+    {
+        model.Locations = (await db.Locations.AsNoTracking().ToListAsync())
+            .OrderBy(location => location.Name, StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
+        return View(model);
     }
 
     // Unless the name already has a problem: refused if another of the user's routines has it, capitals ignored.

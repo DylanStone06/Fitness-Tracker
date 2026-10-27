@@ -39,6 +39,11 @@ public class Routine : IOwnedByUser, IVersioned
     /// <summary>In use on every date no other routine is chosen for. At most one per person.</summary>
     public bool IsUsual { get; set; }
 
+    /// <summary>
+    /// TRV-4: where travel starts and ends on the dates it is in use (a Brighton weekend's flat), or null for home.
+    /// </summary>
+    public Guid? BaseLocationId { get; set; }
+
     /// <summary>The domain's view of its weeks.</summary>
     public WeekCycle ToCycle() => new(CycleWeeks, WeekAStarts, WeekStart);
 }
