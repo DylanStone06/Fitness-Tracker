@@ -1012,6 +1012,37 @@ public class ActivityCheckTests
         Assert.Equal(new LocalDate(2026, 10, 28), dates.Start);
     }
 
+    // P1: Mondays every 60 weeks from Monday 5 October 2026 next fall on Monday 29 November 2027, after the year checked
+    // (to Sunday 24 October 2027). Its travel must still be known before it is saved, from the base then: home
+    // (scheduling review, Phase 6b: with no occurrence in the year, no travel was checked).
+    [Fact]
+    public void ARepeatNextHappeningOverAYearAway_StillNeedsItsTravel()
+    {
+        var gym = EverySixtyWeeks();
+
+        var problem = Assert.Single(ActivityCheck.Check(gym, [], Context(travel: TravelTimes.None)).Problems);
+
+        Assert.Equal(CheckAspect.Location, problem.Aspect);
+        Assert.StartsWith("There's no travel time", problem.Message);
+    }
+
+    // ... but one in a routine happens after the year only on that routine's dates, whose base isn't known yet: it is
+    // checked when they are chosen (CAL-9), so it isn't asked for travel from home it may never need (a Brighton pool).
+    [Fact]
+    public void ARepeatInARoutine_NextHappeningOverAYearAway_IsntAskedForTravelFromHome()
+    {
+        var gym = EverySixtyWeeks();
+        var inARoutine = gym with { Series = gym.Series.OnlyOn(_ => false) };
+
+        Assert.Empty(ActivityCheck.Check(inARoutine, [], Context(travel: TravelTimes.None)).Problems);
+    }
+
+    private static PlannedActivity EverySixtyWeeks() =>
+        new(Guid.NewGuid(), "Gym",
+            new Series(new LocalDate(2026, 10, 5), new LocalTime(18, 0), Duration.FromMinutes(50), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday], everyWeeks: 60)),
+            Buffers.None, Gym);
+
     private static PlanningContext WithRest(int hours, IsoDayOfWeek[]? recovery = null) =>
         Context() with { Rest = new RestRules(Duration.FromHours(hours), 1, new HashSet<IsoDayOfWeek>(recovery ?? [])) };
 

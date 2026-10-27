@@ -131,8 +131,14 @@ public static class ActivityCheck
             ? longerDates.End
             : LocalDate.Max(longerDates.End, longerOccurrences[^1].Time.Start.InZone(series.Zone).Date);
 
-        // P1, TRV-4: travel from the base of each day it happens on, never guessed.
-        problems.AddRange(TravelProblems(candidate, longerOccurrences.Select(occurrence => DayOf(occurrence, series.Zone)), context));
+        // P1, TRV-4: travel from the base of each day it happens on, never guessed. One in every week whose rule still
+        // falls after these dates happens then too, so also from the base after them, as for its usual length below (a
+        // rule every 60 weeks can skip the whole year). One in a routine happens then only on dates chosen for it later,
+        // which are checked when they are (scheduling review, Phase 6b).
+        var fallsAfter = FallsAfter(series, longerDates.End);
+        var afterThem = longerDates.End.PlusDays(1);
+        var days = longerOccurrences.Select(occurrence => DayOf(occurrence, series.Zone));
+        problems.AddRange(TravelProblems(candidate, fallsAfter && !series.IsLimited ? days.Append(afterThem) : days, context));
 
         // H8 on every occurrence, each against its own day and with its own day's travel: a moved one can be longer, and
         // the whole 25-hour day the clocks go back is allowed (Q7). The usual length is also checked against an ordinary
@@ -141,8 +147,8 @@ public static class ActivityCheck
         // time). When every date left is inside them, each has been checked already.
         var lengths = longerOccurrences.Select(occurrence =>
             (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone), JourneysOn(candidate, context, DayOf(occurrence, series.Zone))));
-        (Duration, Duration?, Journeys) usual = (series.Length, null, JourneysOn(candidate, context, longerDates.End.PlusDays(1)));
-        problems.AddRange(LengthProblems(FallsAfter(series, longerDates.End) ? lengths.Prepend(usual) : lengths, candidate.Buffers));
+        (Duration, Duration?, Journeys) usual = (series.Length, null, JourneysOn(candidate, context, afterThem));
+        problems.AddRange(LengthProblems(fallsAfter ? lengths.Prepend(usual) : lengths, candidate.Buffers));
         if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, checkedUpTo) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);

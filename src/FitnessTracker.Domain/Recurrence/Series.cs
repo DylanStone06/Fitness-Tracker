@@ -106,6 +106,9 @@ public sealed class Series
         return occurrences.OrderBy(occurrence => occurrence.Time.Start).ToList();
     }
 
+    /// <summary>Whether it happens on only some of the dates its rule falls on (<see cref="OnlyOn"/>): it's in a routine.</summary>
+    public bool IsLimited => _happensOn is not null;
+
     /// <summary>Whether it has an occurrence on <paramref name="date"/>: its rule falls on it, and it may happen then.</summary>
     public bool FallsOn(LocalDate date) => Rule.FallsOn(firstDate: FirstDate, date: date) && Allows(date);
 
