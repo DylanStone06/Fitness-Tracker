@@ -113,7 +113,10 @@ public sealed class PlanPageViewModel
                 new Occurrence(start.Date, suggestion.Time),
                 suggestion.Footprint,
                 null,
-                []);
+                [])
+            {
+                LeavesFrom = Agenda.LeavesFrom(planned.User.Context, start.Date),
+            };
             var no = new QueryBuilder { { "date", date } };
             foreach (var skip in skips.Append(SkipFor(goal.Id, start.Date)))
             {

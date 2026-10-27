@@ -56,7 +56,10 @@ public sealed class RescheduleViewModel
                 new Series(start.Date, start.TimeOfDay, time.Duration, zone, RecurrenceRule.Daily().EndingAfter(1)),
                 new Buffers(Duration.FromMinutes(activity.PreparationMinutes), Duration.FromMinutes(activity.ChangingMinutes)),
                 activity.LocationId);
-            return new AgendaItem(planned, new Occurrence(start.Date, time), footprint, null, []);
+            return new AgendaItem(planned, new Occurrence(start.Date, time), footprint, null, [])
+            {
+                LeavesFrom = Agenda.LeavesFrom(found.User.Context, start.Date),
+            };
         }
 
         string When(Interval time)

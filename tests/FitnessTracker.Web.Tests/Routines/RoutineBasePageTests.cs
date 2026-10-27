@@ -70,6 +70,54 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Equal(7, html.Split($"<span class=\"fw-semibold text-break\" dir=\"auto\">{run}</span>").Length - 1);
     }
 
+    // The times suggested for the Brighton weekend say they leave from the flat, the weekdays from home (scheduling
+    // review, Phase 6b: every trip said "Leave home"). Here the gym is an hour from the flat.
+    [Fact]
+    public async Task PlanMyWeek_SaysTheBrightonSessionsLeaveFromTheFlat()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddTravelLegAsync(setup.Flat.Id, setup.Gym.Id, 60, alsoTheReturnJourney: true)).StatusCode);
+        await setup.Browser.AddGoalAsync(TestBrowser.NewName("Gym"), new() { ["SessionsPerWeek"] = "7", ["LocationId"] = setup.Gym.Id.ToString() });
+
+        var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync("/Plan?date=2026-11-02")).Content.ReadAsStringAsync());
+
+        Assert.Contains($"Leave {setup.Flat.Name} ", html);
+        Assert.Contains("Leave home ", html);
+    }
+
+    // ... and so does Find another time (SCH-6), for a gym session on the Brighton Saturday at 09:00. Work fills the
+    // weekdays from 07:00 to 23:00, so every other time offered is at the weekend, from the flat.
+    [Fact]
+    public async Task FindAnotherTime_SaysTheBrightonTimesLeaveFromTheFlat()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddTravelLegAsync(setup.Flat.Id, setup.Gym.Id, 60, alsoTheReturnJourney: true)).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddActivityAsync(TestBrowser.NewName("Work"), new()
+        {
+            ["Category"] = "Work",
+            ["StartDate"] = "2026-11-02",
+            ["DurationHours"] = "16",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[0]"] = "true",
+            ["RepeatDays[1]"] = "true",
+            ["RepeatDays[2]"] = "true",
+            ["RepeatDays[3]"] = "true",
+            ["RepeatDays[4]"] = "true",
+        })).StatusCode);
+        var title = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddActivityAsync(title, new()
+        {
+            ["StartDate"] = "2026-11-07",
+            ["StartTime"] = "09:00",
+            ["LocationId"] = setup.Gym.Id.ToString(),
+        })).StatusCode);
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync($"/Activities/Reschedule/{id}?date=2026-11-07")).Content.ReadAsStringAsync());
+
+        Assert.Contains($"Leave {setup.Flat.Name} ", html);
+    }
+
     // The check on save works out travel from each day's base: a gym session every Saturday can't be saved while the
     // gym can't be reached from the Brighton weekend's flat (P1: never guessed as zero).
     [Fact]

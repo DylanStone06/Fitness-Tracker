@@ -11,7 +11,11 @@ namespace FitnessTracker.Domain.Scheduling;
 /// (null if that would be longer than the day allows, H8). <see cref="Note"/> says, in plain English, what couldn't be worked
 /// out (travel, or the footprint): P1, said, never guessed. <see cref="ClashesWith"/>: the titles of what it overlaps.
 /// </summary>
-public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith);
+public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith)
+{
+    /// <summary>TRV-4: where its travel starts and ends, by name, when that isn't home ("Brighton flat"); null for home.</summary>
+    public string? LeavesFrom { get; init; }
+}
 
 /// <summary>The agenda item to do next (GOL-2), and whether it has begun: getting ready or the journey out counts.</summary>
 public sealed record NextUp(AgendaItem Item, bool UnderWay);
@@ -79,9 +83,19 @@ public static class Agenda
             .ThenBy(item => item.Entry.Activity.Title, StringComparer.Ordinal)
             .ThenBy(item => item.Entry.Activity.Id)
             .ThenBy(item => item.Entry.Occurrence.Date)
-            .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith))
+            .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith)
+            {
+                LeavesFrom = LeavesFrom(context, Travel.DayOf(item.Entry.Occurrence, item.Entry.Activity.Series.Zone)),
+            })
             .ToList();
     }
+
+    /// <summary>
+    /// TRV-4: for <see cref="AgendaItem.LeavesFrom"/>, the name of the base on <paramref name="date"/> when that isn't home
+    /// (a routine's own base: "Brighton flat"); null for home.
+    /// </summary>
+    public static string? LeavesFrom(PlanningContext context, LocalDate date) =>
+        context.BaseOn(date) is { } fromBase && fromBase != context.Home ? Travel.NameOf(fromBase, context) : null;
 
     /// <summary>
     /// GOL-2's "the next activity": of the items not over at <paramref name="now"/>, the one you start getting ready or
@@ -148,9 +162,9 @@ public static class Agenda
 
     /// <summary>
     /// When to go and when it's over, from the footprint: "Leave home 17:35, back 19:45" away from home (leaving is when
-    /// the journey out starts, after getting ready at home, §7.1), "With getting ready and changing: 06:55 to 07:40" for
-    /// buffers at home, or null. A time on another day says "the day before" or "the next day" (§8), and a time the
-    /// clocks repeat says which one ("01:15 GMT").
+    /// the journey out starts, after getting ready at home, §7.1; "Leave Brighton flat …" from a routine's own base,
+    /// TRV-4), "With getting ready and changing: 06:55 to 07:40" for buffers at the base, or null. A time on another day
+    /// says "the day before" or "the next day" (§8), and a time the clocks repeat says which one ("01:15 GMT").
     /// </summary>
     public static string? Trip(AgendaItem item, ClockFormat clock = ClockFormat.TwentyFourHour)
     {
@@ -171,7 +185,7 @@ public static class Agenda
         var away = footprint.Segments.Any(segment => segment.Part is FootprintPart.TravelOut or FootprintPart.TravelBack);
         if (away)
         {
-            return $"Leave home {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
+            return $"Leave {item.LeavesFrom ?? "home"} {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
         }
 
         return footprint.Whole != footprint.Activity
