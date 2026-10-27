@@ -181,6 +181,36 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Contains($"{gym}: On Sat 6 Mar 2027,", html);
     }
 
+    // ... and so does deleting a usual routine with a base, with no dates chosen: every date goes back to home
+    // (scheduling review, Phase 6b: only a routine with dates was re-checked). Term time is based at the halls flat, the
+    // only place the gym has a travel time from.
+    [Fact]
+    public async Task DeletingAUsualRoutineWithABase_SaysWhatItBreaksInEveryWeek()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var home = await AddLocationAsync(browser, "Home", isHome: true);
+        var gym = await AddLocationAsync(browser, "Town gym", isHome: false);
+        var halls = await AddLocationAsync(browser, "Halls flat", isHome: false);
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddTravelLegAsync(halls.Id, gym.Id, 15, alsoTheReturnJourney: true)).StatusCode);
+        var term = TestBrowser.NewName("Term time");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddRoutineAsync(term, new() { ["IsUsual"] = "true", ["BaseLocationId"] = halls.Id.ToString() })).StatusCode);
+        var title = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(title, new()
+        {
+            ["StartDate"] = "2026-10-26",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[0]"] = "true",
+            ["LocationId"] = gym.Id.ToString(),
+        })).StatusCode);
+        var termId = (await StoredData.RoutineNamedAsync(factory, term))!.Id;
+
+        await browser.SubmitFormAsync($"/Routines/Delete/{termId}", $"/Routines/Delete/{termId}", []);
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Null(await StoredData.RoutineNamedAsync(factory, term));
+        Assert.Contains($"{title}: There's no travel time from {home.Name} to {gym.Name}", html);
+    }
+
     // A duplicate keeps the base (Q16: the same weeks, and now the same base).
     [Fact]
     public async Task ADuplicate_KeepsTheBase()

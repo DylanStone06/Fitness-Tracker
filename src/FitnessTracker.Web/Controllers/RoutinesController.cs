@@ -288,8 +288,16 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
 
         // The dates chosen for it are deleted with it (AppDbContext) and go back to the usual routine, whose
-        // activities then happen on them again. With none, nothing else changes.
-        var before = await db.RoutineDateRanges.AnyAsync(chosen => chosen.RoutineId == id) ? await checker.RoutineActivityFindingsAsync() : null;
+        // activities then happen on them again, checked from the first day of each (as when chosen). The usual routine's
+        // base, if it has one, goes from every date not chosen for another, from today (TRV-4, scheduling review). With
+        // neither, nothing else changes.
+        var changedFrom = (await DatesChosenForAsync(id)).Select(chosen => chosen.StartDate).ToList();
+        if (routine.IsUsual && routine.BaseLocationId is not null)
+        {
+            changedFrom.Add((await planning.LoadAsync()).Context.Today);
+        }
+
+        var before = changedFrom.Count > 0 ? await checker.RoutineActivityFindingsAsync(changedFrom) : null;
         db.Entry(routine).Property(saved => saved.Version).OriginalValue = version;
         db.Routines.Remove(routine);
         try

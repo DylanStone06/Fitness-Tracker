@@ -78,8 +78,12 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   page and check sees them. Deleting a routine deletes its dates (they go back to the usual routine).
 - **A change to which routine is in use when** (dates chosen, changed or removed; a routine added, edited or
   deleted) re-runs the check on save for every activity in a routine, before and after, and the Routines page lists
-  what is new (`ActivityChecker.RoutineActivityFindingsAsync`, as for a timezone move, Q8). Activities in every week
-  never change. Tests: web `RoutineDatesTests`.
+  what is new (`ActivityChecker.RoutineActivityFindingsAsync`, as for a timezone move, Q8). While a routine has a base
+  (or the change gives one a base), those still to come at a place in every week too: their travel can start from
+  it. The check after is made as the one before was (`RoutineFindings`: the same dates and activities). A change to
+  a routine that isn't the usual one is checked from the first day of each of its date ranges; the usual one (and
+  one becoming or stopping being it, or deleting it with a base) from today. Tests: web `RoutineDatesTests`,
+  `RoutineBasePageTests`.
 - **Each cycle counts by the calendar from its own week A**, through dates another routine is used on (Q13: a rota
   doesn't pause for a holiday). A routine keeps the week start it was added with (`Routine.WeekStart`), as a rule
   keeps its WKST.
