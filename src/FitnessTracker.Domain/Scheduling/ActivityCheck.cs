@@ -137,7 +137,7 @@ public static class ActivityCheck
         // which are checked when they are (scheduling review, Phase 6b).
         var fallsAfter = FallsAfter(series, longerDates.End);
         var afterThem = longerDates.End.PlusDays(1);
-        var days = longerOccurrences.Select(occurrence => DayOf(occurrence, series.Zone));
+        var days = longerOccurrences.Select(occurrence => Travel.DayOf(occurrence, series.Zone));
         problems.AddRange(TravelProblems(candidate, fallsAfter && !series.IsLimited ? days.Append(afterThem) : days, context));
 
         // H8 on every occurrence, each against its own day and with its own day's travel: a moved one can be longer, and
@@ -146,7 +146,7 @@ public static class ActivityCheck
         // these, which can't all be checked one by one (a 25-hour Sunday every 60 weeks lands on an ordinary Sunday next
         // time). When every date left is inside them, each has been checked already.
         var lengths = longerOccurrences.Select(occurrence =>
-            (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone), JourneysOn(candidate, context, DayOf(occurrence, series.Zone))));
+            (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone), JourneysOn(candidate, context, Travel.DayOf(occurrence, series.Zone))));
         (Duration, Duration?, Journeys) usual = (series.Length, null, JourneysOn(candidate, context, afterThem));
         problems.AddRange(LengthProblems(fallsAfter ? lengths.Prepend(usual) : lengths, candidate.Buffers));
         if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, checkedUpTo) is { } outsideOpeningHours)
@@ -177,7 +177,7 @@ public static class ActivityCheck
             .ToList();
         var candidateBookings = occurrences
             .Select(occurrence => new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers,
-                JourneysOn(candidate, context, DayOf(occurrence, series.Zone)), Times.LongestFor(occurrence.Time, series.Zone))))
+                JourneysOn(candidate, context, Travel.DayOf(occurrence, series.Zone)), Times.LongestFor(occurrence.Time, series.Zone))))
             .ToList();
 
         // H1 also within the activity itself: a very long one can run into its own next occurrence on the night the
@@ -205,7 +205,7 @@ public static class ActivityCheck
             return new ActivityCheckResult([], [], new DateInterval(occurrenceDate, occurrenceDate));
         }
 
-        var day = occurrence.Time.Start.InZone(series.Zone).Date;
+        var day = Travel.DayOf(occurrence, series.Zone);
         var dates = new DateInterval(day, day);
         var problems = new List<CheckProblem>(TravelProblems(candidate, [day], context));
         var journeys = Travel.KnownJourneys(candidate.LocationId, context, day);
@@ -526,9 +526,6 @@ public static class ActivityCheck
         }
     }
 
-    // The day an occurrence starts on, whose base its travel is from (§8: an occurrence belongs to the day it starts).
-    private static LocalDate DayOf(Occurrence occurrence, DateTimeZone zone) => occurrence.Time.Start.InZone(zone).Date;
-
     // Whether the series' rule falls on any date after `after`. Without an end it always does; with an end date, if one
     // is left; with a count, if fewer than that many fall up to `after` (counted from the first date).
     private static bool FallsAfter(Series series, LocalDate after)
@@ -621,11 +618,11 @@ public static class ActivityCheck
         var unknownTravel = new HashSet<string>();
         foreach (var occurrence in nearby.SelectMany(dates => other.Series.OccurrencesBetween(dates.Start, dates.End)).Distinct())
         {
-            var day = DayOf(occurrence, other.Series.Zone);
+            var day = Travel.DayOf(occurrence, other.Series.Zone);
             var known = Travel.KnownJourneys(other.LocationId, context, day);
-            if (known is null && unknownTravel.Add(Travel.WhyUnknown(other.LocationId, context, day)))
+            if (known is null && Travel.WhyUnknown(other.LocationId, context, day) is var why && unknownTravel.Add(why))
             {
-                notes.Add($"{other.Title} was checked without its travel, because {Travel.WhyUnknown(other.LocationId, context, day)}.");
+                notes.Add($"{other.Title} was checked without its travel, because {why}.");
             }
 
             var journeys = known ?? Journeys.None;

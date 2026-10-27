@@ -324,7 +324,7 @@ public static class Planner
                 {
                     // From the base of the day it starts (TRV-4). Travel that can't be worked out is left out, as on the
                     // home page, and said once for each reason (P1).
-                    var day = occurrence.Time.Start.InZone(activity.Series.Zone).Date;
+                    var day = Travel.DayOf(occurrence, activity.Series.Zone);
                     var known = Travel.KnownJourneys(activity.LocationId, request.Context, day);
                     if (known is null)
                     {

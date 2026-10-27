@@ -38,7 +38,7 @@ public static class Agenda
             foreach (var occurrence in activity.Series.OccurrencesBetween(from.PlusDays(-MarginDays), through.PlusDays(MarginDays)))
             {
                 // TRV-4: from the base of the day it starts.
-                var day = occurrence.Time.Start.InZone(activity.Series.Zone).Date;
+                var day = Travel.DayOf(occurrence, activity.Series.Zone);
                 var journeys = Travel.KnownJourneys(activity.LocationId, context, day);
                 var travel = journeys ?? Journeys.None;
                 var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context, day)}." : null;
@@ -221,6 +221,12 @@ internal static class Travel
         var missing = $"there's no travel time {MissingLegs(at, fromBase, context)}";
         return fromBase == context.Home ? missing : $"your base then is {NameOf(fromBase, context)}, and {missing}";
     }
+
+    /// <summary>
+    /// The day whose base an occurrence's travel is from: the day it starts (§8: an occurrence belongs to it), in its own
+    /// timezone. Every travel lookup uses it, so the check on save, the agenda and the planner agree.
+    /// </summary>
+    public static LocalDate DayOf(Occurrence occurrence, DateTimeZone zone) => occurrence.Time.Start.InZone(zone).Date;
 
     /// <summary>"from Brighton flat to Town gym, or from Town gym to Brighton flat": the legs travel needs and lacks.</summary>
     public static string MissingLegs(Guid at, Guid fromBase, PlanningContext context) =>
