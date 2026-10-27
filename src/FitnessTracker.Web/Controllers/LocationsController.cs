@@ -81,7 +81,19 @@ public class LocationsController(AppDbContext db) : Controller
     public async Task<IActionResult> Delete(Guid id)
     {
         var location = await FindAsync(id);
-        return location is null ? NotFound() : View(location);
+        return location is null ? NotFound() : await DeleteViewAsync(location);
+    }
+
+    /// <summary>ViewData: the names of the routines based at the location about to be deleted (TRV-4), in name order.</summary>
+    public const string RoutinesBasedHere = "RoutinesBasedHere";
+
+    // The delete page, saying which routines are based there: they are based at home again (AppDbContext: set null).
+    private async Task<ViewResult> DeleteViewAsync(Location location)
+    {
+        ViewData[RoutinesBasedHere] = (await db.Routines.AsNoTracking().Where(routine => routine.BaseLocationId == location.Id).Select(routine => routine.Name).ToListAsync())
+            .Order(StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
+        return View(nameof(Delete), location);
     }
 
     // version: the one the delete page was opened with. If another tab has changed the location since, it isn't
@@ -113,7 +125,7 @@ public class LocationsController(AppDbContext db) : Controller
             ModelState.AddModelError(string.Empty,
                 $"This location was changed in another tab or window after you opened this page. It's now called " +
                 $"{current.Name}. Delete it anyway?");
-            return View(nameof(Delete), current);
+            return await DeleteViewAsync(current);
         }
 
         return RedirectToAction(nameof(Index));

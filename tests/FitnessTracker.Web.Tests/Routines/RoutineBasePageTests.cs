@@ -223,6 +223,20 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Equal(setup.Flat.Id, (await StoredData.RoutineNamedAsync(factory, copy))!.BaseLocationId);
     }
 
+    // The delete page says so first, as it does for the travel times and activities that go with a location (code
+    // review, Phase 6b: the routine moved back to home unannounced).
+    [Fact]
+    public async Task TheBasesDeletePage_NamesTheRoutinesBasedThere()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+
+        var page = await (await setup.Browser.GetAsync($"/Locations/Delete/{setup.Flat.Id}")).Content.ReadAsStringAsync();
+        var gymPage = await (await setup.Browser.GetAsync($"/Locations/Delete/{setup.Gym.Id}")).Content.ReadAsStringAsync();
+
+        Assert.Contains($"Routines based here are based at home again: <span dir=\"auto\">{setup.Brighton.Name}</span>.", WebUtility.HtmlDecode(page));
+        Assert.DoesNotContain("Routines based here", gymPage);
+    }
+
     // Deleting the base location keeps the routine, based at home again.
     [Fact]
     public async Task DeletingTheBase_LeavesTheRoutineAtHome()
