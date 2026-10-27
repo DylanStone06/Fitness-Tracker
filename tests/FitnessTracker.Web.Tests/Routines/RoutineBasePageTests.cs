@@ -96,8 +96,9 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
 
         var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync("/Plan?date=2026-11-02")).Content.ReadAsStringAsync());
 
-        Assert.Contains($"Leave {setup.Flat.Name} ", html);
-        Assert.Contains("Leave home ", html);
+        // The name isolated (U+2068 to U+2069), compared exactly: a culture-aware comparison ignores the isolates.
+        Assert.Contains($"Leave ⁨{setup.Flat.Name}⁩ ", html, StringComparison.Ordinal);
+        Assert.Contains("Leave home ", html, StringComparison.Ordinal);
     }
 
     // ... and so does Find another time (SCH-6), for a gym session on the Brighton Saturday at 09:00. Work fills the
@@ -130,7 +131,7 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
 
         var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync($"/Activities/Reschedule/{id}?date=2026-11-07")).Content.ReadAsStringAsync());
 
-        Assert.Contains($"Leave {setup.Flat.Name} ", html);
+        Assert.Contains($"Leave ⁨{setup.Flat.Name}⁩ ", html, StringComparison.Ordinal);
     }
 
     // The check on save works out travel from each day's base: a gym session every Saturday can't be saved while the

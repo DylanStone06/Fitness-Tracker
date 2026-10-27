@@ -107,7 +107,8 @@ public class RoutineBaseTests
     }
 
     // ... and the trip says where it leaves from: the flat on the Brighton Saturday, home the Saturday after (scheduling
-    // review, Phase 6b: it said "Leave home" on the Brighton days too).
+    // review, Phase 6b: it said "Leave home" on the Brighton days too). The base's name is isolated (U+2068 to U+2069):
+    // a time straight after a name in Arabic or Hebrew is otherwise drawn inside it ("Leave 4:40 <name> pm", break-ui).
     [Fact]
     public void TheTrip_LeavesFromEachDaysBase()
     {
@@ -115,7 +116,8 @@ public class RoutineBaseTests
 
         var items = Agenda.Between([gym], BrightonWeekend(flatToGymKnown: true), Saturday, Saturday.PlusDays(7));
 
-        Assert.Equal(["Leave Brighton flat 17:00, back 19:50", "Leave home 17:35, back 19:35"], items.Select(item => Agenda.Trip(item)));
+        // Ordinal: a culture-aware comparison ignores the isolates.
+        Assert.Equal(["Leave ⁨Brighton flat⁩ 17:00, back 19:50", "Leave home 17:35, back 19:35"], items.Select(item => Agenda.Trip(item)), StringComparer.Ordinal);
     }
 
     // ... and says so when travel from that day's base can't be worked out (P1).

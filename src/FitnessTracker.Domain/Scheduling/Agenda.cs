@@ -185,7 +185,10 @@ public static class Agenda
         var away = footprint.Segments.Any(segment => segment.Part is FootprintPart.TravelOut or FootprintPart.TravelBack);
         if (away)
         {
-            return $"Leave {item.LeavesFrom ?? "home"} {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
+            // A base's name is isolated (U+2068 to U+2069): a time straight after a name in Arabic or Hebrew would
+            // otherwise be drawn inside it, "Leave 4:40 <name> pm" (break-ui, Phase 6b).
+            var from = item.LeavesFrom is { } place ? $"⁨{place}⁩" : "home";
+            return $"Leave {from} {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
         }
 
         return footprint.Whole != footprint.Activity
