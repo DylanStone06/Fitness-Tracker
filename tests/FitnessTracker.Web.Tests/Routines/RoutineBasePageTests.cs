@@ -111,6 +111,40 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
+    // SCH-1: choosing dates for a routine with a base moves the travel of activities in every week too, so what that
+    // breaks is said (code review, Phase 6b: only activities in a routine were re-checked). A gym session every Saturday
+    // from 14 November is saved while those days are at home; the Brighton weekend chosen for 21-22 November puts one
+    // out of reach.
+    [Fact]
+    public async Task ChoosingDatesForARoutineWithABase_SaysWhatItBreaksInEveryWeek()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+        var gym = await AddSaturdayGymAsync(setup);
+
+        await setup.Browser.ChooseRoutineDatesAsync(setup.Brighton.Id, "2026-11-21", "2026-11-22");
+
+        var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Contains($"{gym}: On Sat 21 Nov 2026 your base is {setup.Flat.Name}, and there's no travel time", html);
+    }
+
+    // ... and so does giving a routine already chosen for some dates a base.
+    [Fact]
+    public async Task GivingARoutineABase_SaysWhatItBreaksInEveryWeek()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+        var gym = await AddSaturdayGymAsync(setup);
+        var away = TestBrowser.NewName("Weekend away");
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddRoutineAsync(away)).StatusCode);
+        var awayId = (await StoredData.RoutineNamedAsync(factory, away))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.ChooseRoutineDatesAsync(awayId, "2026-11-21", "2026-11-22")).StatusCode);
+
+        await setup.Browser.SubmitFormAsync($"/Routines/Edit/{awayId}", $"/Routines/Edit/{awayId}",
+            TestBrowser.RoutineForm(away, new() { ["BaseLocationId"] = setup.Flat.Id.ToString() }));
+
+        var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Contains($"{gym}: On Sat 21 Nov 2026 your base is {setup.Flat.Name}, and there's no travel time", html);
+    }
+
     // A duplicate keeps the base (Q16: the same weeks, and now the same base).
     [Fact]
     public async Task ADuplicate_KeepsTheBase()
@@ -152,6 +186,20 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         var brightonId = (await StoredData.RoutineNamedAsync(factory, brighton))!.Id;
         Assert.Equal(HttpStatusCode.Redirect, (await browser.ChooseRoutineDatesAsync(brightonId, "2026-11-07", "2026-11-08")).StatusCode);
         return new Setup(browser, home, gym, flat, ((await StoredData.RoutineNamedAsync(factory, usual))!.Id, usual), (brightonId, brighton));
+    }
+
+    // A gym session every Saturday, in every week, from 14 November: after the Brighton weekend chosen in the setup.
+    private static async Task<string> AddSaturdayGymAsync(Setup setup)
+    {
+        var title = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddActivityAsync(title, new()
+        {
+            ["StartDate"] = "2026-11-14",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[5]"] = "true",
+            ["LocationId"] = setup.Gym.Id.ToString(),
+        })).StatusCode);
+        return title;
     }
 
     private async Task<(Guid Id, string Name)> AddLocationAsync(TestBrowser browser, string label, bool isHome)

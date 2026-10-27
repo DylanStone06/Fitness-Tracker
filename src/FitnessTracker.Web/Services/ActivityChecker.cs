@@ -66,16 +66,31 @@ public class ActivityChecker(PlanningData planning)
     }
 
     /// <summary>
-    /// CAL-9, SCH-1: <see cref="FindingsAsync"/> for every activity in a routine, for a change to which routine is in use
-    /// when (dates chosen for a routine, another made usual): run before and after it, what is new is what it broke
-    /// (<see cref="RoutineActivityFindingsSinceAsync"/>). Checked from today, or, for a change to some dates
-    /// (<paramref name="changedFrom"/>: the first day of each range chosen or no longer chosen), from each of those, so
-    /// a holiday months ahead is checked where it is (scheduling review, Phase 6b).
+    /// CAL-9, SCH-1: <see cref="FindingsAsync"/> for every activity a change to which routine is in use when (dates chosen
+    /// for a routine, another made usual) can move, run before it; run again after it, what is new is what it broke
+    /// (<see cref="RoutineActivityFindingsSinceAsync"/>). Those in a routine, and, while a routine has a base or
+    /// <paramref name="givesABase"/> (TRV-4), those in every week at a place too, whose travel can then start elsewhere
+    /// (code review, Phase 6b). Checked from today, or, for a change to some dates (<paramref name="changedFrom"/>: the
+    /// first day of each range chosen or no longer chosen), from each of those, so a holiday months ahead is checked where
+    /// it is (scheduling review, Phase 6b).
     /// </summary>
-    public async Task<List<string>> RoutineActivityFindingsAsync(IReadOnlyCollection<LocalDate>? changedFrom = null)
+    public async Task<RoutineFindings> RoutineActivityFindingsAsync(IReadOnlyCollection<LocalDate>? changedFrom = null, bool givesABase = false)
     {
-        var clock = (await planning.LoadAsync()).Preferences.TimesShownAs();
-        var activities = await planning.ActivitiesInRoutinesAsync();
+        var everyWeekToo = givesABase || (await planning.LoadAsync()).Context.RoutineBases.Count > 0;
+        return new RoutineFindings(await FindingsARoutineChangeCanMoveAsync(changedFrom, everyWeekToo), changedFrom, everyWeekToo);
+    }
+
+    /// <summary>
+    /// What <see cref="RoutineActivityFindingsAsync"/> found before a change, and how, so the check after it is made the
+    /// same way.
+    /// </summary>
+    public sealed record RoutineFindings(IReadOnlyList<string> Findings, IReadOnlyCollection<LocalDate>? ChangedFrom, bool EveryWeekToo);
+
+    private async Task<List<string>> FindingsARoutineChangeCanMoveAsync(IReadOnlyCollection<LocalDate>? changedFrom, bool everyWeekToo)
+    {
+        var user = await planning.LoadAsync();
+        var clock = user.Preferences.TimesShownAs();
+        var activities = await planning.ActivitiesARoutineChangeCanMoveAsync(everyWeekToo, user.Context.Today);
         if (changedFrom is null || changedFrom.Count == 0)
         {
             return await FindingsAsync(activities, clock);
@@ -91,11 +106,10 @@ public class ActivityChecker(PlanningData planning)
     }
 
     /// <summary>
-    /// What <see cref="RoutineActivityFindingsAsync"/> finds now that it didn't <paramref name="before"/> (found with the
-    /// same <paramref name="changedFrom"/>), to show.
+    /// What the check finds now, made as it was <paramref name="before"/> the change, that it didn't find then, to show.
     /// </summary>
-    public async Task<string[]> RoutineActivityFindingsSinceAsync(IReadOnlyList<string> before, IReadOnlyCollection<LocalDate>? changedFrom = null) =>
-        NewFindings(await RoutineActivityFindingsAsync(changedFrom), before);
+    public async Task<string[]> RoutineActivityFindingsSinceAsync(RoutineFindings before) =>
+        NewFindings(await FindingsARoutineChangeCanMoveAsync(before.ChangedFrom, before.EveryWeekToo), before.Findings);
 
     /// <summary>
     /// The most findings a page is sent after a change. They travel to it in a cookie (TempData), and hundreds (a clash

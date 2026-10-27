@@ -39,7 +39,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
         var before = await checker.RoutineActivityFindingsAsync(changedFrom);
         db.RoutineDateRanges.Add(chosen);
         await db.SaveChangesAsync();
-        await SayWhatBrokeAsync(before, changedFrom);
+        await SayWhatBrokeAsync(before);
         return RedirectToAction(nameof(RoutinesController.Index), "Routines");
     }
 
@@ -99,7 +99,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return View(model);
         }
 
-        await SayWhatBrokeAsync(before, changedFrom);
+        await SayWhatBrokeAsync(before);
         return RedirectToAction(nameof(RoutinesController.Index), "Routines");
     }
 
@@ -149,7 +149,7 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
             return View(nameof(Delete), current);
         }
 
-        await SayWhatBrokeAsync(before, changedFrom);
+        await SayWhatBrokeAsync(before);
         return RedirectToAction(nameof(RoutinesController.Index), "Routines");
     }
 
@@ -158,9 +158,9 @@ public class RoutineDatesController(AppDbContext db, ActivityChecker checker) : 
 
     // SCH-1, CLAUDE.md rule 3: what the change put on dates where it now breaks a rule or clashes, on the Routines page.
     // Checked from the first day of each range that changed, as before was.
-    private async Task SayWhatBrokeAsync(List<string> before, IReadOnlyCollection<LocalDate> changedFrom)
+    private async Task SayWhatBrokeAsync(ActivityChecker.RoutineFindings before)
     {
-        var broken = await checker.RoutineActivityFindingsSinceAsync(before, changedFrom);
+        var broken = await checker.RoutineActivityFindingsSinceAsync(before);
         if (broken.Length > 0)
         {
             TempData[RoutinesController.RoutineChangeFindings] = broken;

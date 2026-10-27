@@ -64,7 +64,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         var weekStart = (await planning.LoadAsync()).Preferences.WeekStart;
         // A new routine has no activities or dates yet: only becoming the usual one changes what happens when (or where
         // travel starts from).
-        var before = model.IsUsual ? await checker.RoutineActivityFindingsAsync() : null;
+        var before = model.IsUsual ? await checker.RoutineActivityFindingsAsync(givesABase: model.BaseLocationId is not null) : null;
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: null);
         var routine = new Routine();
@@ -121,7 +121,7 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         var changesWhatHappens = model.IsUsual != routine.IsUsual || model.CycleWeeks != routine.CycleWeeks
             || CalendarWeeks.StartOf(FormInput.ParseDate(model.WeekA)!.Value, routine.WeekStart) != routine.WeekAStarts
             || model.BaseLocationId != routine.BaseLocationId;
-        var before = changesWhatHappens ? await checker.RoutineActivityFindingsAsync() : null;
+        var before = changesWhatHappens ? await checker.RoutineActivityFindingsAsync(givesABase: model.BaseLocationId is not null) : null;
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: id);
         if (routine.IsUsual && !model.IsUsual)
@@ -319,9 +319,9 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
             .ToList();
 
     // SCH-1, CLAUDE.md rule 3: what a change to which routine is in use when put on dates where it now breaks a rule or
-    // clashes, said on the list (as for a timezone change). Activities in every week are never affected. Nothing to
-    // say when nothing was checked (before is null: the change couldn't move anything).
-    private async Task SayWhatBrokeAsync(List<string>? before)
+    // clashes, said on the list (as for a timezone change): its activities, and those in every week whose travel a base
+    // moves (ActivityChecker). Nothing to say when nothing was checked (before is null: the change couldn't move anything).
+    private async Task SayWhatBrokeAsync(ActivityChecker.RoutineFindings? before)
     {
         if (before is null)
         {

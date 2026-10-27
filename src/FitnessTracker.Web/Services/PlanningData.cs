@@ -106,11 +106,17 @@ public class PlanningData(AppDbContext db, IClock clock)
     }
 
     /// <summary>
-    /// CAL-9: the user's activities in a routine, as stored: the ones whose occurrences change when which routine is in
-    /// use changes (dates chosen for a routine, another made usual). Activities in every week are never affected.
+    /// CAL-9: the user's activities, as stored, that a change to which routine is in use when (dates chosen for one,
+    /// another made usual) can move: those in a routine, whose occurrences change. With <paramref name="atAPlaceToo"/>
+    /// (a routine has a base of its own, TRV-4), also every other one at a place still to happen from
+    /// <paramref name="today"/>, whose travel then starts from the base of the routine in use. One at no particular place
+    /// in every week is never affected.
     /// </summary>
-    public Task<List<Activity>> ActivitiesInRoutinesAsync() =>
-        db.Activities.AsNoTracking().Where(activity => activity.RoutineId != null).ToListAsync();
+    public Task<List<Activity>> ActivitiesARoutineChangeCanMoveAsync(bool atAPlaceToo, LocalDate today) =>
+        db.Activities.AsNoTracking()
+            .Where(activity => activity.RoutineId != null
+                || (atAPlaceToo && activity.LocationId != null && (activity.RepeatRule != null || activity.StartDate >= today)))
+            .ToListAsync();
 
     /// <summary>
     /// The user's activities that can fall on <paramref name="dates"/>: repeating ones that have started by then, and
