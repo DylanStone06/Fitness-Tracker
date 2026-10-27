@@ -611,7 +611,7 @@ public static class ActivityCheck
     // Another activity's occurrences on any of the dates as bookings, each once, with travel from the base of the day
     // each starts (TRV-4). Stored activities can't stop this check, but what can't be worked out is said in a note,
     // never assumed (P1): travel that can't be worked out (a travel time deleted since) is left out, said once for each
-    // reason, and an occurrence whose footprint breaks H8 is skipped.
+    // reason, naming a date it applies on, and an occurrence whose footprint breaks H8 is skipped.
     private static List<Booking> BookingsOf(PlannedActivity other, IReadOnlyList<DateInterval> nearby, PlanningContext context, List<string> notes, DateTimeZone zone)
     {
         var bookings = new List<Booking>();
@@ -620,9 +620,9 @@ public static class ActivityCheck
         {
             var day = Travel.DayOf(occurrence, other.Series.Zone);
             var known = Travel.KnownJourneys(other.LocationId, context, day);
-            if (known is null && Travel.WhyUnknown(other.LocationId, context, day) is var why && unknownTravel.Add(why))
+            if (known is null && unknownTravel.Add(Travel.WhyUnknown(other.LocationId, context, day)))
             {
-                notes.Add($"{other.Title} was checked without its travel, because {why}.");
+                notes.Add($"{other.Title} was checked without its travel, because {Travel.WhyUnknown(other.LocationId, context, day, sayTheDate: true)}.");
             }
 
             var journeys = known ?? Journeys.None;

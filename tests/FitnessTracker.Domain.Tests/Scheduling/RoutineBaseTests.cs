@@ -180,7 +180,28 @@ public class RoutineBaseTests
 
         var shortfall = Assert.Single(Planner.Plan(WeekOf([gym], wholeWeek)).Shortfalls);
 
-        Assert.StartsWith("Your base then is Brighton flat, and there's no travel time from Brighton flat to Town gym", shortfall.Blocked);
+        Assert.StartsWith("On Mon 2 Nov 2026 your base is Brighton flat, and there's no travel time from Brighton flat to Town gym", shortfall.Blocked);
+    }
+
+    // Notes not next to a date say which day the base is for, once (scheduling review, Phase 6b: "your base then is"
+    // didn't say when): Plan my week's, about an activity whose travel isn't counted ...
+    [Fact]
+    public void ThePlansNote_SaysWhichDayTheBaseIsFor()
+    {
+        var plan = Planner.Plan(WeekOf([], BrightonWeekend(flatToGymKnown: false), [Saturdays("Gym", at: Gym)]));
+
+        Assert.StartsWith("Travel to and from Gym isn't counted, because on Sat 7 Nov 2026 your base is Brighton flat, and", Assert.Single(plan.Notes));
+    }
+
+    // ... and the check on save's, about another activity checked without its travel.
+    [Fact]
+    public void TheCheckOnSavesNote_SaysWhichDayTheBaseIsFor()
+    {
+        var swim = OneOff("Swim", Saturday, new LocalTime(10, 0), minutes: 30, at: Flat);
+
+        var result = ActivityCheck.Check(swim, [Saturdays("Gym", at: Gym)], BrightonWeekend(flatToGymKnown: false));
+
+        Assert.StartsWith("Gym was checked without its travel, because on Sat 7 Nov 2026 your base is Brighton flat, and", Assert.Single(result.Notes));
     }
 
     // Busy time is drawn from each day's base too. On the Brighton Saturday: breakfast at the flat until 08:25, a gym

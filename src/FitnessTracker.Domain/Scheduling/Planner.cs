@@ -320,15 +320,16 @@ public static class Planner
             var loaded = DatesToLoadFor(request.Week, request.Rest.BetweenDemanding);
             foreach (var activity in request.Activities)
             {
+                var unknownTravel = new HashSet<string>();
                 foreach (var occurrence in activity.Series.OccurrencesBetween(loaded.Start, loaded.End))
                 {
                     // From the base of the day it starts (TRV-4). Travel that can't be worked out is left out, as on the
-                    // home page, and said once for each reason (P1).
+                    // home page, and said once for each reason, naming the first date it applies on (P1).
                     var day = Travel.DayOf(occurrence, activity.Series.Zone);
                     var known = Travel.KnownJourneys(activity.LocationId, request.Context, day);
-                    if (known is null)
+                    if (known is null && unknownTravel.Add(Travel.WhyUnknown(activity.LocationId, request.Context, day)))
                     {
-                        _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknown(activity.LocationId, request.Context, day)}");
+                        _notes.Add($"Travel to and from {activity.Title} isn't counted, because {Travel.WhyUnknown(activity.LocationId, request.Context, day, sayTheDate: true)}");
                     }
 
                     var journeys = known ?? Journeys.None;
@@ -403,7 +404,7 @@ public static class Planner
             {
                 if (Travel.KnownJourneys(goal.LocationId, _request.Context, date) is not { } journeys)
                 {
-                    unknown.Add(Travel.WhyUnknown(goal.LocationId, _request.Context, date));
+                    unknown.Add(Travel.WhyUnknown(goal.LocationId, _request.Context, date, sayTheDate: true));
                 }
                 else if (Footprint.ProblemsWith(goal.Length, goal.Buffers, journeys).Count == 0)
                 {

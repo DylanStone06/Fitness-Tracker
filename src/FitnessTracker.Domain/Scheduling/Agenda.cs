@@ -223,9 +223,10 @@ internal static class Travel
     /// <summary>
     /// Why <see cref="KnownJourneys"/> is null on <paramref name="date"/>, to finish a sentence: "none of your locations
     /// is marked as home", "there's no travel time from Home to Town gym", or, away from home, "your base then is Brighton
-    /// flat, and there's no travel time …".
+    /// flat, and there's no travel time …", next to something dated; with <paramref name="sayTheDate"/>, for a note that
+    /// isn't, "on Sat 7 Nov 2026 your base is Brighton flat, and …".
     /// </summary>
-    public static string WhyUnknown(Guid? locationId, PlanningContext context, LocalDate date)
+    public static string WhyUnknown(Guid? locationId, PlanningContext context, LocalDate date, bool sayTheDate = false)
     {
         if (context.BaseOn(date) is not { } fromBase || locationId is not { } at)
         {
@@ -233,7 +234,9 @@ internal static class Travel
         }
 
         var missing = $"there's no travel time {MissingLegs(at, fromBase, context)}";
-        return fromBase == context.Home ? missing : $"your base then is {NameOf(fromBase, context)}, and {missing}";
+        return fromBase == context.Home ? missing
+            : sayTheDate ? $"on {Times.Date.Format(date)} your base is {NameOf(fromBase, context)}, and {missing}"
+            : $"your base then is {NameOf(fromBase, context)}, and {missing}";
     }
 
     /// <summary>
