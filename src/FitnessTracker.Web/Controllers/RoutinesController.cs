@@ -440,10 +440,10 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
     }
 
-    // The form, with the user's locations to choose a base from, by name.
+    // The form, with the user's locations to choose a base from, by name. Not home: "Home, as usual" is that already.
     private async Task<ViewResult> FormViewAsync(RoutineFormViewModel model)
     {
-        model.Locations = (await db.Locations.AsNoTracking().ToListAsync())
+        model.Locations = (await db.Locations.AsNoTracking().Where(location => !location.IsHome).ToListAsync())
             .OrderBy(location => location.Name, StringComparer.InvariantCultureIgnoreCase)
             .ToList();
         return View(model);

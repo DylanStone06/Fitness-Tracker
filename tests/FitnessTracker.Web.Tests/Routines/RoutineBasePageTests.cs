@@ -21,6 +21,21 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Contains($"Based at <span dir=\"auto\">{setup.Flat.Name}</span>", list);
     }
 
+    // The form offers the other locations as a base, after "Home, as usual"; the home location would mean the same, so
+    // it isn't offered twice (break-ui, Phase 6b: the list said "Home, as usual" and then "Home").
+    [Fact]
+    public async Task TheForm_OffersEveryLocationButHome()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+
+        var html = await (await setup.Browser.GetAsync("/Routines/Create")).Content.ReadAsStringAsync();
+
+        Assert.Contains("<option value=\"\">Home, as usual</option>", html);
+        Assert.Contains($"value=\"{setup.Flat.Id}\"", html);
+        Assert.Contains($"value=\"{setup.Gym.Id}\"", html);
+        Assert.DoesNotContain($"value=\"{setup.Home.Id}\"", html);
+    }
+
     // CLAUDE.md rule 5: the base must be one of the user's own locations; another user's is "not found" by the filter.
     [Fact]
     public async Task ARoutine_RefusesAnotherUsersLocationAsItsBase()
@@ -120,7 +135,7 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Null((await StoredData.RoutineNamedAsync(factory, setup.Brighton.Name))!.BaseLocationId);
     }
 
-    private sealed record Setup(TestBrowser Browser, (Guid Id, string Name) Gym, (Guid Id, string Name) Flat, (Guid Id, string Name) Usual, (Guid Id, string Name) Brighton);
+    private sealed record Setup(TestBrowser Browser, (Guid Id, string Name) Home, (Guid Id, string Name) Gym, (Guid Id, string Name) Flat, (Guid Id, string Name) Usual, (Guid Id, string Name) Brighton);
 
     private async Task<Setup> SignedInWithABrightonWeekendAsync()
     {
@@ -136,7 +151,7 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Equal(HttpStatusCode.Redirect, (await browser.AddRoutineAsync(brighton, new() { ["BaseLocationId"] = flat.Id.ToString() })).StatusCode);
         var brightonId = (await StoredData.RoutineNamedAsync(factory, brighton))!.Id;
         Assert.Equal(HttpStatusCode.Redirect, (await browser.ChooseRoutineDatesAsync(brightonId, "2026-11-07", "2026-11-08")).StatusCode);
-        return new Setup(browser, gym, flat, ((await StoredData.RoutineNamedAsync(factory, usual))!.Id, usual), (brightonId, brighton));
+        return new Setup(browser, home, gym, flat, ((await StoredData.RoutineNamedAsync(factory, usual))!.Id, usual), (brightonId, brighton));
     }
 
     private async Task<(Guid Id, string Name)> AddLocationAsync(TestBrowser browser, string label, bool isHome)
