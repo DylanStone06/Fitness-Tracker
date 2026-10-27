@@ -126,7 +126,9 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   …"; H8 and clashes with each day's own travel), the agenda (home page, calendar), and the planner (each day's travel;
   a day it can't be worked out from gets a reason, "Your base then is Brighton flat, and …"; a goal is blocked only
   when no day of the week can reach it). An activity at the base needs no travel. Tests: `RoutineBaseTests` (T15:
-  the home gym out of reach on the Brighton weekend, runs still suggested).
+  the home gym out of reach on the Brighton weekend, runs still suggested; pinned: just after midnight, late on the
+  Sunday (back to the flat, though Monday is at home: a known limitation), the night the clocks go back, and Find
+  another time). The trip says "Leave Brighton flat …" on such days (`AgendaItem.LeavesFrom`).
 - The check on save looks at travel on the dates in its year, and, for an activity in every week whose rule still
   falls after them (every 60 weeks can skip the whole year), from the base the day after them too, the same base its
   usual length is checked with: so travel is always checked before a save, even with nothing in the year. One in a

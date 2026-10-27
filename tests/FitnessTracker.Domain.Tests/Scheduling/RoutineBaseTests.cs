@@ -204,6 +204,62 @@ public class RoutineBaseTests
         Assert.StartsWith("Gym was checked without its travel, because on Sat 7 Nov 2026 your base is Brighton flat, and", Assert.Single(result.Notes));
     }
 
+    // SCH-6: Find another time offers no day whose base can't reach the place: the gym on Monday to Friday only (code
+    // review, Phase 6b: only Plan my week was tested with a base).
+    [Fact]
+    public void FindAnotherTime_OffersNoDayTheBaseCantReach()
+    {
+        var options = Planner.Options(WeekOf([], BrightonWeekend(flatToGymKnown: false)), Goal("Gym", sessions: 1, at: Gym), most: 7);
+
+        Assert.Equal(
+            [new(2026, 11, 2), new(2026, 11, 3), new(2026, 11, 4), new(2026, 11, 5), new(2026, 11, 6)],
+            options.Options.Select(option => option.Time.Start.InZone(London).Date).Order());
+    }
+
+    // §8: the day an occurrence starts decides its base, for both journeys (scheduling review, Phase 6b: not pinned by a
+    // test). A session at 00:15 on the Brighton Saturday leaves the flat at 23:15 on the Friday ...
+    [Fact]
+    public void AnOccurrenceJustAfterMidnight_TravelsFromItsOwnDaysBase()
+    {
+        var gym = OneOff("Early gym", Saturday, new LocalTime(0, 15), minutes: 50, at: Gym);
+
+        var item = Assert.Single(Agenda.Between([gym], BrightonWeekend(flatToGymKnown: true), Saturday, Saturday));
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 6, 23, 15), Instant.FromUtc(2026, 11, 7, 2, 5)), item.Footprint!.Whole);
+    }
+
+    // ... and one late on the Sunday goes back to the flat, though Monday is at home (a known limitation).
+    [Fact]
+    public void ASundayEveningOccurrence_GoesBackToTheFlat()
+    {
+        var sunday = Saturday.PlusDays(1);
+        var gym = OneOff("Late gym", sunday, new LocalTime(23, 30), minutes: 50, at: Gym);
+
+        var item = Assert.Single(Agenda.Between([gym], BrightonWeekend(flatToGymKnown: true), sunday, sunday));
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 11, 8, 22, 30), Instant.FromUtc(2026, 11, 9, 1, 20)), item.Footprint!.Whole);
+    }
+
+    // T4 night: with the Brighton weekend on 24-25 October 2026, a session at 01:30 on the Sunday (the first 01:30, BST,
+    // 00:30 UTC) is an hour from the flat each way, in elapsed time.
+    [Fact]
+    public void OnTheNightTheClocksGoBack_TravelIsFromTheBase_InElapsedTime()
+    {
+        var clocksGoBack = new LocalDate(2026, 10, 25);
+        var context = BrightonWeekend(flatToGymKnown: true) with
+        {
+            Routines = new RoutineCalendar(
+                new Dictionary<Guid, WeekCycle> { [Brighton] = new(weeks: 1, anchor: Today) },
+                usual: null,
+                [new RoutineDates(Brighton, new DateInterval(clocksGoBack.PlusDays(-1), clocksGoBack))]),
+        };
+        var gym = OneOff("Gym", clocksGoBack, new LocalTime(1, 30), minutes: 50, at: Gym);
+
+        var item = Assert.Single(Agenda.Between([gym], context, clocksGoBack, clocksGoBack));
+
+        Assert.Equal(new Interval(Instant.FromUtc(2026, 10, 24, 23, 30), Instant.FromUtc(2026, 10, 25, 2, 20)), item.Footprint!.Whole);
+    }
+
     // Busy time is drawn from each day's base too. On the Brighton Saturday: breakfast at the flat until 08:25, a gym
     // class from 10:00, and an afternoon out from 12:00. From the flat the class takes up from 09:00, leaving 35 minutes
     // after breakfast, too short for a 50-minute run (from home it would be 09:35, room for one at 08:30), so a run a day
