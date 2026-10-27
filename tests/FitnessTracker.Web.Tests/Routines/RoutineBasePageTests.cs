@@ -36,6 +36,21 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.DoesNotContain($"value=\"{setup.Home.Id}\"", html);
     }
 
+    // ... but a routine already based at the home location (the flat was its base, then was marked as home) keeps it:
+    // the edit form offers it, chosen, so saving a new name doesn't quietly clear the base (code review, Phase 6b).
+    [Fact]
+    public async Task TheEditForm_KeepsABaseThatIsNowHome()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+        var name = TestBrowser.NewName("Home weekend");
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddRoutineAsync(name, new() { ["BaseLocationId"] = setup.Home.Id.ToString() })).StatusCode);
+        var id = (await StoredData.RoutineNamedAsync(factory, name))!.Id;
+
+        var html = await (await setup.Browser.GetAsync($"/Routines/Edit/{id}")).Content.ReadAsStringAsync();
+
+        Assert.Contains($"<option selected=\"selected\" value=\"{setup.Home.Id}\">", html);
+    }
+
     // CLAUDE.md rule 5: the base must be one of the user's own locations; another user's is "not found" by the filter.
     [Fact]
     public async Task ARoutine_RefusesAnotherUsersLocationAsItsBase()

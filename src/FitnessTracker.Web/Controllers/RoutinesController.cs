@@ -452,10 +452,11 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
     }
 
-    // The form, with the user's locations to choose a base from, by name. Not home: "Home, as usual" is that already.
+    // The form, with the user's locations to choose a base from, by name. Not home: "Home, as usual" is that already;
+    // unless it is the routine's base already (a base later marked as home), which would otherwise be lost on saving.
     private async Task<ViewResult> FormViewAsync(RoutineFormViewModel model)
     {
-        model.Locations = (await db.Locations.AsNoTracking().Where(location => !location.IsHome).ToListAsync())
+        model.Locations = (await db.Locations.AsNoTracking().Where(location => !location.IsHome || location.Id == model.BaseLocationId).ToListAsync())
             .OrderBy(location => location.Name, StringComparer.InvariantCultureIgnoreCase)
             .ToList();
         return View(model);
