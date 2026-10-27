@@ -145,6 +145,42 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
         Assert.Contains($"{gym}: On Sat 21 Nov 2026 your base is {setup.Flat.Name}, and there's no travel time", html);
     }
 
+    // ... also on dates more than 8 weeks ahead, which are checked from their first day, as when they are chosen (code
+    // review, Phase 6b: a base change was checked from today only). The gym is 2 hours from the flat: on Saturday 6 March
+    // 2027, a 09:00 session from there runs into breakfast at 07:00; from home (25 minutes) it doesn't.
+    [Fact]
+    public async Task GivingARoutineABase_SaysWhatItBreaksMoreThanEightWeeksAhead()
+    {
+        var setup = await SignedInWithABrightonWeekendAsync();
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddTravelLegAsync(setup.Flat.Id, setup.Gym.Id, 120, alsoTheReturnJourney: true)).StatusCode);
+        var gym = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddActivityAsync(gym, new()
+        {
+            ["StartDate"] = "2026-11-14",
+            ["StartTime"] = "09:00",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[5]"] = "true",
+            ["LocationId"] = setup.Gym.Id.ToString(),
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddActivityAsync(TestBrowser.NewName("Breakfast"), new()
+        {
+            ["Category"] = "Other",
+            ["StartDate"] = "2026-11-14",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[5]"] = "true",
+        })).StatusCode);
+        var spring = TestBrowser.NewName("Spring weekend");
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.AddRoutineAsync(spring)).StatusCode);
+        var springId = (await StoredData.RoutineNamedAsync(factory, spring))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await setup.Browser.ChooseRoutineDatesAsync(springId, "2027-03-06", "2027-03-07")).StatusCode);
+
+        await setup.Browser.SubmitFormAsync($"/Routines/Edit/{springId}", $"/Routines/Edit/{springId}",
+            TestBrowser.RoutineForm(spring, new() { ["BaseLocationId"] = setup.Flat.Id.ToString() }));
+
+        var html = WebUtility.HtmlDecode(await (await setup.Browser.GetAsync("/Routines")).Content.ReadAsStringAsync());
+        Assert.Contains($"{gym}: On Sat 6 Mar 2027,", html);
+    }
+
     // A duplicate keeps the base (Q16: the same weeks, and now the same base).
     [Fact]
     public async Task ADuplicate_KeepsTheBase()

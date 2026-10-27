@@ -121,7 +121,11 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         var changesWhatHappens = model.IsUsual != routine.IsUsual || model.CycleWeeks != routine.CycleWeeks
             || CalendarWeeks.StartOf(FormInput.ParseDate(model.WeekA)!.Value, routine.WeekStart) != routine.WeekAStarts
             || model.BaseLocationId != routine.BaseLocationId;
-        var before = changesWhatHappens ? await checker.RoutineActivityFindingsAsync(givesABase: model.BaseLocationId is not null) : null;
+        // The usual routine (or one becoming or stopping being it) is in use on every date not chosen for another, from
+        // today; any other only on its own dates, each range checked from its first day, as when chosen (code review).
+        var before = !changesWhatHappens ? null : await checker.RoutineActivityFindingsAsync(
+            routine.IsUsual || model.IsUsual ? null : (await DatesChosenForAsync(id)).Select(chosen => chosen.StartDate).ToList(),
+            givesABase: model.BaseLocationId is not null);
         await using var transaction = await db.Database.BeginTransactionAsync();
         var stopped = await StopOtherUsualRoutinesAsync(model, exceptId: id);
         if (routine.IsUsual && !model.IsUsual)
