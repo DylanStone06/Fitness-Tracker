@@ -39,7 +39,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         var week = new DateInterval(first, first.PlusDays(6));
         var unreadable = new List<string>();
         var rest = user.Context.Rest;
-        var activities = await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, rest.BetweenDemanding), unreadable);
+        var activities = await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, rest.BetweenDemanding), user.Routines.Calendar, unreadable);
         var goals = await db.WeeklyGoals.AsNoTracking().ToListAsync();
         var request = new PlanRequest(
             week,
@@ -53,7 +53,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         {
             Rejected = rejected,
         };
-        return new PlannedWeek(week, Planner.Plan(request), goals.ToDictionary(goal => goal.Id), user, unreadable, await planning.RoutinesAsync());
+        return new PlannedWeek(week, Planner.Plan(request), goals.ToDictionary(goal => goal.Id), user, unreadable, user.Routines);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
     public async Task<OtherTimes?> OptionsAsync(Activity activity, LocalDate date, int most)
     {
         var user = await planning.LoadAsync();
-        var session = activity.ToPlannedActivity((await planning.RoutinesAsync()).Calendar);
+        var session = activity.ToPlannedActivity(user.Routines.Calendar);
         if (ActivityCheck.OccurrenceOn(session.Series, date) is not { } occurrence)
         {
             return null;
@@ -76,7 +76,7 @@ public class WeekPlanning(AppDbContext db, PlanningData planning)
         var first = CalendarWeeks.StartOf(start.Date, user.Preferences.WeekStart);
         var week = new DateInterval(first, first.PlusDays(6));
         var unreadable = new List<string>();
-        var activities = await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, user.Context.Rest.BetweenDemanding), unreadable);
+        var activities = await planning.ActivitiesOnAsync(Planner.DatesToLoadFor(week, user.Context.Rest.BetweenDemanding), user.Routines.Calendar, unreadable);
         var request = new PlanRequest(week, user.Now.ToInstant(), zone, activities, [], Sleep(user.Preferences), user.Context.Rest, user.Context);
         // Not null: the occurrence was found above.
         var options = Planner.OptionsFor(request, session, date, (int)activity.Priority, most)!;

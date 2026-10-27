@@ -34,10 +34,10 @@ public class ActivityChecker(PlanningData planning)
         // checked and as far either side as the rest between demanding sessions reaches, H5-H7), not every one the user
         // ever had; one that can't be read is left out with a note, not allowed to stop every save. Each in the weeks its
         // routine allows (CAL-9), the candidate too.
-        var plannedCandidate = candidate.ToPlannedActivity((await planning.RoutinesAsync()).Calendar);
+        var plannedCandidate = candidate.ToPlannedActivity(user.Routines.Calendar);
         var unreadable = new List<string>();
         var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate, user.Context.Today, user.Context.Rest.BetweenDemanding);
-        var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
+        var others = await planning.ActivitiesOnAsync(nearby, user.Routines.Calendar, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.Check(plannedCandidate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };
@@ -148,10 +148,10 @@ public class ActivityChecker(PlanningData planning)
     public async Task<ActivityCheckResult> CheckOccurrenceAsync(Activity candidate, LocalDate occurrenceDate)
     {
         var user = await planning.LoadAsync();
-        var plannedCandidate = candidate.ToPlannedActivity((await planning.RoutinesAsync()).Calendar);
+        var plannedCandidate = candidate.ToPlannedActivity(user.Routines.Calendar);
         var unreadable = new List<string>();
         var nearby = ActivityCheck.OthersThatCanClashWith(plannedCandidate.Series, occurrenceDate, user.Context.Rest.BetweenDemanding);
-        var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
+        var others = await planning.ActivitiesOnAsync(nearby, user.Routines.Calendar, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.CheckOccurrence(plannedCandidate, occurrenceDate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };

@@ -10,7 +10,8 @@ namespace FitnessTracker.Web.Services;
 
 /// <summary>
 /// What the planning pages need about the signed-in user, read once through the per-user filter. <see cref="Now"/> is
-/// the moment it was read, in the user's timezone; the context's "today" is its date.
+/// the moment it was read, in the user's timezone; the context's "today" is its date. <see cref="Routines"/> are those
+/// the context's routine calendar and bases were made from, for callers that need them too.
 /// </summary>
 public sealed record UserPlanning(
     UserPreferences Preferences,
@@ -18,7 +19,8 @@ public sealed record UserPlanning(
     IReadOnlyList<Location> Locations,
     IReadOnlyList<TravelLeg> Legs,
     PlanningContext Context,
-    ZonedDateTime Now);
+    ZonedDateTime Now,
+    UserRoutines Routines);
 
 /// <summary>
 /// CAL-9: the signed-in user's routines, which one is in use on each date, and the dates chosen for them (Q14),
@@ -55,7 +57,7 @@ public class PlanningData(AppDbContext db, IClock clock)
                 .Where(routine => routine.BaseLocationId is not null)
                 .ToDictionary(routine => routine.Id, routine => routine.BaseLocationId!.Value),
         };
-        return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
+        return new UserPlanning(preferences, saved is not null, locations, legs, context, now, routines);
     }
 
     /// <summary>ACC-7: H5-H7 from <paramref name="preferences"/>, for the check on save and the planner alike.</summary>
@@ -120,19 +122,19 @@ public class PlanningData(AppDbContext db, IClock clock)
 
     /// <summary>
     /// The user's activities that can fall on <paramref name="dates"/>: repeating ones that have started by then, and
-    /// one-offs on those dates, each in the weeks its routine allows (CAL-9). A repeating one with occurrences changed
-    /// on their own (CAL-4) is loaded whatever its first date, as one can have been moved to before it. One the app
-    /// can't read (edited by hand, say) is left out and named in <paramref name="unreadable"/>, rather than stopping
-    /// the page.
+    /// one-offs on those dates, each in the weeks <paramref name="routines"/> allows it (CAL-9: those loaded with the
+    /// user, <see cref="UserPlanning.Routines"/>). A repeating one with occurrences changed on their own (CAL-4) is
+    /// loaded whatever its first date, as one can have been moved to before it. One the app can't read (edited by hand,
+    /// say) is left out and named in <paramref name="unreadable"/>, rather than stopping the page.
     /// </summary>
-    public async Task<List<PlannedActivity>> ActivitiesOnAsync(DateInterval dates, List<string> unreadable, Guid? except = null)
+    public async Task<List<PlannedActivity>> ActivitiesOnAsync(DateInterval dates, RoutineCalendar routines, List<string> unreadable, Guid? except = null)
     {
         var stored = await db.Activities.AsNoTracking()
             .Where(activity => activity.Id != except
                 && (activity.OccurrenceChanges != null
                     || (activity.StartDate <= dates.End && (activity.RepeatRule != null || activity.StartDate >= dates.Start))))
             .ToListAsync();
-        return Planned(stored, (await RoutinesAsync()).Calendar, unreadable);
+        return Planned(stored, routines, unreadable);
     }
 
     /// <summary>

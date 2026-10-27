@@ -65,7 +65,7 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
         }
 
         var window = new Interval(windowStart, windowEnd);
-        var activities = await planning.ActivitiesOnAsync(Agenda.DatesToLoadFor(window, zone), []);
+        var activities = await planning.ActivitiesOnAsync(Agenda.DatesToLoadFor(window, zone), user.Routines.Calendar, []);
         var items = Agenda.Overlapping(activities, user.Context, window, zone);
 
         // Two columns of only the activities shown, for each one's colour and whether it repeats.

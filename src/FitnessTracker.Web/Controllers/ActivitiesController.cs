@@ -37,7 +37,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         ViewData[Clock] = user.Preferences.TimesShownAs();
         var activities = await db.Activities.AsNoTracking().ToListAsync();
         ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
-        var routines = await planning.RoutinesAsync();
+        var routines = user.Routines;
         ViewData["Routines"] = routines.All.ToDictionary(routine => routine.Id);
         ViewData["RoutineDates"] = routines.Dates;
         ViewData["Today"] = user.Now.Date;
