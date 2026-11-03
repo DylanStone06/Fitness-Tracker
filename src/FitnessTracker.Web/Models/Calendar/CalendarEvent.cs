@@ -1,7 +1,9 @@
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Activities;
+using FitnessTracker.Web.Models.Workouts;
 using NodaTime;
 using NodaTime.Text;
 
@@ -16,7 +18,7 @@ public sealed record CalendarSegment(string Part, string Start, string End);
 /// says it was moved or resized on its own. <see cref="Minutes"/> is its real, elapsed length (§8), which a drag keeps.
 /// <see cref="Starts"/> and <see cref="Ends"/> ("22:00", "06:00 the next day") are what the calendar writes, rather than
 /// its own times, which would end a night shift's first part at midnight; <see cref="EndsAt"/> is the end without the day,
-/// for that next day's part.
+/// for that next day's part. <see cref="Status"/> is an exercise session's (FIT-1: "Not logged", "Done"), null for others.
 /// </summary>
 public sealed record CalendarEventDetails(
     Guid ActivityId,
@@ -32,7 +34,8 @@ public sealed record CalendarEventDetails(
     string? Trip,
     string? Note,
     IReadOnlyList<string> ClashesWith,
-    IReadOnlyList<CalendarSegment> Footprint);
+    IReadOnlyList<CalendarSegment> Footprint,
+    string? Status);
 
 /// <summary>
 /// CAL-1: one occurrence as a FullCalendar event. Times are clock times in the user's timezone with no offset, which
@@ -42,7 +45,7 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
 {
     private static readonly LocalDateTimePattern Clock = LocalDateTimePattern.CreateWithInvariantCulture("uuuu'-'MM'-'dd'T'HH':'mm':'ss");
 
-    public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place, bool repeats, ClockFormat clock)
+    public static CalendarEvent From(AgendaItem item, DateTimeZone zone, ActivityCategory? category, string? place, bool repeats, ClockFormat clock, SessionState? session)
     {
         // Clock times, drawn as given. On the night the clocks go back an end can read earlier than its start (01:45 BST
         // for 30 minutes ends 01:15 GMT), which the calendar can't draw: it is drawn as long as it really is instead,
@@ -91,6 +94,7 @@ public sealed record CalendarEvent(string Id, string Title, string Start, string
                 Agenda.Trip(item, clock),
                 item.Note,
                 item.ClashesWith,
-                segments));
+                segments,
+                session is null ? null : SessionDisplay.Status(session)));
     }
 }

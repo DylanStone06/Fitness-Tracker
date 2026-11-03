@@ -66,16 +66,6 @@ public sealed class HomeViewModel
     public SessionState? SessionOf(AgendaItem item) =>
         SessionStates.TryGetValue((item.Activity.Id, item.Occurrence.Date), out var state) ? state : null;
 
-    /// <summary>"Planned", "Done", "Skipped", "Rescheduled", or "Not logged" (T20) for one unmarked whose time has passed.</summary>
-    public static string StatusText(SessionState state) => state switch
-    {
-        { Status: SessionStatus.Completed } => "Done",
-        { Status: SessionStatus.Skipped } => "Skipped",
-        { NotLogged: true } => "Not logged",
-        { Status: SessionStatus.Rescheduled } => "Rescheduled",
-        _ => "Planned",
-    };
-
     public IEnumerable<AgendaItem> On(LocalDate date) =>
         Items.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
 
@@ -109,19 +99,9 @@ public sealed class HomeViewModel
         IReadOnlyDictionary<Guid, ActivityCategory> categories,
         IReadOnlySet<Guid> repeating,
         IReadOnlyList<string> unreadable,
-        IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionMark> marks)
+        IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState> sessionStates)
     {
         var next = Agenda.Next(agenda, user.Now.ToInstant());
-        var sessionStates = new Dictionary<(Guid Activity, LocalDate Date), SessionState>();
-        foreach (var item in agenda.Where(item => categories.TryGetValue(item.Activity.Id, out var category) && category.IsExercise()))
-        {
-            var key = (item.Activity.Id, item.Occurrence.Date);
-            if (Sessions.StateOf(item.Activity.Series, item.Occurrence.Date, marks.TryGetValue(key, out var mark) ? mark : null, user.Now.ToInstant()) is { } state)
-            {
-                sessionStates[key] = state;
-            }
-        }
-
         var home = user.Context.Home;
 
         // Both journeys to and from every place away from home (§7.1): a missing one is never taken as zero.

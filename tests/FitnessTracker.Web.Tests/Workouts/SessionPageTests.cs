@@ -126,6 +126,45 @@ public sealed class SessionPageTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.DoesNotContain("Status:", await (await browser.GetAsync("/")).Content.ReadAsStringAsync());
     }
 
+    // The calendar's events say each session's status too ("Not logged", then "Done" once marked), and work's none.
+    [Fact]
+    public async Task TheCalendar_GivesEachSessionsStatus()
+    {
+        var (browser, gym) = await SignedInWithAGymSessionAsync("2026-10-19");
+        var workTitle = TestBrowser.NewName("Work");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(workTitle, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "09:00", ["Category"] = "Work" })).StatusCode);
+        var work = (await StoredData.ActivityTitledAsync(factory, workTitle))!.Id;
+
+        var before = await CalendarStatusesAsync(browser);
+        await browser.MarkSessionAsync(gym, "2026-10-19", "Done");
+        var after = await CalendarStatusesAsync(browser);
+
+        Assert.Equal("Not logged", before[gym]);
+        Assert.Null(before[work]);
+        Assert.Equal("Done", after[gym]);
+    }
+
+    // The page a calendar block opens links to the session's page: an occurrence's page for a repeating one, and a
+    // one-off's form. Work's don't.
+    [Fact]
+    public async Task TheOccurrencePageAndAOneOffsForm_LinkToTheSessionsPage()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var weekly = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(weekly, new() { ["StartDate"] = "2026-10-19", ["Repeats"] = "Weekly", ["RepeatDays[0]"] = "true" })).StatusCode);
+        var weeklyId = (await StoredData.ActivityTitledAsync(factory, weekly))!.Id;
+        var (oneOffBrowser, oneOff) = await SignedInWithAGymSessionAsync("2026-10-19");
+        var (workBrowser, work) = await SignedInWithAGymSessionAsync("2026-10-19", category: "Work");
+
+        var occurrencePage = await (await browser.GetAsync($"/Activities/Occurrence/{weeklyId}?date=2026-10-26")).Content.ReadAsStringAsync();
+        var oneOffForm = await (await oneOffBrowser.GetAsync($"/Activities/Edit/{oneOff}")).Content.ReadAsStringAsync();
+        var workForm = await (await workBrowser.GetAsync($"/Activities/Edit/{work}")).Content.ReadAsStringAsync();
+
+        Assert.Contains($"href=\"/Sessions/Log/{weeklyId}?date=2026-10-26\"", occurrencePage);
+        Assert.Contains($"href=\"/Sessions/Log/{oneOff}?date=2026-10-19\"", oneOffForm);
+        Assert.DoesNotContain("/Sessions/Log/", workForm);
+    }
+
     // Q20: only exercise sessions have a status: work has no session page.
     [Fact]
     public async Task OnlyExerciseSessions_HaveAPage()
@@ -163,6 +202,17 @@ public sealed class SessionPageTests(TestAppFactory factory) : IClassFixture<Tes
         var title = TestBrowser.NewName(category);
         Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(title, new() { ["StartDate"] = date, ["Category"] = category })).StatusCode);
         return (browser, (await StoredData.ActivityTitledAsync(factory, title))!.Id);
+    }
+
+    // Monday 19 October's events' statuses, by activity.
+    private static async Task<Dictionary<Guid, string?>> CalendarStatusesAsync(TestBrowser browser)
+    {
+        var response = await browser.GetAsync("/Calendar/Events?start=2026-10-19&end=2026-10-20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.EnumerateArray()
+            .Select(item => item.GetProperty("extendedProps"))
+            .ToDictionary(details => details.GetProperty("activityId").GetGuid(), details => details.GetProperty("status").GetString());
     }
 
     private static async Task<string> PageAsync(TestBrowser browser, Guid id, string date)
