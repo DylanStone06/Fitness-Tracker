@@ -59,6 +59,14 @@ public static class StoredData
             ?? await db.Routines.IgnoreQueryFilters().Where(routine => routine.Id == id).Select(routine => (Guid?)routine.Version).SingleOrDefaultAsync()
             ?? await db.RoutineDateRanges.IgnoreQueryFilters().Where(dates => dates.Id == id).Select(dates => (Guid?)dates.Version).SingleOrDefaultAsync());
 
+    /// <summary>FIT-1: what the session of <paramref name="activity"/> its rule puts on <paramref name="date"/> is marked
+    /// as, or null when it isn't.</summary>
+    public static Task<FitnessTracker.Domain.Workouts.SessionMark?> SessionMarkAsync(TestAppFactory factory, Guid activity, NodaTime.LocalDate date) =>
+        ReadAsync(factory, db => db.SessionLogs.IgnoreQueryFilters()
+            .Where(log => log.ActivityId == activity && log.OccurrenceDate == date)
+            .Select(log => (FitnessTracker.Domain.Workouts.SessionMark?)log.Mark)
+            .SingleOrDefaultAsync());
+
     public static Task<List<LocationOpeningTime>> OpeningTimesOfAsync(TestAppFactory factory, Guid locationId) =>
         ReadAsync(factory, db => db.LocationOpeningTimes.IgnoreQueryFilters().AsNoTracking()
             .Where(time => time.LocationId == locationId).ToListAsync());

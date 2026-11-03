@@ -45,6 +45,8 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/RoutineDates/Edit/{id}" },
         { "GET", "/RoutineDates/Delete/{id}" },
         { "POST", "/RoutineDates/Delete/{id}" },
+        { "GET", "/Sessions/Log/{id}" },
+        { "POST", "/Sessions/Log/{id}" },
     };
 
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
@@ -204,7 +206,8 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
             return (await StoredData.TravelLegAsync(factory, home, gym))!.Id;
         }
 
-        if (path.StartsWith("/Activities/", StringComparison.Ordinal))
+        // A session is an occurrence of an activity, known by the activity's id (a gym session, so it has one: Q20).
+        if (path.StartsWith("/Activities/", StringComparison.Ordinal) || path.StartsWith("/Sessions/", StringComparison.Ordinal))
         {
             var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
             var title = TestBrowser.NewName("Alex gym");
