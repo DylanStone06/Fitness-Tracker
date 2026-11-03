@@ -1,13 +1,8 @@
 using FitnessTracker.Domain.Time;
+using FitnessTracker.Domain.Workouts;
 using NodaTime;
 
 namespace FitnessTracker.Web.Data;
-
-public enum DistanceUnit
-{
-    Kilometres,
-    Miles,
-}
 
 public enum WeightUnit
 {

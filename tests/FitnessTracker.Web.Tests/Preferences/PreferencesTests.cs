@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
 using NodaTime;
