@@ -3,13 +3,29 @@ using NodaTime;
 
 namespace FitnessTracker.Web.Data;
 
+/// <summary>FIT-3, Q26: the type of run a run's session was, when it was given.</summary>
+public enum RunType
+{
+    Easy,
+    Long,
+    Tempo,
+    Intervals,
+    Recovery,
+
+    /// <summary>A type of the user's own, named in <see cref="SessionLog.CustomRunType"/>.</summary>
+    Custom,
+}
+
 /// <summary>
 /// FIT-1: what one session (an occurrence of an exercise activity, Q20) was marked as: done or skipped. A session with
 /// none is planned. Known by the date its activity's rule puts it on, as a change to one occurrence is (CAL-4), so a
-/// moved session keeps its mark. At most one per session.
+/// moved session keeps its mark. At most one per session. A run's also says what it was like (FIT-3), each detail
+/// optional.
 /// </summary>
 public class SessionLog : IOwnedByUser, IVersioned
 {
+    public const int CustomRunTypeMaxLength = 40;
+
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     public string OwnerId { get; set; } = "";
@@ -22,4 +38,18 @@ public class SessionLog : IOwnedByUser, IVersioned
     public LocalDate OccurrenceDate { get; set; }
 
     public SessionMark Mark { get; set; }
+
+    /// <summary>FIT-3: how long it took, in seconds (requirements §8), or null when not given.</summary>
+    public int? ActualSeconds { get; set; }
+
+    /// <summary>FIT-3: how far, in whole metres (Q25), or null when not given.</summary>
+    public int? DistanceMetres { get; set; }
+
+    public RunType? RunType { get; set; }
+
+    /// <summary>The name of a <see cref="Data.RunType.Custom"/> run's type; null for every other.</summary>
+    public string? CustomRunType { get; set; }
+
+    /// <summary>FIT-3: how hard it felt, 1 (very easy) to 10 (all out) (Q29), or null when not given.</summary>
+    public int? Effort { get; set; }
 }

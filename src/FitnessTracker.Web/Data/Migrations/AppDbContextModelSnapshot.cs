@@ -367,6 +367,19 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.Property<Guid>("ActivityId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ActualSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomRunType")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DistanceMetres")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Effort")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Mark")
                         .HasColumnType("INTEGER");
 
@@ -378,6 +391,9 @@ namespace FitnessTracker.Web.Data.Migrations
                         .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("RunType")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
