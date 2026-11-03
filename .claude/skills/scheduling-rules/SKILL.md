@@ -363,7 +363,7 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** (domain and pages) | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA`, `RoutineCalendarTests.TheUsualRoutine_IsInUseOnEveryDate_*`, web `RoutinesTests.TheList_SaysWhichWeekThisIs`, `ActivitiesInRoutinesTests.TheCalendar_ShowsAWeekAActivity_InWeekAOnly` |
 | T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, goals, routines, preferences, the calendar's feeds) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests`, `RoutineWeeksShownTests.TheCalendarsRoutineFeed_IsOnlyTheSignedInUsersOwn` |
-| T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
+| T20 | Past planned session shows "Not logged" | **Covered** (domain; pages next) | `SessionsTests.T20_APlannedSessionWhoseTimeHasPassed_IsNotLogged_AndStillPlanned` |
 | T21 | Calendar at 320 px | **Checked by hand** (a browser check, Phase 5) | |
 | T22 | Same week planned twice: identical | **Covered** (domain) | `PlannerTests.TheSameWeekPlannedTwice_GivesTheSameSuggestions` |
 | T23, T24 | Meal prep; AI output | After the MVP | |
