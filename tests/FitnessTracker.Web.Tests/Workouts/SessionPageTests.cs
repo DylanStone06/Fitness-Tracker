@@ -68,6 +68,44 @@ public sealed class SessionPageTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Contains("Status: Planned", await PageAsync(browser, id, "2026-10-19"));
     }
 
+    // Requirements §9: a page opened before another tab marked the session can't overwrite that mark without saying so.
+    // It shows the session as it is now, and saving from that works.
+    [Fact]
+    public async Task APageOpenedBeforeAnotherTabMarkedIt_CantOverwriteTheMark()
+    {
+        var (browser, id) = await SignedInWithAGymSessionAsync("2026-10-19");
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        await browser.MarkSessionAsync(id, "2026-10-19", "Done");
+
+        var refused = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", new() { ["Date"] = "2026-10-19", ["Mark"] = "Skipped" });
+        var page = WebUtility.HtmlDecode(await refused.Content.ReadAsStringAsync());
+        var markAfterRefusal = await StoredData.SessionMarkAsync(factory, id, Today);
+        var retried = await browser.SubmitAsync(TestBrowser.FormIn(page), $"/Sessions/Log/{id}", new() { ["Date"] = "2026-10-19", ["Mark"] = "Skipped" });
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("This session was changed in another tab or window after you opened this page.", page);
+        Assert.Contains("Status: Done", page);
+        Assert.Equal(SessionMark.Done, markAfterRefusal);
+        Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
+        Assert.Equal(SessionMark.Skipped, await StoredData.SessionMarkAsync(factory, id, Today));
+    }
+
+    // ... nor put it back to planned: that would remove a mark it never showed.
+    [Fact]
+    public async Task APageOpenedBeforeAnotherTabChangedTheMark_CantPutItBackToPlanned()
+    {
+        var (browser, id) = await SignedInWithAGymSessionAsync("2026-10-19");
+        await browser.MarkSessionAsync(id, "2026-10-19", "Done");
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        await browser.MarkSessionAsync(id, "2026-10-19", "Skipped");
+
+        var refused = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", new() { ["Date"] = "2026-10-19", ["Mark"] = "Planned" });
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("This session was changed in another tab or window after you opened this page.", WebUtility.HtmlDecode(await refused.Content.ReadAsStringAsync()));
+        Assert.Equal(SessionMark.Skipped, await StoredData.SessionMarkAsync(factory, id, Today));
+    }
+
     // Q22: one moved on its own to another time is rescheduled, and says where it was and where it is now.
     [Fact]
     public async Task ARescheduledSession_SaysWhereItWas()

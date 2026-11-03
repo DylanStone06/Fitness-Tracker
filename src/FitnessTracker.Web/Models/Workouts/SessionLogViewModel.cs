@@ -18,7 +18,8 @@ public enum SessionChoice
 
 /// <summary>
 /// FIT-1: one session's page: when it is, its status (Q22: where a rescheduled one was), "Not logged" once its time has
-/// passed unmarked (T20), and the choices for marking it. Only <see cref="Date"/> and <see cref="Mark"/> are posted.
+/// passed unmarked (T20), and the choices for marking it. Only <see cref="Date"/>, <see cref="Version"/> and
+/// <see cref="Mark"/> are posted.
 /// </summary>
 public class SessionLogViewModel
 {
@@ -26,6 +27,12 @@ public class SessionLogViewModel
 
     /// <summary>The date the activity's rule puts the session on, which knows it (CAL-4).</summary>
     public string Date { get; set; } = "";
+
+    /// <summary>
+    /// Requirements §9: the version of the session's log the page was opened with (empty when it had none), so a save
+    /// from a page opened before another tab changed the session is refused.
+    /// </summary>
+    public Guid Version { get; set; }
 
     public SessionChoice Mark { get; set; }
 
@@ -47,15 +54,20 @@ public class SessionLogViewModel
     /// <summary>Q21: once it has started.</summary>
     public bool CanMarkDone { get; private set; }
 
-    /// <summary>The page for <paramref name="occurrence"/> of <paramref name="session"/>, at <paramref name="now"/>.</summary>
-    public static SessionLogViewModel For(PlannedActivity session, Occurrence occurrence, SessionMark? marked, Instant now, ClockFormat clock)
+    /// <summary>
+    /// The page for <paramref name="occurrence"/> of <paramref name="session"/>, with its <paramref name="log"/> (null
+    /// when it isn't marked), at <paramref name="now"/>.
+    /// </summary>
+    public static SessionLogViewModel For(PlannedActivity session, Occurrence occurrence, SessionLog? log, Instant now, ClockFormat clock)
     {
         var series = session.Series;
+        var marked = log?.Mark;
         var state = Sessions.StateOf(series, occurrence.Date, marked, now)!;
         var item = new AgendaItem(session, occurrence, null, null, []);
         return new SessionLogViewModel
         {
             Date = FormInput.Date.Format(occurrence.Date),
+            Version = log?.Version ?? Guid.Empty,
             ActivityId = session.Id,
             Title = session.Title,
             When = $"{DayPattern.Format(occurrence.Time.Start.InZone(series.Zone).Date)}, {Agenda.Starts(item, clock)} – {Agenda.Ends(item, clock)}",

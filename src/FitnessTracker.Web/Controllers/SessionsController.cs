@@ -18,6 +18,9 @@ namespace FitnessTracker.Web.Controllers;
 // rows, so another user's activity is simply not found (T19, ACC-2).
 public class SessionsController(AppDbContext db, PlanningData planning) : Controller
 {
+    private const string ChangedElsewhere =
+        "This session was changed in another tab or window after you opened this page. It's shown below as it is now: check it, then make your change again.";
+
     [HttpGet]
     public async Task<IActionResult> Log(Guid id, string? date)
     {
@@ -39,6 +42,14 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return NotFound();
         }
 
+        // Requirements §9: saved only from a page that showed the session as it is now. The database checks the version
+        // again as it saves (a concurrency token), for another tab saving at the same moment.
+        var stored = await db.SessionLogs.SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
+        if ((stored?.Version ?? Guid.Empty) != model.Version)
+        {
+            return await ChangedElsewhereAsync(session, user);
+        }
+
         // Q21: done once it has started, never before; skipped at any time.
         if (model.Mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant()))
         {
@@ -46,7 +57,6 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return View(await PageAsync(session, user));
         }
 
-        var stored = await db.SessionLogs.SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
         if (model.Mark == SessionChoice.Planned)
         {
             if (stored is not null)
@@ -71,13 +81,22 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         }
         catch (DbUpdateException)
         {
-            // Two tabs marking it at the same moment: one mark per session (AppDbContext), and this one is asked again.
+            // Another tab saved it at the same moment: its version changed (DbUpdateConcurrencyException), or it marked a
+            // session that had no mark, which can have only one (AppDbContext).
             db.ChangeTracker.Clear();
-            ModelState.AddModelError(string.Empty, "This session was marked in another tab or window at the same moment. Check it below, then mark it again.");
-            return View(await PageAsync(session, user));
+            return await ChangedElsewhereAsync(session, user);
         }
 
         return RedirectToAction(nameof(Log), new { id, date = FormInput.Date.Format(session.Occurrence.Date) });
+    }
+
+    // The page as the session is now, saying why nothing was saved. Its hidden version is the current one (not the one
+    // posted), so saving from it again works.
+    private async Task<IActionResult> ChangedElsewhereAsync((PlannedActivity Activity, Occurrence Occurrence) session, UserPlanning user)
+    {
+        ModelState.AddModelError(string.Empty, ChangedElsewhere);
+        ModelState.Remove(nameof(SessionLogViewModel.Version));
+        return View(nameof(Log), await PageAsync(session, user));
     }
 
     // The session the activity's rule puts on date, where it is now: null when the activity isn't the user's, isn't
@@ -106,10 +125,8 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
 
     private async Task<SessionLogViewModel> PageAsync((PlannedActivity Activity, Occurrence Occurrence) session, UserPlanning user)
     {
-        var marked = await db.SessionLogs.AsNoTracking()
-            .Where(log => log.ActivityId == session.Activity.Id && log.OccurrenceDate == session.Occurrence.Date)
-            .Select(log => (SessionMark?)log.Mark)
-            .SingleOrDefaultAsync();
-        return SessionLogViewModel.For(session.Activity, session.Occurrence, marked, user.Now.ToInstant(), user.Context.Clock);
+        var log = await db.SessionLogs.AsNoTracking()
+            .SingleOrDefaultAsync(log => log.ActivityId == session.Activity.Id && log.OccurrenceDate == session.Occurrence.Date);
+        return SessionLogViewModel.For(session.Activity, session.Occurrence, log, user.Now.ToInstant(), user.Context.Clock);
     }
 }

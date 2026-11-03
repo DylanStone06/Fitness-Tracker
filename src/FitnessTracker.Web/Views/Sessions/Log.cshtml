@@ -21,6 +21,7 @@
         <form asp-action="Log" method="post" novalidate class="mt-3">
             <partial name="_ErrorSummary" />
             <input type="hidden" asp-for="Date" />
+            <input type="hidden" asp-for="Version" />
             <div class="d-flex flex-wrap gap-2">
                 @if (Model.Marked != SessionMark.Done && Model.CanMarkDone)
                 {
