@@ -97,6 +97,35 @@ public sealed class SessionPageTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Contains("Thu 29 Oct, 18:00", page);
     }
 
+    // The home page shows each session's status (T20: "Not logged" for this morning's), linking to its page.
+    [Fact]
+    public async Task TheHomePage_ShowsEachSessionsStatus_AndLinksToItsPage()
+    {
+        var (browser, past) = await SignedInWithAGymSessionAsync("2026-10-19");
+        var done = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(done, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "09:00" })).StatusCode);
+        var doneId = (await StoredData.ActivityTitledAsync(factory, done))!.Id;
+        await browser.MarkSessionAsync(doneId, "2026-10-19", "Done");
+        var tomorrow = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(tomorrow, new() { ["StartDate"] = "2026-10-20" })).StatusCode);
+
+        var html = WebUtility.HtmlDecode(await (await browser.GetAsync("/")).Content.ReadAsStringAsync());
+
+        Assert.Contains("Status: Not logged", html);
+        Assert.Contains("Status: Done", html);
+        Assert.Contains("Status: Planned", html);
+        Assert.Contains($"href=\"/Sessions/Log/{past}?date=2026-10-19\"", html);
+    }
+
+    // ... and only for exercise: work has no status.
+    [Fact]
+    public async Task TheHomePage_ShowsNoStatusForWork()
+    {
+        var (browser, _) = await SignedInWithAGymSessionAsync("2026-10-19", category: "Work");
+
+        Assert.DoesNotContain("Status:", await (await browser.GetAsync("/")).Content.ReadAsStringAsync());
+    }
+
     // Q20: only exercise sessions have a status: work has no session page.
     [Fact]
     public async Task OnlyExerciseSessions_HaveAPage()

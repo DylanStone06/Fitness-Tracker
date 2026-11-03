@@ -28,12 +28,19 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
         var kinds = await db.Activities
             .Select(activity => new { activity.Id, activity.Category, Repeats = activity.RepeatRule != null })
             .ToListAsync();
+        // FIT-1: what the sessions listed were marked as, by the date each one's rule puts it on (a moved one's too).
+        var ruleDates = agenda.Select(item => item.Occurrence.Date).DefaultIfEmpty(today).ToList();
+        var (first, last) = (ruleDates.Min(), ruleDates.Max());
+        var marks = await db.SessionLogs
+            .Where(log => log.OccurrenceDate >= first && log.OccurrenceDate <= last)
+            .ToDictionaryAsync(log => (log.ActivityId, log.OccurrenceDate), log => log.Mark);
         return View(HomeViewModel.From(
             user,
             agenda,
             kinds.ToDictionary(kind => kind.Id, kind => kind.Category),
             kinds.Where(kind => kind.Repeats).Select(kind => kind.Id).ToHashSet(),
-            unreadable));
+            unreadable,
+            marks));
     }
 
     // Error and Status are re-run for whichever request failed, which may be a signed-out POST whose

@@ -1,5 +1,6 @@
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Services;
 using NodaTime;
@@ -53,7 +54,27 @@ public sealed class HomeViewModel
     /// <summary>Stored activities the app couldn't read, so they aren't in the agenda.</summary>
     public required IReadOnlyList<string> Unreadable { get; init; }
 
+    /// <summary>
+    /// FIT-1: the state of each exercise session listed (Q20), by its activity and the date its rule puts it on. Others
+    /// have none.
+    /// </summary>
+    public required IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState> SessionStates { get; init; }
+
     public bool StillToSetUp => Steps.Any(step => !step.Done);
+
+    /// <summary>FIT-1: the item's session state, or null when it isn't exercise.</summary>
+    public SessionState? SessionOf(AgendaItem item) =>
+        SessionStates.TryGetValue((item.Activity.Id, item.Occurrence.Date), out var state) ? state : null;
+
+    /// <summary>"Planned", "Done", "Skipped", "Rescheduled", or "Not logged" (T20) for one unmarked whose time has passed.</summary>
+    public static string StatusText(SessionState state) => state switch
+    {
+        { Status: SessionStatus.Completed } => "Done",
+        { Status: SessionStatus.Skipped } => "Skipped",
+        { NotLogged: true } => "Not logged",
+        { Status: SessionStatus.Rescheduled } => "Rescheduled",
+        _ => "Planned",
+    };
 
     public IEnumerable<AgendaItem> On(LocalDate date) =>
         Items.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
@@ -87,9 +108,20 @@ public sealed class HomeViewModel
         IReadOnlyList<AgendaItem> agenda,
         IReadOnlyDictionary<Guid, ActivityCategory> categories,
         IReadOnlySet<Guid> repeating,
-        IReadOnlyList<string> unreadable)
+        IReadOnlyList<string> unreadable,
+        IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionMark> marks)
     {
         var next = Agenda.Next(agenda, user.Now.ToInstant());
+        var sessionStates = new Dictionary<(Guid Activity, LocalDate Date), SessionState>();
+        foreach (var item in agenda.Where(item => categories.TryGetValue(item.Activity.Id, out var category) && category.IsExercise()))
+        {
+            var key = (item.Activity.Id, item.Occurrence.Date);
+            if (Sessions.StateOf(item.Activity.Series, item.Occurrence.Date, marks.TryGetValue(key, out var mark) ? mark : null, user.Now.ToInstant()) is { } state)
+            {
+                sessionStates[key] = state;
+            }
+        }
+
         var home = user.Context.Home;
 
         // Both journeys to and from every place away from home (§7.1): a missing one is never taken as zero.
@@ -120,6 +152,7 @@ public sealed class HomeViewModel
             Home = home,
             PlaceNames = user.Locations.ToDictionary(location => location.Id, location => location.Name),
             Unreadable = unreadable,
+            SessionStates = sessionStates,
         };
     }
 }
