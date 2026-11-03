@@ -363,3 +363,14 @@ column says until decided:
 | Q17 | An occurrence moved out of a week that is later given to a holiday (Monday 2 November moved to Friday 30 October, then 2-8 November chosen for Holiday): should it still happen where it was moved to? | It doesn't: a move shows only if the date its repeat put it on is in use, and nothing says it has gone (known limitations). |
 | Q18 | A holiday routine with its own A/B cycle: is its week A the week it is first used (Q3), or the week it was added (what its form offers)? | The week it was added, or whatever the form was given: chosen for 9-22 November but added on 19 October, its first holiday week is week B. |
 | Q19 | Find another time, for a session inside a holiday's dates: should it only offer days inside them? | It offers any day later that week, like any other session; a session moved out of the holiday still happens. |
+
+Chosen as defaults at the start of Phase 7 (3 November 2026); **not yet confirmed by the owner**, and easy to change:
+
+| # | Question | Default |
+|---|---|---|
+| Q20 | Which activities are sessions with a status (FIT-1)? | Those in an exercise category: Gym, Run, Other exercise. Work, commuting, social and the rest have no status. |
+| Q21 | When can a session be marked done or skipped? | Done once it has started (never before, never by itself: FIT-1); skipped at any time ("not going tomorrow"). Either can be undone, back to planned. Cancelling one (CAL-4) is different: it is no longer planned at all, so it has no status. |
+| Q22 | What is "Rescheduled"? | A session of a repeating activity moved on its own to another time (CAL-4: on the calendar, or with Find another time). It says where it was ("Rescheduled from Tue 3 Nov, 18:00") and counts as planned at its new time until it is marked. Not a separate choice. |
+| Q23 | Does logging a session change the calendar? | No. The calendar keeps the planned time; the log records what was done (how long, and for each kind its details: a run's type, distance and effort; sets; intensity). |
+| Q24 | What counts towards a weekly goal (FIT-5)? | That week's sessions of activities added for it from Plan my week, each done, skipped, not logged or still to come, against how many the goal asks for. An activity added by hand counts towards no goal. |
+| Q25 | Units for distance, weight and pace? | Stored in metres and kilograms (CLAUDE.md rule 6), shown in the units chosen in Preferences (km or mi; kg or lb). Pace is worked out from time and distance, never stored, and shown per km or per mile ("5:30 per km"). |
