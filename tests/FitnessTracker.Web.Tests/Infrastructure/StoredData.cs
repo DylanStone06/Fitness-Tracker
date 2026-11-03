@@ -67,6 +67,11 @@ public static class StoredData
             .Select(log => (FitnessTracker.Domain.Workouts.SessionMark?)log.Mark)
             .SingleOrDefaultAsync());
 
+    /// <summary>The whole log of one session (FIT-1, FIT-3), or null when it isn't marked.</summary>
+    public static Task<SessionLog?> SessionLogAsync(TestAppFactory factory, Guid activity, NodaTime.LocalDate date) =>
+        ReadAsync(factory, db => db.SessionLogs.IgnoreQueryFilters().AsNoTracking()
+            .SingleOrDefaultAsync(log => log.ActivityId == activity && log.OccurrenceDate == date));
+
     public static Task<List<LocationOpeningTime>> OpeningTimesOfAsync(TestAppFactory factory, Guid locationId) =>
         ReadAsync(factory, db => db.LocationOpeningTimes.IgnoreQueryFilters().AsNoTracking()
             .Where(time => time.LocationId == locationId).ToListAsync());

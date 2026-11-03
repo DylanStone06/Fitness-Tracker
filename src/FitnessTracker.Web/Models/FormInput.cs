@@ -1,9 +1,13 @@
+using System.Globalization;
 using NodaTime;
 using NodaTime.Text;
 
 namespace FitnessTracker.Web.Models;
 
-/// <summary>Dates and times as the forms' &lt;input type="date"&gt; and &lt;input type="time"&gt; send them.</summary>
+/// <summary>
+/// Dates and times as the forms' &lt;input type="date"&gt; and &lt;input type="time"&gt; send them, and amounts as
+/// typed in a text box.
+/// </summary>
 public static class FormInput
 {
     public const string OutsidePlannableYears = "Enter a date between the years 1900 and 2999.";
@@ -28,6 +32,15 @@ public static class FormInput
 
     public static LocalTime? ParseTime(string? text) =>
         text is not null && Time.Parse(text.Trim()) is { Success: true } result ? result.Value : null;
+
+    /// <summary>
+    /// An amount typed in a text box, such as a run's distance: digits with a decimal point if wanted ("5.2", ".5"),
+    /// or null. Not a sign, an exponent or a thousands separator, so "5,2" isn't quietly read as 52.
+    /// </summary>
+    public static decimal? ParseAmount(string? text) =>
+        text is not null && decimal.TryParse(text.Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount)
+            ? amount
+            : null;
 
     /// <summary>
     /// CAL-8: a time dragged to on the calendar, as it sends it ("2026-11-05T18:30" for 45 minutes), or null when it

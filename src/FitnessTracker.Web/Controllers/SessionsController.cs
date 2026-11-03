@@ -42,6 +42,20 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return NotFound();
         }
 
+        // Q21: done once it has started, never before; skipped at any time.
+        var tooEarly = model.Mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant());
+
+        // FIT-3: a run's boxes are only read when it is saved as done. Anything else ignores them, even what can't be
+        // read, as does a session still to come (its page has none) or one of another kind (Q20).
+        var savesARun = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Run;
+        if (!savesARun)
+        {
+            foreach (var box in SessionLogViewModel.RunBoxes)
+            {
+                ModelState.Remove(box);
+            }
+        }
+
         // Requirements §9: saved only from a page that showed the session as it is now. The database checks the version
         // again as it saves (a concurrency token), for another tab saving at the same moment.
         var stored = await db.SessionLogs.SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
@@ -50,10 +64,26 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return await ChangedElsewhereAsync(session, user);
         }
 
-        // Q21: done once it has started, never before; skipped at any time.
-        if (model.Mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant()))
+        if (tooEarly)
         {
             ModelState.AddModelError(string.Empty, "It hasn't started yet, so it can't be marked done. You can mark it skipped.");
+            return View(await PageAsync(session, user));
+        }
+
+        if (savesARun)
+        {
+            foreach (var problem in model.RunProblems(user.Preferences.DistanceUnit))
+            {
+                foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))
+                {
+                    ModelState.AddModelError(field, problem.ErrorMessage ?? "");
+                }
+            }
+        }
+
+        // The page again, with what was typed still in its boxes (they show what was posted).
+        if (!ModelState.IsValid)
+        {
             return View(await PageAsync(session, user));
         }
 
@@ -73,6 +103,15 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             }
 
             stored.Mark = model.Mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
+            if (model.Mark == SessionChoice.Skipped)
+            {
+                // Q28: a skipped session has no details.
+                stored.ForgetDetails();
+            }
+            else if (savesARun)
+            {
+                model.ApplyRunTo(stored, user.Preferences.DistanceUnit);
+            }
         }
 
         try
@@ -92,7 +131,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
 
     // The page as the session is now, saying why nothing was saved. Its hidden version is the current one (not the one
     // posted), so saving from it again works.
-    private async Task<IActionResult> ChangedElsewhereAsync((PlannedActivity Activity, Occurrence Occurrence) session, UserPlanning user)
+    private async Task<IActionResult> ChangedElsewhereAsync(FoundSession session, UserPlanning user)
     {
         ModelState.AddModelError(string.Empty, ChangedElsewhere);
         ModelState.Remove(nameof(SessionLogViewModel.Version));
@@ -102,7 +141,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
     // The session the activity's rule puts on date, where it is now: null when the activity isn't the user's, isn't
     // exercise (Q20), can't be read (edited by hand), or has no session that day (cancelled, or not in its routine's
     // weeks: CAL-9).
-    private async Task<(PlannedActivity Activity, Occurrence Occurrence)?> FindAsync(Guid id, string? date, UserPlanning user)
+    private async Task<FoundSession?> FindAsync(Guid id, string? date, UserPlanning user)
     {
         var activity = await db.Activities.AsNoTracking().SingleOrDefaultAsync(activity => activity.Id == id);
         if (activity is null || !activity.Category.IsExercise() || FormInput.ParseDate(date) is not { } day)
@@ -120,13 +159,17 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return null;
         }
 
-        return ActivityCheck.OccurrenceOn(planned.Series, day) is { } occurrence ? (planned, occurrence) : null;
+        return ActivityCheck.OccurrenceOn(planned.Series, day) is { } occurrence ? new FoundSession(planned, activity.Category, occurrence) : null;
     }
 
-    private async Task<SessionLogViewModel> PageAsync((PlannedActivity Activity, Occurrence Occurrence) session, UserPlanning user)
+    private async Task<SessionLogViewModel> PageAsync(FoundSession session, UserPlanning user)
     {
         var log = await db.SessionLogs.AsNoTracking()
             .SingleOrDefaultAsync(log => log.ActivityId == session.Activity.Id && log.OccurrenceDate == session.Occurrence.Date);
-        return SessionLogViewModel.For(session.Activity, session.Occurrence, log, user.Now.ToInstant(), user.Context.Clock);
+        return SessionLogViewModel.For(
+            session.Activity, session.Category, session.Occurrence, log, user.Now.ToInstant(), user.Context.Clock, user.Preferences.DistanceUnit);
     }
+
+    // One session: its activity (and that activity's category), and the occurrence.
+    private sealed record FoundSession(PlannedActivity Activity, ActivityCategory Category, Occurrence Occurrence);
 }

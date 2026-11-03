@@ -52,4 +52,14 @@ public class SessionLog : IOwnedByUser, IVersioned
 
     /// <summary>FIT-3: how hard it felt, 1 (very easy) to 10 (all out) (Q29), or null when not given.</summary>
     public int? Effort { get; set; }
+
+    /// <summary>Q28: a session marked skipped has no details (a skipped run has no distance).</summary>
+    public void ForgetDetails()
+    {
+        ActualSeconds = null;
+        DistanceMetres = null;
+        RunType = null;
+        CustomRunType = null;
+        Effort = null;
+    }
 }

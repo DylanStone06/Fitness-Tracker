@@ -439,6 +439,89 @@ h2, .h2, h3, .h3, .h4, .h5 {
   display: none;
 }
 
+/* FIT-3: a run's figures (distance, time, pace, effort) as tiles in the page's own colour inside the white (dark:
+   raised) card, so every colour pair is one already measured; two across on a phone, four from 576 px. Figures use
+   tabular numbers, and a long one wraps rather than widening the page. */
+.ft-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+@media (min-width: 576px) {
+  .ft-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.ft-stat {
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-body-bg);
+}
+
+.ft-stat dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+}
+
+.ft-stat dd {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.ft-stat-unit {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+}
+
+.ft-stat-note {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--bs-secondary-color);
+}
+
+/* A saved run's form, folded away under "Change the details" (P7). Its heading is the control: in the link colour,
+   with room to tap (WCAG 2.5.8), and a clear focus ring (2.4.7). */
+.ft-fold > summary {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--bs-link-color);
+  cursor: pointer;
+}
+
+.ft-fold > summary:hover {
+  text-decoration: underline;
+}
+
+.ft-fold > summary:focus-visible {
+  outline: 3px solid var(--bs-link-color);
+  outline-offset: 2px;
+  border-radius: var(--bs-border-radius);
+}
+
+/* Q26: a custom type's name box only once "Custom" is chosen. A browser without :has() shows it always. */
+.ft-run-type:not(:has(option[value="Custom"]:checked)) .ft-custom-type {
+  display: none;
+}
+
+/* Boxes for short answers needn't stretch across a wide card. */
+.ft-field {
+  max-width: 22rem;
+}
+
+.ft-field-short {
+  max-width: 10rem;
+}
+
 /* The header stays at the top, so a link to a field (the error summary's) scrolls it below the header, not under it
    (WCAG 2.4.11). */
 html {
