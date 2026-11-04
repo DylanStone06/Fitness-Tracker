@@ -4,12 +4,6 @@ using NodaTime;
 
 namespace FitnessTracker.Web.Data;
 
-public enum WeightUnit
-{
-    Kilograms,
-    Pounds,
-}
-
 /// <summary>ACC-7: when someone prefers to exercise.</summary>
 public enum PreferredTimeOfDay
 {
