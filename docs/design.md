@@ -86,5 +86,12 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
   ("18:30" or "6:30pm", "06:00 the next day"). Buttons are words, not icons. On phones (under 768 px) it opens on the
   list, where each title is a link. The calendar page alone allows FullCalendar's `<style>` elements, by a one-time
   code in the policy (`SecurityHeaders.StyleNonce`). These came from the Phase 5 worst-case data check (`break-ui`).
+- **A session's page** (FIT-1, FIT-3): a saved run is a card headed by its type ("Easy run") with its figures as
+  tiles: Distance, Time (with the planned time under it), Pace and Effort (with its word). Tiles are the page's own
+  colour inside the card, so their text uses pairs measured above (figures 14.5:1, labels 5.83:1 in light); two
+  across on phones, four from 576 px; figures in tabular numbers, a long one breaking after a colon, never inside a
+  number. The run's form is folded under "Change the details" (a `<details>` whose heading is in the link colour) and
+  opened again when something typed needs fixing. A custom type's name box appears only once "Custom" is chosen (CSS
+  `:has()`, as the opening-hours days do). Short answers have narrower boxes (`ft-field`, `ft-field-short`).
 - **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
   elements (`<progress>`, not a styled `<div>`).

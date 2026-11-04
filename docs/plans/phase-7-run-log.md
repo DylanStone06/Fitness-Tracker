@@ -3,6 +3,10 @@
 Written 3 November 2026, before any code, at the owner's request that each step is planned in detail, built carefully
 to keep errors down, and looks clean. The decisions below are defaults (Q26-Q29 in the requirements), easy to change.
 
+**Status: built and checked, 3-4 November 2026**, in the commits listed below. The browser check found one fault, an
+absurdly slow pace ("2399:58:20") breaking inside a number on a phone, fixed by letting a figure break only after a
+colon. The planned distance limits became 0.01 to 1,000 in km or miles.
+
 ## What it adds, as the user sees it
 
 A run's session page (Run category only; Gym and Other exercise get theirs in steps 3 and 4) lets you log what you did
