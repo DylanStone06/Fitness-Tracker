@@ -158,6 +158,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // One mark per session, even if two tabs mark it at the same moment.
             log.HasIndex(l => new { l.ActivityId, l.OccurrenceDate }).IsUnique();
             log.Property(l => l.CustomRunType).HasMaxLength(SessionLog.CustomRunTypeMaxLength);
+            log.Property(l => l.CustomOtherType).HasMaxLength(SessionLog.CustomRunTypeMaxLength);
             log.Property(l => l.Notes).HasMaxLength(SessionLog.NotesMaxLength);
             // Deleting an activity deletes what its sessions were marked as.
             log.HasOne<Activity>().WithMany().HasForeignKey(l => l.ActivityId).OnDelete(DeleteBehavior.Cascade);

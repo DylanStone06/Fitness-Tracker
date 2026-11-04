@@ -16,6 +16,18 @@ public enum RunType
     Custom,
 }
 
+/// <summary>FIT-4, Q34: what an Other exercise session was, when it was given.</summary>
+public enum OtherType
+{
+    Walk,
+    Cycle,
+    Swim,
+    Mobility,
+
+    /// <summary>A type of the user's own, named in <see cref="SessionLog.CustomOtherType"/>.</summary>
+    Custom,
+}
+
 /// <summary>
 /// FIT-1: what one session (an occurrence of an exercise activity, Q20) was marked as: done or skipped. A session with
 /// none is planned. Known by the date its activity's rule puts it on, as a change to one occurrence is (CAL-4), so a
@@ -52,8 +64,14 @@ public class SessionLog : IOwnedByUser, IVersioned
     /// <summary>The name of a <see cref="Data.RunType.Custom"/> run's type; null for every other.</summary>
     public string? CustomRunType { get; set; }
 
-    /// <summary>FIT-3: how hard it felt, 1 (very easy) to 10 (all out) (Q29), or null when not given.</summary>
+    /// <summary>FIT-3, FIT-4: how hard it felt, 1 (very easy) to 10 (all out) (Q29, Q35), or null when not given.</summary>
     public int? Effort { get; set; }
+
+    /// <summary>FIT-4, Q34: what an Other exercise session was. Its time, distance and effort use the columns above.</summary>
+    public OtherType? OtherType { get; set; }
+
+    /// <summary>The name of a <see cref="Data.OtherType.Custom"/> session's type; null for every other.</summary>
+    public string? CustomOtherType { get; set; }
 
     /// <summary>FIT-2: notes on any session ("knee a bit sore"); kept when it is marked skipped.</summary>
     public string? Notes { get; set; }
@@ -72,6 +90,8 @@ public class SessionLog : IOwnedByUser, IVersioned
         RunType = null;
         CustomRunType = null;
         Effort = null;
+        OtherType = null;
+        CustomOtherType = null;
         Sets.Clear();
     }
 }

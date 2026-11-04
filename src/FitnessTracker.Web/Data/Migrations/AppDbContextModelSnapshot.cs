@@ -403,6 +403,10 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.Property<int?>("ActualSeconds")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CustomOtherType")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CustomRunType")
                         .HasMaxLength(40)
                         .HasColumnType("TEXT");
@@ -423,6 +427,9 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.Property<string>("OccurrenceDate")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("OtherType")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("OwnerId")
                         .IsConcurrencyToken()
