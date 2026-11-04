@@ -29,7 +29,8 @@ and changing are counted, and it says plainly when a week's goals won't fit inst
 
 - First user: the owner, on desktop and phone. Built **multi-user-safe from day one** (each user's data isolated and
   tested), but not offered as a public service in the MVP.
-- Defaults, all changeable: timezone Europe/London, week starts Monday, 24-hour clock, kilometres and kilograms.
+- Defaults, all changeable: timezone Europe/London, week starts Monday, 24-hour clock, miles and kilograms (UK units:
+  the owner, 4 November 2026, Q25; kilometres until then).
 
 ## 4. Glossary
 
@@ -363,7 +364,7 @@ recommendation, accepted. Those marked **to be built** differ from what the app 
 | Q22 | What is "Rescheduled"? | A session of a repeating activity moved on its own to another time (CAL-4: on the calendar, or with Find another time). It says where it was ("Rescheduled from Tue 3 Nov, 18:00") and counts as planned at its new time until it is marked. Not a separate choice. |
 | Q23 | Does logging a session change the calendar? | No. The calendar keeps the planned time; the log records what was done (how long, and for each kind its details: a run's type, distance and effort; sets; intensity). |
 | Q24 | What counts towards a weekly goal (FIT-5)? | **To be built, with FIT-5.** That week's sessions of the activities linked to the goal, each done, skipped, not logged or still to come, against how many the goal asks for. An activity is linked when it is added from Plan my week, or by choosing the goal on the activity's own form ("Counts towards"), so a session added by hand can count too. Not by category alone: two goals can share one (upper body and legs, both Gym). |
-| Q25 | Units for distance, weight and pace? | Stored in metres and kilograms (CLAUDE.md rule 6), shown in the units chosen in Preferences (km or miles; kg or lb). **UK units by default (to be built):** a new account shows miles and kilograms. Pace is worked out from time and distance, never stored, and shown per km or per mile ("8:51 per mile"). |
+| Q25 | Units for distance, weight and pace? | Stored in metres and kilograms (CLAUDE.md rule 6), shown in the units chosen in Preferences (km or miles; kg or lb). UK units by default: a new account shows miles and kilograms. Pace is worked out from time and distance, never stored, and shown per km or per mile ("8:51 per mile"). |
 | Q26 | What does a run's log hold (FIT-3)? | Its type (easy, long, tempo, intervals, recovery, or a custom name of up to 40 characters), the time it took, its distance and how hard it felt, each optional: saving with none just marks it done. The planned time is the session's own length, shown beside the time taken, never typed. Logged once the run has started. |
 | Q27 | How are a run's time and distance typed and shown? | Time in three boxes (hours, minutes, seconds; up to 24 hours), shown as a stopwatch shows it ("28:36", "1:05:20"). Distance as a number with a decimal point ("5.2"), 0.01 to 1,000 in km or miles, stored to the nearest metre, shown with up to 2 decimals ("5.2 km", "3.11 miles", "1 mile"); its box is filled so that saving it unchanged gives back the same metres. |
 | Q28 | What happens to a run's details when it is marked skipped, or back to planned? | They are removed: a skipped run has no distance. The page says so beside those buttons, before they are pressed. |

@@ -28,6 +28,18 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Equal("30", InputValue(html, "WakeUpRoutineMinutes"));
     }
 
+    // Q25: UK units until chosen otherwise: miles and kilograms (the owner, 4 November 2026).
+    [Fact]
+    public async Task BeforeAnythingIsSaved_DistancesAreInMiles_AndWeightsInKilograms()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        var html = await PageAsync(browser);
+
+        Assert.Equal("Miles", CheckedValue(html, "DistanceUnit"));
+        Assert.Equal("Kilograms", CheckedValue(html, "WeightUnit"));
+    }
+
     [Fact]
     public async Task Save_StoresThePreferences_AndThePageShowsThemNextTime()
     {
@@ -244,6 +256,14 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
         var value = Regex.Match(input.Value, """\svalue="([^"]*)" """.TrimEnd());
         return value.Success ? WebUtility.HtmlDecode(value.Groups[1].Value) : null;
     }
+
+    // The value of the chosen radio button named name, or null when none is chosen.
+    private static string? CheckedValue(string html, string name) =>
+        Regex.Matches(html, $"""<input[^>]*\sname="{name}"[^>]*>""")
+            .Select(input => input.Value)
+            .Where(input => input.Contains("checked=\"checked\"", StringComparison.Ordinal))
+            .Select(input => Regex.Match(input, """\svalue="([^"]*)" """.TrimEnd()).Groups[1].Value)
+            .SingleOrDefault();
 
     private static string? SelectedValue(string html, string name)
     {

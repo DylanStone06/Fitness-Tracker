@@ -69,12 +69,23 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         Assert.Contains("Pace 2399:58:20 per km", TextOf(page), StringComparison.Ordinal);
     }
 
-    // Q25: in miles, when chosen in Preferences: typed and shown in miles, stored in metres, and the pace is per mile.
+    // Q25: UK units until chosen otherwise: a new account's run is typed and shown in miles.
+    [Fact]
+    public async Task UntilChosenOtherwise_ARunIsInMiles()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19", distanceUnit: null);
+
+        var form = TextOf(await PageAsync(browser, id, "2026-10-19"));
+
+        Assert.Contains("Distance (miles)", form);
+        Assert.Contains("In miles, as set in your preferences", form);
+    }
+
+    // Q25: in miles: typed and shown in miles, stored in metres, and the pace is per mile.
     [Fact]
     public async Task InMiles_ARunIsTypedAndShownInMiles_AndStoredInMetres()
     {
-        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
-        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["DistanceUnit"] = "Miles" })).StatusCode);
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19", distanceUnit: "Miles");
         var form = TextOf(await PageAsync(browser, id, "2026-10-19"));
 
         await LogRunAsync(browser, id, "2026-10-19", new() { ["TimeMinutes"] = "40", ["Distance"] = "5" });
@@ -91,8 +102,7 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
     [Fact]
     public async Task ResavingAnUnchangedRunInMiles_KeepsTheSameMetres()
     {
-        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
-        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["DistanceUnit"] = "Miles" })).StatusCode);
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19", distanceUnit: "Miles");
         await LogRunAsync(browser, id, "2026-10-19", new() { ["Distance"] = "3.107" });
         var before = (await StoredData.SessionLogAsync(factory, id, Today))!.DistanceMetres;
 
@@ -167,8 +177,7 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
     [Fact]
     public async Task TheDistancesLimits_AreSaidInMiles_WhenChosen()
     {
-        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
-        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["DistanceUnit"] = "Miles" })).StatusCode);
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19", distanceUnit: "Miles");
 
         var response = await LogRunAsync(browser, id, "2026-10-19", new() { ["Distance"] = "1001" });
 
@@ -233,7 +242,7 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         var skipped = await LogRunAsync(browser, id, "2026-10-20", AnEasyRun, mark: "Skipped");
 
         Assert.DoesNotContain("Log this run", page);
-        Assert.DoesNotContain("Distance (km)", page);
+        Assert.DoesNotContain("Distance (", page);
         Assert.Contains("It hasn't started yet, so it can't be marked done.", WebUtility.HtmlDecode(await done.Content.ReadAsStringAsync()));
         Assert.Equal(HttpStatusCode.Redirect, skipped.StatusCode);
         var log = await StoredData.SessionLogAsync(factory, id, Today.PlusDays(1));
@@ -293,9 +302,17 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         ["Effort"] = "6",
     };
 
-    private async Task<(TestBrowser Browser, Guid Id)> SignedInWithASessionAsync(string date, string category = "Run", string user = "alex")
+    // A new user with one session on date, who has chosen distanceUnit in Preferences (km unless said, as most of these
+    // tests are written in km), or nothing when it is null (UK units by default: Q25).
+    private async Task<(TestBrowser Browser, Guid Id)> SignedInWithASessionAsync(
+        string date, string category = "Run", string user = "alex", string? distanceUnit = "Kilometres")
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, user);
+        if (distanceUnit is not null)
+        {
+            Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["DistanceUnit"] = distanceUnit })).StatusCode);
+        }
+
         var title = TestBrowser.NewName(category);
         Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(title, new() { ["StartDate"] = date, ["Category"] = category })).StatusCode);
         return (browser, (await StoredData.ActivityTitledAsync(factory, title))!.Id);
