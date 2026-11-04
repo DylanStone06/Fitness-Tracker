@@ -41,15 +41,18 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    activity's location): the filter makes another user's id "not found", which the form reports as "choose from
    the list".
 6. **Every save of an activity goes through `ActivityChecker`** (SCH-1, CLAUDE.md rule 3), on the activity exactly as
-   it would be stored; the rules themselves are in `Domain/Scheduling/ActivityCheck`. A new way of saving (calendar
-   drag and drop, accepted suggestions, imports) calls it too and shows its problems and clashes.
+   it would be stored; the rules themselves are in `Domain/Scheduling/ActivityCheck`. A change to one occurrence
+   (CAL-4) uses `ActivityChecker.CheckOccurrenceAsync`, on that occurrence where it now is. Calendar drag and drop
+   never saves: it opens the occurrence's page or the activity's form with the new time filled in, which check it as
+   any save (Phase 5). A new way of saving (accepted suggestions, imports) calls the checker too and shows its
+   problems and clashes.
 
 ### Notes for later phases
 
-- **Phase 5, one-off changes to an occurrence** (CAL-4). `PlanningData.ActivitiesOnAsync` loads a one-off only if its
-  start date is in the dates asked for, and a repeating activity only if it has started by then. Once a moved
-  occurrence is stored, an activity moved into those dates from outside them must still be loaded, or the check on
-  save and the home page will miss it.
+- **One-off changes to an occurrence** (CAL-4, built in Phase 5) are stored as text with the activity
+  (`OccurrenceChangesText`). Because a moved occurrence can land on any date, `PlanningData.ActivitiesOnAsync` loads
+  every activity that has changes, whatever the dates asked for; the cost of that grows with history (known
+  limitations, measured in Phase 9). The calendar feed (`CalendarController.Events`) has its own T19 test.
 
 - **Optimistic concurrency** (requirements §9, built for locations). Records that implement `IVersioned` get a new
   `Version` on every save, checked like `OwnerId`, so an out-of-date tab can't overwrite a newer save. An ownership

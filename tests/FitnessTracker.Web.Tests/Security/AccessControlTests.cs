@@ -28,6 +28,8 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Activities/Edit/{id}" },
         { "GET", "/Activities/Delete/{id}" },
         { "POST", "/Activities/Delete/{id}" },
+        { "GET", "/Activities/Occurrence/{id}" },
+        { "POST", "/Activities/Occurrence/{id}" },
     };
 
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's

@@ -255,6 +255,20 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         Assert.Contains("class=\"ft-chip\">Social</span>", html);
     }
 
+    // CAL-4: an occurrence of a repeating activity opens its own page, to change just that one.
+    [Fact]
+    public async Task ARepeatingActivity_OpensThatOccurrence()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Daily walk");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "19:00", ["Repeats"] = "Daily" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var html = await HomePageAsync(browser);
+
+        Assert.Contains($"href=\"/Activities/Occurrence/{id}?date=2026-10-20\"", html);
+    }
+
     // T19: the home page shows only the signed-in user's own activities.
     [Fact]
     public async Task AnotherUsersActivities_AreNotShown()

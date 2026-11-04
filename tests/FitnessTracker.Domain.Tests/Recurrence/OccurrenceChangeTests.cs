@@ -16,6 +16,22 @@ public class OccurrenceChangeTests
     private static readonly Series Gym = new(new(2026, 10, 5), new(7, 0), Duration.FromMinutes(50), London,
         RecurrenceRule.Weekly([IsoDayOfWeek.Monday, IsoDayOfWeek.Wednesday, IsoDayOfWeek.Friday]));
 
+    // P5 (scheduling review L-3): Wednesday's session moved to 07:30, then the whole series edited to 07:30. That move
+    // is now no change at all, so it isn't counted as kept (or removed): only Friday's cancellation is kept.
+    [Fact]
+    public void EditingTheSeriesOntoAMovedTime_DoesntCountThatMoveAsKept()
+    {
+        var changed = Gym
+            .MoveOccurrence(Wednesday7th, new LocalDateTime(2026, 10, 7, 7, 30), Duration.FromMinutes(50))
+            .CancelOccurrence(Friday9th);
+
+        var edit = changed.Edit(changed.FirstDate, new LocalTime(7, 30), changed.Length, changed.Rule);
+
+        Assert.Equal(1, edit.KeptChanges);
+        Assert.Equal(0, edit.RemovedChanges);
+        Assert.Equal([Friday9th], edit.Series.Changes.Keys);
+    }
+
     [Fact]
     public void CancellingOneOccurrence_RemovesOnlyThatOne()
     {

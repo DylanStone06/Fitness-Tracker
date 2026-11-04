@@ -6,7 +6,8 @@
     <div class="form-text" id="home-hint">Travel to your other locations is measured from home. Only one location can be home.</div>
 </div>
 
-<fieldset class="mb-3" aria-describedby="hours-hint hours-error">
+@* TRV-1: always open unless set hours are chosen; the days only show then (site.css, .ft-opening-days). *@
+<fieldset class="mb-3 ft-hours" aria-describedby="hours-error">
     <legend class="h5">Opening hours</legend>
     <span asp-validation-for="HasOpeningHours" class="d-block text-danger" id="hours-error"></span>
     <div class="form-check">
@@ -18,13 +19,25 @@
         <label class="form-check-label" for="HasOpeningHours-set">Set opening hours</label>
     </div>
 
+    <div class="ft-opening-days">
     <div class="form-text mt-0 mb-2" id="hours-hint">
-        Only used with set opening hours. A closing time earlier than the opening time means after midnight, for
-        example 18:00 to 02:00. Your activity itself must be inside these hours; travel to and from it needn't be.
+        A closing time earlier than the opening time means after midnight, for example 18:00 to 02:00. Your activity
+        itself must be inside these hours; travel to and from it needn't be.
     </div>
 
     @for (var i = 0; i < Model.OpeningDays.Count; i++)
     {
+        if (i == 1)
+        {
+            @* Same hours on other days, such as an office open Monday to Friday. The buttons need JavaScript (site.js),
+               so they show only when it runs; without it, each day is typed in. *@
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-monday="weekdays" hidden>Copy Monday's hours to Tuesday to Friday</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-monday="every-day" hidden>Copy Monday's hours to every day</button>
+                <span class="small text-body-secondary" role="status" data-copy-monday-status></span>
+            </div>
+        }
+
         <fieldset class="border rounded p-2 mb-2">
             <legend class="fs-6 fw-bold float-none w-auto px-1 mb-1">@Model.OpeningDays[i].Day</legend>
             <input type="hidden" asp-for="OpeningDays[i].Day" />
@@ -48,4 +61,5 @@
             </div>
         </fieldset>
     }
+    </div>
 </fieldset>

@@ -1,0 +1,54 @@
+@model FitnessTracker.Web.Models.Calendar.CalendarPageViewModel
+@{
+    ViewData["Title"] = "Calendar";
+}
+@section Head {
+    @* §9: FullCalendar adds its styles with <style> elements; this one-time code lets them through the
+       Content-Security-Policy, for this page only. *@
+    <meta name="csp-nonce" content="@SecurityHeaders.StyleNonce(Context)" />
+}
+
+<h1>Calendar</h1>
+<p class="text-body-secondary">
+    Each activity with the time around it: getting ready, travel and changing are the lighter bands above and below it.
+    Select an activity to change it, or an empty time to add one there. Dragging an activity, or its bottom edge,
+    opens it with the new time filled in, to check and save.
+</p>
+<p><a class="btn btn-primary" asp-controller="Activities" asp-action="Create" asp-route-returnToCalendar="true">Add an activity</a></p>
+
+@* CAL-4, P5: back from editing the whole activity: what happened to occurrences changed on their own. *@
+@if (TempData[FitnessTracker.Web.Controllers.ActivitiesController.SeriesEdit] is string seriesEdit)
+{
+    <div class="alert alert-info" role="status">@seriesEdit</div>
+}
+
+@if (Model.Unreadable.Count > 0)
+{
+    <div class="alert alert-warning" role="status">
+        <ul class="mb-0">
+            @foreach (var problem in Model.Unreadable)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+<div id="calendar" class="ft-calendar"
+     data-events-url="@Model.EventsUrl"
+     data-time-zone="@Model.TimeZoneId"
+     data-first-day="@Model.FirstDay"
+     data-hour12="@(Model.Hour12 ? "true" : "false")"
+     data-create-url="@Url.Action("Create", "Activities")"
+     data-edit-url="@Url.Action("Edit", "Activities")"
+     data-occurrence-url="@Url.Action("Occurrence", "Activities")"
+     data-initial-date="@Model.InitialDate"></div>
+<p id="calendar-status" class="small text-body-secondary mt-2" role="status"></p>
+<noscript>
+    <p>The calendar needs JavaScript. Your activities are all on the <a asp-controller="Activities" asp-action="Index">Activities</a> page.</p>
+</noscript>
+
+@section Scripts {
+    <script src="~/lib/fullcalendar/index.global.min.js"></script>
+    <script src="~/js/calendar.js" asp-append-version="true"></script>
+}

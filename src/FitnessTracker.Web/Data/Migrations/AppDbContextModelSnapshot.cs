@@ -45,6 +45,9 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("OccurrenceChanges")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("OwnerId")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -303,6 +306,9 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Appearance")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("DistanceUnit")
                         .HasColumnType("INTEGER");

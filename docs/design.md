@@ -12,8 +12,11 @@ things stand out, and progress that encourages rather than punishes.
    (1.4.11). Any new colour pair is measured before it's used and added to the table below.
 3. **No new libraries or downloads for the look.** Bootstrap 5.3 (already self-hosted) with its own variables
    overridden in `wwwroot/css/site.css`; the device's own fonts; the logo is an inline SVG.
-4. **Dark mode follows the device** (`wwwroot/js/theme.js` sets Bootstrap's `data-bs-theme` before the page is drawn).
-   Without JavaScript the page is light. A choice in Preferences can come later.
+4. **Dark by default** (the owner's choice, 20 October 2026), including signed-out pages. Preferences, Appearance,
+   offers Dark, Light or "Match my device". The server sends each page with Bootstrap's `data-bs-theme` already set,
+   so it never flashes the other theme; only "Match my device" loads `wwwroot/js/theme.js`, which switches the page to
+   the device's setting before it is drawn (it stays light without JavaScript). The error page is always dark: it may
+   be showing a database fault, so it doesn't read the preference.
 5. **Small motion only**, and none that Bootstrap doesn't already switch off for "reduce motion".
 6. **Missed or past sessions are never shown as failures in red** (P3, P4). Red is for clashes and form errors.
 
@@ -69,5 +72,14 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
   started" shows its progress as a bar and in words ("3 of 4 done"). On wide screens, Next up and today sit beside
   the next 7 days; on phones they stack.
 - **Empty states** say what to do next ("Nothing planned in the next 7 days. Add an activity.").
+- **Calendar** (FullCalendar): a card like the others; activities in their category's label colours with a thicker
+  stripe-coloured edge, and getting ready, travel and changing as dashed, lighter bands behind the day in the same
+  colour, above and below it, so the activity keeps its full width (not in the list view, which says "Leave home …,
+  back …"). A clash has a red outline and says "⚠ Clashes with 2 others" in the grid and the names in the list. In the
+  grid, an activity's text stays inside its block: a half-hour block shows its start and title on one line. Two
+  overlapping activities sit side by side, then "+N more" opens the rest. Times are written as on every other page
+  ("18:30" or "6:30pm", "06:00 the next day"). Buttons are words, not icons. On phones (under 768 px) it opens on the
+  list, where each title is a link. The calendar page alone allows FullCalendar's `<style>` elements, by a one-time
+  code in the policy (`SecurityHeaders.StyleNonce`). These came from the Phase 5 worst-case data check (`break-ui`).
 - **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
   elements (`<progress>`, not a styled `<div>`).

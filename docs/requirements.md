@@ -77,7 +77,7 @@ IDs are referenced from tests and commit messages. **[MVP]** = first release; **
 - **ACC-2 [MVP]** Every page except sign-in and register needs a signed-in user. A user can only read or change their
   own data; anyone else's returns "not found" (not "forbidden", which would confirm it exists).
 - **ACC-3 [MVP]** Preferences: timezone (IANA name), week start day, 12/24-hour clock, distance unit (km/mi), weight
-  unit (kg/lb).
+  unit (kg/lb), appearance (dark by default, light, or matching the device; added by the owner on 20 October 2026).
 - **ACC-4 [MVP]** Sleep preferences: target sleep, minimum sleep, usual bedtime and wake time, wind-down before bed
   (default 30 min), wake-up routine before the first commitment (default 30 min).
 - **ACC-5 [MVP]** Work pattern: workdays and hours, office or remote per day, commute legs for office days.
@@ -338,3 +338,9 @@ Decided by the owner on 20 October 2026, at the end of Phase 4:
 | Q9 | Default getting-ready and changing times per category (ACC-6)? | Built in Phase 4. |
 | Q10 | Back-to-back activities at the same place (the office gym straight after work)? | After the MVP, with location chaining (SCH-8). |
 | Q11 | Does a day's load count overlapping footprints each in full? | Yes, as §7.3's "total footprint minutes": an overlap there is a clash the user chose to keep. |
+
+Decided by the owner on 21 October 2026, during Phase 5:
+
+| # | Question | Decision |
+|---|---|---|
+| Q12 | What does accepting a "Plan my week" suggestion (SCH-4) add? | Either, chosen each time: the main button adds it every week at that day and time, from that week on (building a routine, since the owner plans a routine before knowing set times); a second button adds it for that week only. One week can then be changed on the calendar as any occurrence (CAL-4). Weekly targets (GOL-1) have no time of their own: the planner finds it. |

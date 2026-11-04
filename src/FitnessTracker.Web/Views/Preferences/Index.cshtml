@@ -97,6 +97,22 @@
             </fieldset>
 
             <fieldset class="mb-4">
+                <legend class="h4">Appearance</legend>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Appearance" value="@Appearance.Dark" id="Appearance" />
+                    <label class="form-check-label" for="Appearance">Dark</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Appearance" value="@Appearance.Light" id="Appearance-light" />
+                    <label class="form-check-label" for="Appearance-light">Light</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Appearance" value="@Appearance.Device" id="Appearance-device" />
+                    <label class="form-check-label" for="Appearance-device">Match my device's light or dark setting</label>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
                 <legend class="h4">Sleep</legend>
                 <p class="form-text mt-0">The planner protects the least sleep you need, and warns when a night falls below your aim.</p>
 

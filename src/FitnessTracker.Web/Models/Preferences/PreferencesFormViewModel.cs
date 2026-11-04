@@ -35,6 +35,9 @@ public class PreferencesFormViewModel
     [Display(Name = "Weights in")]
     public WeightUnit WeightUnit { get; set; }
 
+    [Display(Name = "Appearance")]
+    public Appearance Appearance { get; set; }
+
     [Display(Name = "Sleep you aim for (hours)")]
     [Range(3, 14, ErrorMessage = "Enter between {1} and {2} hours.")]
     public decimal TargetSleepHours { get; set; } = 8;
@@ -86,6 +89,7 @@ public class PreferencesFormViewModel
         Use24HourClock = preferences.Use24HourClock,
         DistanceUnit = preferences.DistanceUnit,
         WeightUnit = preferences.WeightUnit,
+        Appearance = preferences.Appearance,
         TargetSleepHours = Hours(preferences.TargetSleepMinutes),
         MinimumSleepHours = Hours(preferences.MinimumSleepMinutes),
         UsualBedtime = ClockTime.Format(preferences.UsualBedtime),
@@ -108,6 +112,7 @@ public class PreferencesFormViewModel
         preferences.Use24HourClock = Use24HourClock;
         preferences.DistanceUnit = DistanceUnit;
         preferences.WeightUnit = WeightUnit;
+        preferences.Appearance = Appearance;
         preferences.TargetSleepMinutes = Minutes(TargetSleepHours);
         preferences.MinimumSleepMinutes = Minutes(MinimumSleepHours);
         preferences.UsualBedtime = ClockTime.Parse(UsualBedtime).Value;

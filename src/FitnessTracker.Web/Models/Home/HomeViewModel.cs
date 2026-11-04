@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Services;
 using NodaTime;
@@ -23,11 +24,15 @@ public sealed class HomeViewModel
 
     public required string Greeting { get; init; }
 
+    /// <summary>How the page writes times (ACC-3).</summary>
+    public required ClockFormat Clock { get; init; }
+
     public required IReadOnlyList<SetupStep> Steps { get; init; }
 
     public required LocalDate Today { get; init; }
 
-    public required IReadOnlyList<AgendaItem> Agenda { get; init; }
+    /// <summary>Today's and the next 7 days' occurrences (named Items so it doesn't hide the Agenda class).</summary>
+    public required IReadOnlyList<AgendaItem> Items { get; init; }
 
     /// <summary>The next activity (GOL-2), or null when nothing listed is left.</summary>
     public required NextUp? Next { get; init; }
@@ -37,6 +42,9 @@ public sealed class HomeViewModel
 
     /// <summary>Each of the user's activities' category, for its colour and name (CAL-2).</summary>
     public required IReadOnlyDictionary<Guid, ActivityCategory> Categories { get; init; }
+
+    /// <summary>The repeating ones: an occurrence of one opens its own page, to change just that one (CAL-4).</summary>
+    public required IReadOnlySet<Guid> Repeating { get; init; }
 
     public required Guid? Home { get; init; }
 
@@ -48,7 +56,7 @@ public sealed class HomeViewModel
     public bool StillToSetUp => Steps.Any(step => !step.Done);
 
     public IEnumerable<AgendaItem> On(LocalDate date) =>
-        Agenda.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
+        Items.Where(item => item.Occurrence.Time.Start.InZone(item.Activity.Series.Zone).Date == date);
 
     /// <summary>"Good morning" from 05:00, "Good afternoon" from 12:00, "Good evening" from 18:00 until 05:00.</summary>
     public static string GreetingAt(LocalTime time) => time.Hour switch
@@ -74,10 +82,14 @@ public sealed class HomeViewModel
             : DayPattern.Format(date);
     }
 
-    public static HomeViewModel From(UserPlanning user, IReadOnlyList<AgendaItem> agenda, IReadOnlyDictionary<Guid, ActivityCategory> categories, IReadOnlyList<string> unreadable)
+    public static HomeViewModel From(
+        UserPlanning user,
+        IReadOnlyList<AgendaItem> agenda,
+        IReadOnlyDictionary<Guid, ActivityCategory> categories,
+        IReadOnlySet<Guid> repeating,
+        IReadOnlyList<string> unreadable)
     {
-        // Qualified: inside this class, "Agenda" is the property.
-        var next = Domain.Scheduling.Agenda.Next(agenda, user.Now.ToInstant());
+        var next = Agenda.Next(agenda, user.Now.ToInstant());
         var home = user.Context.Home;
 
         // Both journeys to and from every place away from home (§7.1): a missing one is never taken as zero.
@@ -98,11 +110,13 @@ public sealed class HomeViewModel
                 new("Add an activity", categories.Count > 0, "Activities", "Create"),
             ],
             Greeting = GreetingAt(user.Now.TimeOfDay),
+            Clock = user.Context.Clock,
             Today = user.Context.Today,
-            Agenda = agenda,
+            Items = agenda,
             Next = next,
             NextWhen = next is null ? null : When(next, user.Context.Today),
             Categories = categories,
+            Repeating = repeating,
             Home = home,
             PlaceNames = user.Locations.ToDictionary(location => location.Id, location => location.Name),
             Unreadable = unreadable,

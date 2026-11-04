@@ -192,37 +192,4 @@
     </fieldset>
 </fieldset>
 
-@* Q2: shown only when the one check found clashes (H1). Saving with them is a choice made here, each time. *@
-@if (ViewData["Clashes"] is IReadOnlyList<string> clashes && clashes.Count > 0)
-{
-    const int shown = 5;
-    <div class="alert alert-warning mb-3">
-        <h2 class="h5">Clashes with your other activities</h2>
-        <ul>
-            @foreach (var clash in clashes.Take(shown))
-            {
-                <li>@clash</li>
-            }
-        </ul>
-        @if (clashes.Count > shown)
-        {
-            <p>And @(clashes.Count - shown) more.</p>
-        }
-        @if (ViewData["CheckNotes"] is IReadOnlyList<string> { Count: > 0 } notes)
-        {
-            <p class="mb-1">Some of your other activities could only be checked in part:</p>
-            <ul>
-                @foreach (var note in notes)
-                {
-                    <li>@note</li>
-                }
-            </ul>
-        }
-        <input type="hidden" asp-for="ShownClashes" />
-        <span asp-validation-for="ConfirmClashes" class="d-block text-danger" id="confirm-error"></span>
-        <div class="form-check">
-            <input asp-for="ConfirmClashes" class="form-check-input" aria-describedby="confirm-error" />
-            <label asp-for="ConfirmClashes" class="form-check-label"></label>
-        </div>
-    </div>
-}
+<partial name="_ClashBox" model="Model" />

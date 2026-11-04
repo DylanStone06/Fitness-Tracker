@@ -1,3 +1,4 @@
+using FitnessTracker.Domain.Time;
 using NodaTime;
 
 namespace FitnessTracker.Web.Data;
@@ -22,6 +23,14 @@ public enum PreferredTimeOfDay
     Midday,
     Afternoon,
     Evening,
+}
+
+/// <summary>ACC-3: how the pages look. Dark unless chosen otherwise (the owner's choice, 20 October 2026).</summary>
+public enum Appearance
+{
+    Dark,
+    Light,
+    Device,
 }
 
 /// <summary>A set of weekdays, stored as one number.</summary>
@@ -59,9 +68,14 @@ public class UserPreferences : IOwnedByUser, IVersioned
 
     public bool Use24HourClock { get; set; } = true;
 
+    /// <summary>How pages and explanations write times ("18:30" or "6:30pm").</summary>
+    public ClockFormat TimesShownAs() => Use24HourClock ? ClockFormat.TwentyFourHour : ClockFormat.TwelveHour;
+
     public DistanceUnit DistanceUnit { get; set; } = DistanceUnit.Kilometres;
 
     public WeightUnit WeightUnit { get; set; } = WeightUnit.Kilograms;
+
+    public Appearance Appearance { get; set; } = Appearance.Dark;
 
     // ACC-4
     public int TargetSleepMinutes { get; set; } = 8 * 60;

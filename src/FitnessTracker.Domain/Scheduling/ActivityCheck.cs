@@ -1,6 +1,7 @@
 using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Locations;
 using FitnessTracker.Domain.Recurrence;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 using NodaTime.Text;
 
@@ -12,8 +13,12 @@ public sealed record PlannedActivity(Guid Id, string Title, Series Series, Buffe
 /// <summary>One of the user's locations: its name, for explanations, and its opening hours (H4).</summary>
 public sealed record Place(string Name, OpeningHours OpeningHours);
 
-/// <summary>What the check needs besides the activities: today, home (the base for travel, §7.1), travel times and places.</summary>
-public sealed record PlanningContext(LocalDate Today, Guid? Home, TravelTimes Travel, IReadOnlyDictionary<Guid, Place> Places);
+/// <summary>
+/// What the check needs besides the activities: today, home (the base for travel, §7.1), travel times and places, and
+/// how the user wants times written in its explanations (ACC-3).
+/// </summary>
+public sealed record PlanningContext(
+    LocalDate Today, Guid? Home, TravelTimes Travel, IReadOnlyDictionary<Guid, Place> Places, ClockFormat Clock = ClockFormat.TwentyFourHour);
 
 /// <summary>What a problem is about, so a form can show it next to the right field.</summary>
 public enum CheckAspect
@@ -62,7 +67,6 @@ public static class ActivityCheck
 
     private static readonly LocalDatePattern Date = Times.Date;
 
-    private static readonly LocalTimePattern Time = Times.Time;
 
     public static ActivityCheckResult Check(PlannedActivity candidate, IEnumerable<PlannedActivity> others, PlanningContext context)
     {
@@ -93,7 +97,16 @@ public static class ActivityCheck
 
         var everyDaysOfTheWeek = series.Rule.Frequency == RepeatFrequency.Daily ? series.Rule.Every * 7 : 0;
         var longerDates = new DateInterval(firstChecked, firstChecked.PlusDays(Math.Max(WeeksAheadForHoursAndLength * 7, everyDaysOfTheWeek) - 1));
-        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End);
+        // CAL-4, SCH-1: an occurrence moved somewhere else is checked wherever it lands, as well as these dates; one moved
+        // into the past only when the whole series is (MovedOutside).
+        // In time order, so explanations name the earliest first, and up to the last date checked.
+        var longerOccurrences = series.OccurrencesBetween(longerDates.Start, longerDates.End)
+            .Concat(MovedOutside(series, longerDates, context.Today))
+            .OrderBy(occurrence => occurrence.Time.Start)
+            .ToList();
+        var checkedUpTo = longerOccurrences.Count == 0
+            ? longerDates.End
+            : LocalDate.Max(longerDates.End, longerOccurrences[^1].Time.Start.InZone(series.Zone).Date);
 
         // H8 on every occurrence, each against its own day: a moved one can be longer, and the whole 25-hour day the
         // clocks go back is allowed (Q7). The usual length is also checked against an ordinary day whenever the rule
@@ -101,7 +114,7 @@ public static class ActivityCheck
         // lands on an ordinary Sunday next time). When every date left is inside them, each has been checked already.
         var lengths = longerOccurrences.Select(occurrence => (occurrence.Time.Duration, (Duration?)Times.LongestFor(occurrence.Time, series.Zone)));
         problems.AddRange(LengthProblems(FallsAfter(series, longerDates.End) ? lengths.Prepend(usual) : lengths, candidate.Buffers, travel));
-        if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, longerDates.End) is { } outsideOpeningHours)
+        if (OpeningHoursProblem(candidate, longerOccurrences, context, series.Zone, checkedUpTo) is { } outsideOpeningHours)
         {
             problems.Add(outsideOpeningHours);
         }
@@ -111,11 +124,11 @@ public static class ActivityCheck
             return new ActivityCheckResult(problems, [], dates);
         }
 
-        var occurrences = series.OccurrencesBetween(dates.Start, dates.End);
+        var occurrences = series.OccurrencesBetween(dates.Start, dates.End).Concat(MovedOutside(series, dates, context.Today)).ToList();
 
         // The activity's own stored version is left out: an edit would otherwise clash with itself.
         var notes = new List<string>();
-        var nearby = OthersThatCanClash(series, context.Today);
+        var nearby = NearbyDates(series, context.Today);
         var otherBookings = others
             .Where(other => other.Id != candidate.Id)
             .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
@@ -135,36 +148,135 @@ public static class ActivityCheck
     }
 
     /// <summary>
+    /// SCH-1, CAL-4: the check for a change to one occurrence (moved, resized or put back), on that occurrence alone,
+    /// wherever it now is: its travel (never guessed, P1), its length against its own day (H8), the opening hours (H4),
+    /// and clashes (H1) with the other activities and with the rest of its own series. A cancelled one takes no time,
+    /// so it has nothing to check. Problems and clashes elsewhere in the series aren't the change's doing, so they
+    /// aren't looked at. <paramref name="occurrenceDate"/> is the date the rule puts it on.
+    /// </summary>
+    public static ActivityCheckResult CheckOccurrence(PlannedActivity candidate, LocalDate occurrenceDate, IEnumerable<PlannedActivity> others, PlanningContext context)
+    {
+        var series = candidate.Series;
+        if (OccurrenceOn(series, occurrenceDate) is not { } occurrence)
+        {
+            return new ActivityCheckResult([], [], new DateInterval(occurrenceDate, occurrenceDate));
+        }
+
+        var day = occurrence.Time.Start.InZone(series.Zone).Date;
+        var dates = new DateInterval(day, day);
+        var problems = new List<CheckProblem>();
+        var journeys = JourneysFor(candidate, context, problems);
+        var longest = Times.LongestFor(occurrence.Time, series.Zone);
+        problems.AddRange(LengthProblems([(occurrence.Time.Duration, longest)], candidate.Buffers, journeys ?? Journeys.None));
+        if (OpeningHoursProblem(candidate, [occurrence], context, series.Zone, day) is { } outsideOpeningHours)
+        {
+            problems.Add(outsideOpeningHours);
+        }
+
+        if (problems.Count > 0 || journeys is not { } knownJourneys)
+        {
+            return new ActivityCheckResult(problems, [], dates);
+        }
+
+        // Its own series is one of the activities it can run into: the others, under its own title.
+        var notes = new List<string>();
+        IReadOnlyList<DateInterval> nearby = [Around(day)];
+        var rest = candidate with { Series = series.CancelOccurrence(occurrenceDate) };
+        var bookings = others
+            .Where(other => other.Id != candidate.Id)
+            .Append(rest)
+            .SelectMany(other => BookingsOf(other, nearby, context, notes, series.Zone))
+            .ToList();
+        var booking = new Booking(candidate.Title, Footprint.Around(occurrence.Time, candidate.Buffers, knownJourneys, longest));
+        var clashes = Conflicts.Between(booking, bookings).OrderBy(clash => clash.Overlap.Start).ToList();
+        return new ActivityCheckResult(problems, clashes, dates) { Notes = notes };
+    }
+
+    /// <summary>
+    /// The dates on which another activity has to start (or be running) to be able to clash with the occurrence the
+    /// rule puts on <paramref name="occurrenceDate"/>, where it now is: 3 days either side. For <see cref="CheckOccurrence"/>.
+    /// </summary>
+    public static DateInterval OthersThatCanClashWith(Series series, LocalDate occurrenceDate) =>
+        Around(OccurrenceOn(series, occurrenceDate)?.Time.Start.InZone(series.Zone).Date ?? occurrenceDate);
+
+    // The occurrence the rule puts on date, where it now is, or null when it is cancelled or the rule doesn't fall then.
+    private static Occurrence? OccurrenceOn(Series series, LocalDate date)
+    {
+        var lands = series.Changes.TryGetValue(date, out var change) && change is OccurrenceChange.Moved move ? move.Start.Date : date;
+        return series.OccurrencesBetween(lands.PlusDays(-1), lands.PlusDays(1))
+            .Select(occurrence => (Occurrence?)occurrence)
+            .FirstOrDefault(occurrence => occurrence!.Value.Date == date);
+    }
+
+    private static DateInterval Around(LocalDate day) => new(day.PlusDays(-MarginDays), day.PlusDays(MarginDays));
+
+    /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with
-    /// <paramref name="series"/>: the clash window and 3 days either side. Lets a caller load only those activities.
+    /// <paramref name="series"/>: the clash window, and any occurrence moved outside it that is checked (not one moved
+    /// into the past), 3 days either side. Lets a caller load only those activities.
     /// </summary>
     public static DateInterval OthersThatCanClash(Series series, LocalDate today)
     {
+        var nearby = NearbyDates(series, today);
+        return new DateInterval(nearby.Min(dates => dates.Start), nearby.Max(dates => dates.End));
+    }
+
+    // The clash window with MarginDays either side, and the same around each occurrence moved outside it.
+    private static List<DateInterval> NearbyDates(Series series, LocalDate today)
+    {
         var firstChecked = FirstCheckedDate(series, today);
-        return new DateInterval(firstChecked.PlusDays(-MarginDays), firstChecked.PlusWeeks(WeeksAhead).PlusDays(MarginDays - 1));
+        var window = new DateInterval(firstChecked, firstChecked.PlusWeeks(WeeksAhead).PlusDays(-1));
+        return MovedOutside(series, window, today)
+            .Select(occurrence => occurrence.Time.Start.InZone(series.Zone).Date)
+            .Select(date => new DateInterval(date.PlusDays(-MarginDays), date.PlusDays(MarginDays)))
+            .Prepend(new DateInterval(window.Start.PlusDays(-MarginDays), window.End.PlusDays(MarginDays)))
+            .ToList();
+    }
+
+    // CAL-4: occurrences moved to a date outside dates (which start on the first date checked), which those dates alone
+    // would miss (OccurrencesBetween finds a moved one by the date it now starts). One moved to before today is history,
+    // not re-checked, like the rest of the series' past, unless it is still running today (a night shift moved to
+    // yesterday evening can run into this morning's); but a series with nothing from today on is checked from its own
+    // first date (FirstCheckedDate), and so are all its moved ones.
+    private static IEnumerable<Occurrence> MovedOutside(Series series, DateInterval dates, LocalDate today)
+    {
+        var from = dates.Start < today ? Instant.MinValue : today.AtStartOfDayInZone(series.Zone).ToInstant();
+        return series.Changes
+            .Where(change => change.Value is OccurrenceChange.Moved move && !dates.Contains(move.Start.Date))
+            .Select(change => OccurrenceOn(series, change.Key))
+            .OfType<Occurrence>()
+            .Where(occurrence => occurrence.Time.End > from);
     }
 
     // Today, or the first date if later: a repeating activity's history isn't re-checked. But one with nothing from
-    // today on, within the year H4 and H8 look at (a one-off in the past, a series that has ended), is checked from its
-    // own first date, so nothing is saved unchecked.
+    // today on (a one-off in the past, a series that has ended) is checked from its own first date, so nothing is saved
+    // unchecked.
     private static LocalDate FirstCheckedDate(Series series, LocalDate today)
     {
         var fromToday = LocalDate.Max(series.FirstDate, today);
-        return fromToday > series.FirstDate && series.OccurrencesBetween(fromToday, fromToday.PlusWeeks(WeeksAheadForHoursAndLength)).Count == 0
-            ? series.FirstDate
-            : fromToday;
+        return fromToday > series.FirstDate && !HappensFrom(series, fromToday) ? series.FirstDate : fromToday;
+    }
+
+    // Whether any of the series is on date or later: in the year H4 and H8 look at, by its rule after that (a rule every
+    // 60 weeks can skip the whole year), or moved there.
+    private static bool HappensFrom(Series series, LocalDate date)
+    {
+        var yearEnd = date.PlusWeeks(WeeksAheadForHoursAndLength);
+        return series.OccurrencesBetween(date, yearEnd).Count > 0
+            || FallsAfter(series, yearEnd)
+            || series.Changes.Values.Any(change => change is OccurrenceChange.Moved move && move.Start.Date >= date);
     }
 
     /// <summary>
     /// A clash in plain English, for example "On Mon 2 Nov 2026, its journey back overlaps Dinner (Dinner is 19:30 to
     /// 20:30)." Times are in <paramref name="zone"/>, the checked activity's.
     /// </summary>
-    public static string Describe(Clash clash, DateTimeZone zone)
+    public static string Describe(Clash clash, DateTimeZone zone, ClockFormat clock = ClockFormat.TwentyFourHour)
     {
         var date = clash.Candidate.Footprint.Activity.Start.InZone(zone).Date;
         var other = clash.Other.Label;
         return $"On {Date.Format(date)}, {CandidatePart(clash.CandidatePart)} overlaps {OtherPart(clash.OtherPart, other)} " +
-               $"({other} is {Span(clash.Other.Footprint.Activity, zone, onDate: date)}).";
+               $"({other} is {Span(clash.Other.Footprint.Activity, zone, onDate: date, clock)}).";
     }
 
     // Null, with a problem added, when travel can't be worked out. None at home or at no particular place (§7.1).
@@ -262,18 +374,18 @@ public static class ActivityCheck
 
         var (time, problem) = outside[0];
         var when = problem!.Hours is { } hours
-            ? $"{place.Name} is open {Time.Format(hours.Opens)} to {Time.Format(hours.Closes)}{(hours.Closes <= hours.Opens ? " the next day" : "")} on {Date.Format(problem.Date)}"
+            ? $"{place.Name} is open {ClockText.Format(hours.Opens, context.Clock)} to {ClockText.Format(hours.Closes, context.Clock)}{(hours.Closes <= hours.Opens ? " the next day" : "")} on {Date.Format(problem.Date)}"
             : $"{place.Name} is closed on {Date.Format(problem.Date)}";
         var more = outside.Count > 1
             ? $" The same happens on {outside.Count - 1} more {(outside.Count == 2 ? "date" : "dates")} up to {Date.Format(checkedUpTo)}."
             : "";
-        return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date)}.{more}");
+        return new CheckProblem(CheckAspect.Time, $"{when}, but it would be there {Span(time, zone, onDate: problem.Date, context.Clock)}.{more}");
     }
 
-    // Another activity's occurrences as bookings. Stored activities can't stop this check, but what can't be worked
-    // out is said in a note, never assumed (P1): travel that can't be worked out (a travel time deleted since) is left
-    // out, and an occurrence whose footprint breaks H8 is skipped.
-    private static List<Booking> BookingsOf(PlannedActivity other, DateInterval dates, PlanningContext context, List<string> notes, DateTimeZone zone)
+    // Another activity's occurrences on any of the dates as bookings, each once. Stored activities can't stop this
+    // check, but what can't be worked out is said in a note, never assumed (P1): travel that can't be worked out (a
+    // travel time deleted since) is left out, and an occurrence whose footprint breaks H8 is skipped.
+    private static List<Booking> BookingsOf(PlannedActivity other, IReadOnlyList<DateInterval> nearby, PlanningContext context, List<string> notes, DateTimeZone zone)
     {
         var known = Travel.KnownJourneys(other.LocationId, context);
         if (known is null)
@@ -283,7 +395,7 @@ public static class ActivityCheck
 
         var journeys = known ?? Journeys.None;
         var bookings = new List<Booking>();
-        foreach (var occurrence in other.Series.OccurrencesBetween(dates.Start, dates.End))
+        foreach (var occurrence in nearby.SelectMany(dates => other.Series.OccurrencesBetween(dates.Start, dates.End)).Distinct())
         {
             var longest = Times.LongestFor(occurrence.Time, other.Series.Zone);
             if (Footprint.ProblemsWith(occurrence.Time.Duration, other.Buffers, journeys, longest).Count > 0)
@@ -304,12 +416,12 @@ public static class ActivityCheck
     // "19:30 to 20:30", or "22:00 to 06:00 the next day". The start's own date is given when it isn't the date the
     // message is about (an overnight activity from the day before), and a time the clocks repeat says which one it
     // is ("01:15 BST to 01:15 GMT" on the night they go back).
-    private static string Span(Interval time, DateTimeZone zone, LocalDate onDate)
+    private static string Span(Interval time, DateTimeZone zone, LocalDate onDate, ClockFormat clock)
     {
         var start = time.Start.InZone(zone);
         var end = time.End.InZone(zone);
         var startDate = start.Date == onDate ? "" : $"on {Date.Format(start.Date)} ";
-        return $"{startDate}{Times.Clock(start)} to {Times.Clock(end)}{Times.RelativeTo(end.Date, start.Date)}";
+        return $"{startDate}{Times.Clock(start, clock)} to {Times.Clock(end, clock)}{Times.RelativeTo(end.Date, start.Date)}";
     }
 
     private static string CandidatePart(FootprintPart part) => part switch

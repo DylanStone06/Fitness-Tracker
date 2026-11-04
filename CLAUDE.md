@@ -65,8 +65,10 @@ xUnit. Don't add a framework, database, package or front-end library without say
 - One branch per phase (`phase-N-short-name`); **one commit per change**; stage only the files you changed.
 - Commit message: a plain-English subject and body, an honest "What was checked:" line, and a numbered
   "To see the change:" list.
-- No `Co-Authored-By` or any other AI attribution. **Never push, merge or delete branches**: the owner does that from
-  GitHub Desktop.
+- No `Co-Authored-By` or any other AI attribution.
+- **GitHub work is done by Claude as far as its tools allow** (the owner's decision, 20 October 2026): pushing branches,
+  opening pull requests and merging a finished phase. Never force-push, rewrite pushed history or delete a branch
+  without asking. If a push or GitHub step is blocked, say what was blocked and what the owner needs to do.
 
 ## Privacy and safety
 

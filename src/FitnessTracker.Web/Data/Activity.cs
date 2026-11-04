@@ -91,6 +91,12 @@ public class Activity : IOwnedByUser, IVersioned
     public string? RepeatRule { get; set; }
 
     /// <summary>
+    /// CAL-4: occurrences of a repeating activity cancelled or moved on their own (OccurrenceChangesText), or null
+    /// for none. Always null for a one-off, which is changed directly.
+    /// </summary>
+    public string? OccurrenceChanges { get; set; }
+
+    /// <summary>
     /// The domain's view of this activity, for the check on save (SCH-1) and the home page. A one-off is a series that
     /// happens once, so both turn clock times into moments the same way (§8: 01:30 on the night the clocks go forward
     /// is 02:30). Throws FormatException (or DateTimeZoneNotFoundException) for a row the app couldn't have written,
@@ -100,12 +106,32 @@ public class Activity : IOwnedByUser, IVersioned
         ? throw new FormatException($"{Title} has a length of {LengthMinutes} minutes.")
         : new(Id,
             Title,
-            new Series(
-                StartDate,
-                StartTime,
-                Duration.FromMinutes(LengthMinutes),
-                DateTimeZoneProviders.Tzdb[TimeZoneId],
-                RepeatRule is null ? RecurrenceRule.Daily().EndingAfter(1) : RecurrenceRuleText.Parse(RepeatRule)),
+            OccurrenceChangesText.Apply(UsualSeries(), OccurrenceChanges),
             new Buffers(Duration.FromMinutes(PreparationMinutes), Duration.FromMinutes(ChangingMinutes)),
             LocationId);
+
+    /// <summary>
+    /// CAL-4, T8: after the whole activity is edited, keeps the one-off changes of <paramref name="before"/> on dates
+    /// it still falls on and removes the rest (all of them for a one-off). Returns how many of each, to tell the user.
+    /// </summary>
+    public (int Kept, int Removed) KeepChangesFrom(Series before)
+    {
+        if (RepeatRule is null)
+        {
+            OccurrenceChanges = null;
+            return (0, before.Changes.Count);
+        }
+
+        var edit = before.Edit(StartDate, StartTime, Duration.FromMinutes(LengthMinutes), RecurrenceRuleText.Parse(RepeatRule));
+        OccurrenceChanges = OccurrenceChangesText.Format(edit.Series.Changes);
+        return (edit.KeptChanges, edit.RemovedChanges);
+    }
+
+    // The series as its rule makes it, without one-off changes.
+    private Series UsualSeries() => new(
+        StartDate,
+        StartTime,
+        Duration.FromMinutes(LengthMinutes),
+        DateTimeZoneProviders.Tzdb[TimeZoneId],
+        RepeatRule is null ? RecurrenceRule.Daily().EndingAfter(1) : RecurrenceRuleText.Parse(RepeatRule));
 }

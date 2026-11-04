@@ -1,4 +1,5 @@
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Preferences;
 using FitnessTracker.Web.Services;
@@ -70,7 +71,7 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
 
         // Q8, CLAUDE.md rule 3: the move goes through the check on save too. What the activities already had before
         // (clashes kept with "Save anyway") is noted first, so only what the move itself breaks is reported.
-        var before = await FindingsAsync(moved);
+        var before = await FindingsAsync(moved, saved.TimesShownAs());
         foreach (var activity in moved)
         {
             activity.TimeZoneId = saved.TimeZoneId;
@@ -95,21 +96,22 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
         }
 
         TempData[Saved] = true;
-        var after = await FindingsAsync(moved);
+        var after = await FindingsAsync(moved, saved.TimesShownAs());
         TempData[MoveFindings] = after.Except(before).ToArray();
         return RedirectToAction(nameof(Index));
     }
 
     // Each activity's problems and clashes as the check on save sees them now, in plain English, by title.
-    private async Task<List<string>> FindingsAsync(IReadOnlyList<Activity> activities)
+    // Both runs write times the way just chosen, so a change of clock alone doesn't make every finding look new.
+    private async Task<List<string>> FindingsAsync(IReadOnlyList<Activity> activities, ClockFormat clock)
     {
         var findings = new List<string>();
         foreach (var activity in activities)
         {
-            var result = await checker.CheckAsync(activity);
+            var result = await checker.CheckAsync(activity, clock);
             var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
             findings.AddRange(result.Problems.Select(problem => $"{activity.Title}: {problem.Message}"));
-            findings.AddRange(result.Clashes.Select(clash => $"{activity.Title}: {ActivityCheck.Describe(clash, zone)}"));
+            findings.AddRange(result.Clashes.Select(clash => $"{activity.Title}: {ActivityCheck.Describe(clash, zone, clock)}"));
         }
 
         return findings;

@@ -2,6 +2,7 @@ using FitnessTracker.Domain.Footprints;
 using FitnessTracker.Domain.Locations;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Time;
 using NodaTime;
 
 namespace FitnessTracker.Domain.Tests.Scheduling;
@@ -308,6 +309,93 @@ public class AgendaTests
         Assert.NotNull(next);
         Assert.Equal(underWay, next.UnderWay);
     }
+
+    // CAL-1: the calendar shows what overlaps the days on screen. Monday 2 November 2026 (GMT): Sunday's 22:00 night
+    // shift runs into it, Sunday's 09:00 meeting doesn't.
+    [Fact]
+    public void Overlapping_IncludesWhatRunsIntoTheWindow_FromTheDayBefore()
+    {
+        var nightShift = OneOff("Night shift", Monday.PlusDays(-1), new LocalTime(22, 0), minutes: 8 * 60, at: null);
+        var meeting = OneOff("Meeting", Monday.PlusDays(-1), new LocalTime(9, 0), minutes: 30, at: null);
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+
+        var items = Agenda.Overlapping([nightShift, meeting, gym], Context(), MondayWindow(), London);
+
+        Assert.Equal(["Night shift", "Gym"], items.Select(item => item.Activity.Title));
+    }
+
+    // Half-open (§8): something ending at 00:00 Monday, or starting at 00:00 Tuesday, isn't on Monday.
+    [Fact]
+    public void Overlapping_IsHalfOpen()
+    {
+        var endsAtMidnight = OneOff("Late film", Monday.PlusDays(-1), new LocalTime(22, 0), minutes: 120, at: null);
+        var startsAtMidnight = OneOff("Night swim", Monday.PlusDays(1), new LocalTime(0, 0), minutes: 60, at: null);
+
+        Assert.Empty(Agenda.Overlapping([endsAtMidnight, startsAtMidnight], Context(), MondayWindow(), London));
+    }
+
+    // CAL-5: the footprint counts. A 00:10 Tuesday session at the gym sets off at 23:45 Monday, so Monday shows it.
+    [Fact]
+    public void Overlapping_CountsTheFootprint()
+    {
+        var earlyGym = OneOff("Early gym", Monday.PlusDays(1), new LocalTime(0, 10), minutes: 50, at: Gym);
+
+        var item = Assert.Single(Agenda.Overlapping([earlyGym], Context(), MondayWindow(), London));
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 2, 23, 45), item.Footprint?.Whole.Start);
+    }
+
+    // ACC-3: with the 12-hour clock chosen, when to leave and the start read that way, including which 01:30 on the
+    // night the clocks go back (T4).
+    [Fact]
+    public void WithTheTwelveHourClock_TimesReadThatWay()
+    {
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
+        var sunday = new LocalDate(2026, 10, 25);
+        var late = OneOff("Late swim", sunday, new LocalTime(1, 30), minutes: 20, at: null);
+
+        var item = Assert.Single(Agenda.Between([gym], Context(), Monday, Monday));
+        var repeated = Assert.Single(Agenda.Between([late], Context(), sunday, sunday));
+
+        Assert.Equal("Leave home 5:35pm, back 7:45pm", Agenda.Trip(item, ClockFormat.TwelveHour));
+        Assert.Equal("6:00pm", Agenda.Starts(item, ClockFormat.TwelveHour));
+        Assert.Equal("1:30am BST", Agenda.Starts(repeated, ClockFormat.TwelveHour));
+    }
+
+    // §8 (from the scheduling review's gaps): the day the clocks go back is 25 hours. Its window is [Sat 23:00 UTC, Mon
+    // 00:00 UTC): 23:30 GMT on Sunday is in it, 00:00 on Monday isn't.
+    [Fact]
+    public void Overlapping_TheDayTheClocksGoBack_IsAll25Hours()
+    {
+        var sunday = new LocalDate(2026, 10, 25);
+        var late = OneOff("Late", sunday, new LocalTime(23, 30), minutes: 20, at: null);
+        var monday = OneOff("Monday", sunday.PlusDays(1), new LocalTime(0, 0), minutes: 20, at: null);
+        var window = new Interval(Instant.FromUtc(2026, 10, 24, 23, 0), Instant.FromUtc(2026, 10, 26, 0, 0));
+
+        Assert.Equal(["Late"], Agenda.Overlapping([late, monday], Context(), window, London).Select(item => item.Activity.Title));
+    }
+
+    // ... and the day they go forward is 23: [Sun 00:00 UTC, Sun 23:00 UTC). 23:30 BST is Sunday 22:30 UTC, in it.
+    [Fact]
+    public void Overlapping_TheDayTheClocksGoForward_IsAll23Hours()
+    {
+        var sunday = new LocalDate(2027, 3, 28);
+        var late = OneOff("Late", sunday, new LocalTime(23, 30), minutes: 20, at: null);
+        var monday = OneOff("Monday", sunday.PlusDays(1), new LocalTime(0, 0), minutes: 20, at: null);
+        var window = new Interval(Instant.FromUtc(2027, 3, 28, 0, 0), Instant.FromUtc(2027, 3, 28, 23, 0));
+
+        Assert.Equal(["Late"], Agenda.Overlapping([late, monday], Context(), window, London).Select(item => item.Activity.Title));
+    }
+
+    // The dates to load for Monday: two days before and one after it (what Overlapping looks at), and the 3-day margin
+    // for clashes either side.
+    [Fact]
+    public void DatesToLoadFor_AWindow_AreItsDatesAndTheMargins()
+    {
+        Assert.Equal(new DateInterval(Monday.PlusDays(-5), Monday.PlusDays(5)), Agenda.DatesToLoadFor(MondayWindow(), London));
+    }
+
+    private static Interval MondayWindow() => new(Instant.FromUtc(2026, 11, 2, 0, 0), Instant.FromUtc(2026, 11, 3, 0, 0));
 
     private static PlannedActivity OneOff(string title, LocalDate date, LocalTime start, int minutes, Guid? at, Buffers? buffers = null) =>
         new(Guid.NewGuid(), title,
