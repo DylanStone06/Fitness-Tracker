@@ -48,6 +48,16 @@ public sealed class LocationsTests(TestAppFactory factory) : IClassFixture<TestA
         Assert.Equal(countBefore, await StoredData.LocationCountAsync(factory));
     }
 
+    // A browser's maxlength cuts a pasted longer name short without saying so (GOV.UK advises against it); the
+    // server's check above gives a clear error instead.
+    [Fact]
+    public async Task AddPage_DoesNotSilentlyCutLongNamesShort()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        Assert.DoesNotContain("maxlength", await PageAsync(browser, "/Locations/Create"), StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Add_Accepts_ANameOfExactly100Characters()
     {
@@ -58,6 +68,63 @@ public sealed class LocationsTests(TestAppFactory factory) : IClassFixture<TestA
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.NotNull(await StoredData.LocationNamedAsync(factory, name));
+    }
+
+    // Two locations with the same name would be impossible to tell apart when choosing one for an activity.
+    [Fact]
+    public async Task Add_ShowsAnError_AndSavesNothing_WhenTheNameIsAlreadyUsed_IgnoringCapitals()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var name = TestBrowser.NewName("Home gym");
+        await AddAsync(browser, name);
+        var countBefore = await StoredData.LocationCountAsync(factory);
+
+        var response = await browser.AddLocationAsync($" {name.ToUpperInvariant()} ");
+
+        await AssertShowsAnErrorAsync(response);
+        Assert.Contains("You already have a location called", await response.Content.ReadAsStringAsync());
+        Assert.Equal(countBefore, await StoredData.LocationCountAsync(factory));
+    }
+
+    // Names only need to be unique for each person.
+    [Fact]
+    public async Task Add_Accepts_ANameSomeoneElseUses()
+    {
+        var name = TestBrowser.NewName("Home gym");
+        await AddAsync(await TestBrowser.OpenSignedInAsync(factory, "alex"), name);
+
+        var response = await (await TestBrowser.OpenSignedInAsync(factory, "sam")).AddLocationAsync(name);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Edit_ShowsAnError_AndKeepsTheOldName_WhenRenamedToAnotherOfTheirLocations()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var gym = TestBrowser.NewName("Home gym");
+        var office = TestBrowser.NewName("Office");
+        await AddAsync(browser, gym);
+        var officeId = await AddAsync(browser, office);
+
+        var response = await browser.SubmitFormAsync($"/Locations/Edit/{officeId}", $"/Locations/Edit/{officeId}", new() { ["Name"] = gym });
+
+        await AssertShowsAnErrorAsync(response);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, office));
+    }
+
+    // Changing only the capitals of a location's own name isn't a clash with itself.
+    [Fact]
+    public async Task Edit_Accepts_ChangingOnlyTheCapitalsOfItsOwnName()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var name = TestBrowser.NewName("home gym");
+        var id = await AddAsync(browser, name);
+
+        var response = await browser.SubmitFormAsync($"/Locations/Edit/{id}", $"/Locations/Edit/{id}", new() { ["Name"] = name.ToUpperInvariant() });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, name.ToUpperInvariant()));
     }
 
     // Phone keyboards add a space after an autocompleted word.
@@ -126,6 +193,72 @@ public sealed class LocationsTests(TestAppFactory factory) : IClassFixture<TestA
 
         await AssertShowsAnErrorAsync(response);
         Assert.NotNull(await StoredData.LocationNamedAsync(factory, name));
+    }
+
+    // Requirements §9: two tabs editing the same location can't silently overwrite each other. The out-of-date tab
+    // isn't saved; it says the location changed, shows its current name and keeps what was typed.
+    [Fact]
+    public async Task Edit_FromAnOutOfDateTab_IsNotSaved_AndSaysWhatChanged()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var id = await AddAsync(browser, TestBrowser.NewName("Home gym"));
+        var editUrl = $"/Locations/Edit/{id}";
+        var firstTab = await browser.LoadFormAsync(editUrl);
+        var secondTab = await browser.LoadFormAsync(editUrl);
+        var townGym = TestBrowser.NewName("Town gym");
+        var typedInSecondTab = TestBrowser.NewName("Station gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SubmitAsync(firstTab, editUrl, new() { ["Name"] = townGym })).StatusCode);
+
+        var response = await browser.SubmitAsync(secondTab, editUrl, new() { ["Name"] = typedInSecondTab });
+
+        await AssertShowsAnErrorAsync(response);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("changed in another tab", html);
+        Assert.Contains(townGym, html);
+        Assert.Contains($"value=\"{typedInSecondTab}\"", html);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, townGym));
+    }
+
+    // Having been told, saving again from that page is a deliberate choice, so it is saved.
+    [Fact]
+    public async Task Edit_SavedAgainAfterBeingToldItChanged_IsSaved()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var id = await AddAsync(browser, TestBrowser.NewName("Home gym"));
+        var editUrl = $"/Locations/Edit/{id}";
+        var firstTab = await browser.LoadFormAsync(editUrl);
+        var secondTab = await browser.LoadFormAsync(editUrl);
+        await browser.SubmitAsync(firstTab, editUrl, new() { ["Name"] = TestBrowser.NewName("Town gym") });
+        var stationGym = TestBrowser.NewName("Station gym");
+        var told = await browser.SubmitAsync(secondTab, editUrl, new() { ["Name"] = stationGym });
+
+        var response = await browser.SubmitAsync(TestBrowser.FormIn(await told.Content.ReadAsStringAsync()), editUrl, new() { ["Name"] = stationGym });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(id, (await StoredData.LocationNamedAsync(factory, stationGym))?.Id);
+    }
+
+    // A delete page opened before another tab renamed the location asks again, naming it as it is now.
+    [Fact]
+    public async Task Delete_FromAPageOpenedBeforeItChanged_IsNotDone_AndSaysWhatChanged()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var id = await AddAsync(browser, TestBrowser.NewName("Home gym"));
+        var deletePage = await browser.LoadFormAsync($"/Locations/Delete/{id}");
+        var townGym = TestBrowser.NewName("Town gym");
+        await browser.SubmitFormAsync($"/Locations/Edit/{id}", $"/Locations/Edit/{id}", new() { ["Name"] = townGym });
+
+        var response = await browser.SubmitAsync(deletePage, $"/Locations/Delete/{id}", []);
+
+        await AssertShowsAnErrorAsync(response);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("changed in another tab", html);
+        Assert.Contains(townGym, html);
+        Assert.NotNull(await StoredData.LocationNamedAsync(factory, townGym));
+
+        var confirmedAgain = await browser.SubmitAsync(TestBrowser.FormIn(html), $"/Locations/Delete/{id}", []);
+        Assert.Equal(HttpStatusCode.Redirect, confirmedAgain.StatusCode);
+        Assert.Null(await StoredData.LocationNamedAsync(factory, townGym));
     }
 
     // Opening the delete page only asks; a link, a prefetch or a crawler must never delete anything.

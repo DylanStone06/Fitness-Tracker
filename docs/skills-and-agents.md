@@ -24,14 +24,16 @@ or its start-of-session hook. All were copied on 13 October 2026.
 - `review-animations`: this app needs very little motion.
 - `emil-design-eng`: it may be added for a polish pass after the MVP.
 
-## Planned project additions (Phase 3)
+## Project additions (Phase 3)
 
-These are created once the scheduling rules exist in code, so they describe real behaviour, not guesses.
+Written for this project on 14 October 2026, once the time and recurrence rules existed in code, so they describe
+real behaviour, not guesses. Both are instructions only. The skill marks the parts not built yet (footprints,
+constraints, scoring, sleep) and says to read the requirements rather than guess; it grows as each phase lands.
 
 | Item | Type | Purpose | Inputs → outputs | Tools | How its work is checked |
 |---|---|---|---|---|---|
-| `scheduling-rules` | Skill | Reference for footprints, hard and soft constraints, scoring weights, time rules and the T-scenario catalogue | Loaded when touching `Domain/Scheduling`, `Domain/Recurrence`, `Domain/Time` or sleep code | None | Every scenario in it exists as a passing test |
-| `scheduling-reviewer` | Agent (`.claude/agents/`) | Independent review of recurrence, DST, travel, sleep and planner changes; proposes missing edge-case tests | The changes → findings by severity with a failing-test sketch for each | `Read`, `Grep`, `Glob` only; preloads `scheduling-rules` | Each accepted finding becomes a failing test, then a fix |
+| `scheduling-rules` | Skill (`.claude/skills/scheduling-rules/`) | Reference for the time, recurrence and template-cycle rules as built (footprints, constraints and scoring added as they are built) and the T-scenario catalogue | Loaded when touching `Domain/Time`, `Domain/Recurrence`, `Domain/Templates`, and later `Domain/Scheduling` or sleep code | None | Every scenario it marks as covered names a passing test |
+| `scheduling-reviewer` | Agent (`.claude/agents/scheduling-reviewer.md`) | Independent review of recurrence, DST, travel, sleep and planner changes; proposes missing edge-case tests | The changes → findings by severity with a failing-test sketch for each | `Read`, `Grep`, `Glob` only; preloads `scheduling-rules` (and is told to read it) | Each accepted finding becomes a failing test, then a fix |
 
 ## Already available (user-level plugins and built-ins)
 

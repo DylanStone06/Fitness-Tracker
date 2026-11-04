@@ -4,7 +4,7 @@ namespace FitnessTracker.Web.Data;
 /// A place where activities happen: home, office, gym (TRV-1). Phase 2 stores only the name, so that
 /// per-user isolation (T19) has a real record to protect; opening hours and travel legs arrive in Phase 4.
 /// </summary>
-public class Location : IOwnedByUser
+public class Location : IOwnedByUser, IVersioned
 {
     public const int NameMaxLength = 100;
 
@@ -14,4 +14,6 @@ public class Location : IOwnedByUser
     public string OwnerId { get; set; } = "";
 
     public string Name { get; set; } = "";
+
+    public Guid Version { get; set; }
 }

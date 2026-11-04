@@ -6,7 +6,8 @@ public class ArchitectureTests
 {
     // Libraries the domain may use besides the .NET base library. Adding one here is a deliberate
     // decision: check first that it doesn't bring ASP.NET Core or EF Core with it.
-    private static readonly string[] ApprovedLibraries = [];
+    // NodaTime: dates, times and timezones (ADR 0001); it depends on nothing but the base library.
+    private static readonly string[] ApprovedLibraries = ["NodaTime"];
 
     // CLAUDE.md architecture rule 1: the domain stays free of web and database frameworks, so the
     // scheduling rules can be tested on their own and reused by every way of saving.

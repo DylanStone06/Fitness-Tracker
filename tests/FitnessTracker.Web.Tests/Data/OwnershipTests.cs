@@ -117,6 +117,25 @@ public sealed class OwnershipTests : IDisposable
         Assert.Equal(Alex, StoredOwnerOf("Alex's gym"));
     }
 
+    // ACC-9: deleting an account deletes all of its data. The database does it (cascade), so nothing is left
+    // behind even though the app never loads those rows.
+    [Fact]
+    public void DeletingAnAccount_DeletesItsLocations_AndNobodyElses()
+    {
+        Add(Alex, "Alex's gym");
+        Add(Alex, "Alex's office");
+        Add(Sam, "Sam's office");
+
+        using (var db = ContextFor(Alex))
+        {
+            db.Users.Remove(db.Users.Single(user => user.Id == Alex));
+            db.SaveChanges();
+        }
+
+        using var check = ContextFor(userId: null);
+        Assert.Equal(["Sam's office"], check.Locations.IgnoreQueryFilters().Select(location => location.Name).ToList());
+    }
+
     // Phase 4 adds more owned records (activities, series, logs); each must get the same protection
     // just by implementing IOwnedByUser.
     [Fact]

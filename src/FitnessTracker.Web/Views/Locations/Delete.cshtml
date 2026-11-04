@@ -6,10 +6,13 @@
 <div class="row">
     <div class="col-md-8 col-lg-6">
         <h1>Delete this location?</h1>
+        <partial name="_ErrorSummary" />
         <p class="fs-5 text-break">@Model.Name</p>
         <p>This can't be undone.</p>
 
         <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+            @* The version this page shows, so a location changed in another tab since isn't deleted unseen. *@
+            <input type="hidden" name="version" value="@Model.Version" />
             <button type="submit" class="btn btn-danger">Delete location</button>
             <a class="btn btn-link" asp-action="Index">Cancel</a>
         </form>

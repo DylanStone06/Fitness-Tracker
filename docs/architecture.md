@@ -7,7 +7,7 @@ are in [ADR 0001](decisions/0001-stack.md); what's still missing is in [known li
 
 | Project | Holds | Rule |
 |---|---|---|
-| `FitnessTracker.Domain` | Scheduling, recurrence, footprint, sleep and workout maths (from Phase 3) | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus approved libraries. |
+| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, one-off changes), `Templates` (A/B week cycles); later footprints, scheduling, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
 | `FitnessTracker.Web` | MVC controllers and views, `Data/` (database, migrations, Identity), `Services/` | No scheduling rules in controllers or views. |
 | `FitnessTracker.*.Tests` | xUnit v2 tests | Integration tests run the real app in memory (`TestAppFactory`). |
 

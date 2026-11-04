@@ -10,6 +10,7 @@
         @* Posts back to this page's own address, which carries the location's id. *@
         <form asp-action="Edit" method="post" novalidate>
             <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="Version" />
             <partial name="_NameField" />
 
             <button type="submit" class="btn btn-primary">Save changes</button>

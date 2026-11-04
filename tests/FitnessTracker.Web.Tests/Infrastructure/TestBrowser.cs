@@ -38,18 +38,49 @@ public sealed partial class TestBrowser
     public Task<HttpResponseMessage> GetAsync(string url) => Http.GetAsync(url);
 
     /// <summary>Loads <paramref name="pageUrl"/>, then posts <paramref name="fields"/> to <paramref name="actionUrl"/>
-    /// with the page's anti-forgery token, as submitting the form would.</summary>
-    public async Task<HttpResponseMessage> SubmitFormAsync(string pageUrl, string actionUrl, Dictionary<string, string> fields)
+    /// with the page's hidden fields (the anti-forgery token among them), as submitting the form would.</summary>
+    public async Task<HttpResponseMessage> SubmitFormAsync(string pageUrl, string actionUrl, Dictionary<string, string> fields) =>
+        await SubmitAsync(await LoadFormAsync(pageUrl), actionUrl, fields);
+
+    /// <summary>Opens a page and keeps its form, to submit later: like a form left open in a browser tab.</summary>
+    public async Task<LoadedForm> LoadFormAsync(string pageUrl)
     {
         var page = await Http.GetAsync(pageUrl);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
-        var html = await page.Content.ReadAsStringAsync();
+        return FormIn(await page.Content.ReadAsStringAsync(), pageUrl);
+    }
 
-        var token = AntiforgeryToken().Match(html);
-        Assert.True(token.Success, $"No anti-forgery token on {pageUrl}.");
+    /// <summary>
+    /// The hidden fields of a page's forms. Pages here have one form plus the header's sign-out form, which only
+    /// adds the same anti-forgery token, so taking every hidden field on the page is enough.
+    /// </summary>
+    public static LoadedForm FormIn(string html, string where = "the page")
+    {
+        var hiddenFields = HiddenInput().Matches(html)
+            .Select(input => (Name: AttributeOf(input.Value, "name"), Value: AttributeOf(input.Value, "value")))
+            .Where(field => field.Name is not null)
+            .GroupBy(field => field.Name!)
+            .ToDictionary(fields => fields.Key, fields => fields.First().Value ?? "");
+        Assert.True(hiddenFields.ContainsKey("__RequestVerificationToken"), $"No anti-forgery token on {where}.");
+        return new LoadedForm(hiddenFields);
+    }
 
-        var form = new Dictionary<string, string>(fields) { ["__RequestVerificationToken"] = token.Groups[1].Value };
-        return await Http.PostAsync(actionUrl, new FormUrlEncodedContent(form));
+    /// <summary>Posts a form loaded earlier, with <paramref name="fields"/> filled in.</summary>
+    public Task<HttpResponseMessage> SubmitAsync(LoadedForm form, string actionUrl, Dictionary<string, string> fields)
+    {
+        var posted = new Dictionary<string, string>(form.HiddenFields);
+        foreach (var (name, value) in fields)
+        {
+            posted[name] = value;
+        }
+
+        return Http.PostAsync(actionUrl, new FormUrlEncodedContent(posted));
+    }
+
+    private static string? AttributeOf(string tag, string attribute)
+    {
+        var match = Regex.Match(tag, @"\s" + attribute + "=\"([^\"]*)\"");
+        return match.Success ? WebUtility.HtmlDecode(match.Groups[1].Value) : null;
     }
 
     public Task<HttpResponseMessage> RegisterAsync(string email, string password = Password, string? confirmPassword = null) =>
@@ -77,7 +108,10 @@ public sealed partial class TestBrowser
     public async Task<bool> IsSignedInAsync() =>
         (await Http.GetAsync("/")).StatusCode == HttpStatusCode.OK;
 
-    // ASP.NET Core renders: <input name="__RequestVerificationToken" type="hidden" value="..." />
-    [GeneratedRegex("""name="__RequestVerificationToken"[^>]*value="([^"]+)"[^>]*>""")]
-    private static partial Regex AntiforgeryToken();
+    // ASP.NET Core renders, for example: <input name="__RequestVerificationToken" type="hidden" value="..." />
+    [GeneratedRegex("""<input[^>]*\stype="hidden"[^>]*>""")]
+    private static partial Regex HiddenInput();
 }
+
+/// <summary>A form as a page gave it: its hidden fields, the anti-forgery token among them.</summary>
+public sealed record LoadedForm(IReadOnlyDictionary<string, string> HiddenFields);

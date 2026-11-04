@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Plain C# only: no ASP.NET Core or EF Core (CLAUDE.md architecture rule 1, guarded by ArchitectureTests).
-       The domain's first types arrive in Phase 3. -->
+       NodaTime (Apache-2.0) does all date and time maths (CLAUDE.md architecture rule 2; ADR 0001). -->
+
+  <ItemGroup>
+    <PackageReference Include="NodaTime" />
+  </ItemGroup>
 
 </Project>
