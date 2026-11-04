@@ -64,7 +64,9 @@ public sealed record PlanRequest(
     /// <summary>
     /// Q38, FIT-5: sessions marked skipped. One doesn't count towards its goal (the number planned, one a day, the
     /// spread), so the goal can be given another time that week; it is still busy time, so its own time isn't offered,
-    /// as the check on save still sees it.
+    /// and a demanding one still counts for the rest rules (H5, H6), as the check on save still sees it. Each is known by
+    /// the date its rule puts it on (CAL-4), wherever it was moved, so a caller passes the mark of every occurrence of
+    /// <see cref="Activities"/> it loads, by that date, not by the date it now starts.
     /// </summary>
     public IReadOnlyCollection<SkippedSession> Skipped { get; init; } = [];
 }
