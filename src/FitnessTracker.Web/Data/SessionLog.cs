@@ -26,6 +26,8 @@ public class SessionLog : IOwnedByUser, IVersioned
 {
     public const int CustomRunTypeMaxLength = 40;
 
+    public const int NotesMaxLength = 2000;
+
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     public string OwnerId { get; set; } = "";
@@ -52,6 +54,12 @@ public class SessionLog : IOwnedByUser, IVersioned
 
     /// <summary>FIT-3: how hard it felt, 1 (very easy) to 10 (all out) (Q29), or null when not given.</summary>
     public int? Effort { get; set; }
+
+    /// <summary>FIT-2: notes on any session ("knee a bit sore"); kept when it is marked skipped.</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>FIT-2: a gym session's sets, in order (by Position). None for any other kind, or a skipped one.</summary>
+    public List<SessionSet> Sets { get; set; } = [];
 
     /// <summary>Q28: a session marked skipped has no details (a skipped run has no distance).</summary>
     public void ForgetDetails()
