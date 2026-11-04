@@ -345,36 +345,26 @@ Decided by the owner on 21 October 2026, during Phase 5:
 |---|---|---|
 | Q12 | What does accepting a "Plan my week" suggestion (SCH-4) add? | Either, chosen each time: the main button adds it every week at that day and time, from that week on (building a routine, since the owner plans a routine before knowing set times); a second button adds it for that week only. One week can then be changed on the calendar as any occurrence (CAL-4). Weekly targets (GOL-1) have no time of their own: the planner finds it. |
 
-Chosen as defaults in Phase 6b (Q13-Q15 on 23 October 2026, building A/B weeks; Q16 on 26 October); **not yet
-confirmed by the owner**, and easy to change:
+Decided by the owner on 4 November 2026. Q13-Q16 and Q20-Q29 were defaults chosen while building (Q13-Q16 in Phase 6b,
+Q20-Q29 in Phase 7); Q17-Q19 were open. Where the owner answered "what you recommend", the decision is Claude's
+recommendation, accepted. Those marked **to be built** differ from what the app does today until the change is made:
 
-| # | Question | Default |
+| # | Question | Decision |
 |---|---|---|
 | Q13 | Does an A/B cycle keep counting through a holiday week (another routine), or pause? | Keeps counting by the calendar, as a rota does: the week after a holiday in week B is week A. |
 | Q14 | Which routine is in use on a date? | The one chosen for that date, if any (on the Routines page; ranges can't overlap); otherwise the usual routine, if there is one. Activities not in a routine happen every week, whatever the routine, so every activity from before Phase 6b is unchanged. |
-| Q15 | When Plan my week plans week B and a session is added "every week", is it every week or every week B? | Every week B ("Week B only"), so planning week B builds week B. With a routine that is the same every week, it is added to that routine; with no routines, to every week, as before. |
-| Q16 | What does duplicating a routine copy? (Chosen 26 October 2026.) | A new routine with the name given (offered as "… copy"), the same cycle and week A, not the usual one and with no dates chosen, so nothing new happens until it is used. Each activity in it is copied, in the same weeks, without changes made to single occurrences (those are on the original's dates). Activities in every week aren't in a routine, so aren't copied. |
-
-Open, for the owner (raised by the scheduling review of routine dates, 26 October 2026); the app does what the third
-column says until decided:
-
-| # | Question | What happens now |
-|---|---|---|
-| Q17 | An occurrence moved out of a week that is later given to a holiday (Monday 2 November moved to Friday 30 October, then 2-8 November chosen for Holiday): should it still happen where it was moved to? | It doesn't: a move shows only if the date its repeat put it on is in use, and nothing says it has gone (known limitations). |
-| Q18 | A holiday routine with its own A/B cycle: is its week A the week it is first used (Q3), or the week it was added (what its form offers)? | The week it was added, or whatever the form was given: chosen for 9-22 November but added on 19 October, its first holiday week is week B. |
-| Q19 | Find another time, for a session inside a holiday's dates: should it only offer days inside them? | It offers any day later that week, like any other session; a session moved out of the holiday still happens. |
-
-Chosen as defaults at the start of Phase 7 (3 November 2026); **not yet confirmed by the owner**, and easy to change:
-
-| # | Question | Default |
-|---|---|---|
+| Q15 | When Plan my week plans week B and a session is added "every week", is it every week or every week B? | Every week B (the button says so), so planning week B builds week B and week A is untouched. With a routine that is the same every week, it is added to that routine; with no routines, to every week. |
+| Q16 | What does duplicating a routine copy? | A new routine with the name given (offered as "… copy"), the same cycle and week A, not the usual one and with no dates chosen, so nothing new happens until it is used. Each activity in it is copied, in the same weeks, without changes made to single occurrences (those are on the original's dates). Activities in every week aren't in a routine, so aren't copied. |
+| Q17 | An occurrence moved out of a week that is later given to a holiday (Monday 2 November moved to Friday 30 October, then 2-8 November chosen for Holiday): should it still happen where it was moved to? | **Yes (to be built).** A session moved on its own happens where it was moved to, whichever routine is in use on the date its repeat put it on: a session is often moved because you'll be away, so it must never vanish without a word. A cancelled one stays cancelled. Until built, the move doesn't show (known limitations). |
+| Q18 | A holiday routine with its own A/B cycle: is its week A the week it is first used (Q3), or the week it was added (what its form offers)? | The week set as its week A on its form (the week it was added, unless changed): one rule for every routine. Chosen for 9-22 November but added on 19 October, its first holiday week is week B, which the calendar and Plan my week say on each week; changing its week A changes that. |
+| Q19 | Find another time, for a session inside a holiday's dates: should it only offer days inside them? | No: it offers any day later that week, like any other session. A session moved out of the holiday still happens. |
 | Q20 | Which activities are sessions with a status (FIT-1)? | Those in an exercise category: Gym, Run, Other exercise. Work, commuting, social and the rest have no status. |
 | Q21 | When can a session be marked done or skipped? | Done once it has started (never before, never by itself: FIT-1); skipped at any time ("not going tomorrow"). Either can be undone, back to planned. Cancelling one (CAL-4) is different: it is no longer planned at all, so it has no status. |
 | Q22 | What is "Rescheduled"? | A session of a repeating activity moved on its own to another time (CAL-4: on the calendar, or with Find another time). It says where it was ("Rescheduled from Tue 3 Nov, 18:00") and counts as planned at its new time until it is marked. Not a separate choice. |
 | Q23 | Does logging a session change the calendar? | No. The calendar keeps the planned time; the log records what was done (how long, and for each kind its details: a run's type, distance and effort; sets; intensity). |
-| Q24 | What counts towards a weekly goal (FIT-5)? | That week's sessions of activities added for it from Plan my week, each done, skipped, not logged or still to come, against how many the goal asks for. An activity added by hand counts towards no goal. |
-| Q25 | Units for distance, weight and pace? | Stored in metres and kilograms (CLAUDE.md rule 6), shown in the units chosen in Preferences (km or mi; kg or lb). Pace is worked out from time and distance, never stored, and shown per km or per mile ("5:30 per km"). |
+| Q24 | What counts towards a weekly goal (FIT-5)? | **To be built, with FIT-5.** That week's sessions of the activities linked to the goal, each done, skipped, not logged or still to come, against how many the goal asks for. An activity is linked when it is added from Plan my week, or by choosing the goal on the activity's own form ("Counts towards"), so a session added by hand can count too. Not by category alone: two goals can share one (upper body and legs, both Gym). |
+| Q25 | Units for distance, weight and pace? | Stored in metres and kilograms (CLAUDE.md rule 6), shown in the units chosen in Preferences (km or miles; kg or lb). **UK units by default (to be built):** a new account shows miles and kilograms. Pace is worked out from time and distance, never stored, and shown per km or per mile ("8:51 per mile"). |
 | Q26 | What does a run's log hold (FIT-3)? | Its type (easy, long, tempo, intervals, recovery, or a custom name of up to 40 characters), the time it took, its distance and how hard it felt, each optional: saving with none just marks it done. The planned time is the session's own length, shown beside the time taken, never typed. Logged once the run has started. |
 | Q27 | How are a run's time and distance typed and shown? | Time in three boxes (hours, minutes, seconds; up to 24 hours), shown as a stopwatch shows it ("28:36", "1:05:20"). Distance as a number with a decimal point ("5.2"), 0.01 to 1,000 in km or miles, stored to the nearest metre, shown with up to 2 decimals ("5.2 km", "3.11 miles", "1 mile"); its box is filled so that saving it unchanged gives back the same metres. |
-| Q28 | What happens to a run's details when it is marked skipped, or back to planned? | They are removed: a skipped run has no distance. The page says so beside those buttons. |
+| Q28 | What happens to a run's details when it is marked skipped, or back to planned? | They are removed: a skipped run has no distance. The page says so beside those buttons, before they are pressed. |
 | Q29 | What do the effort numbers mean? | 1 very easy, 2-3 easy, 4-6 moderate, 7-8 hard, 9 very hard, 10 all out (a common perceived-effort scale), shown as "6 of 10, moderate". |
