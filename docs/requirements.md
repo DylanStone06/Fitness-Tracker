@@ -369,3 +369,13 @@ recommendation, accepted. Those marked **to be built** differ from what the app 
 | Q27 | How are a run's time and distance typed and shown? | Time in three boxes (hours, minutes, seconds; up to 24 hours), shown as a stopwatch shows it ("28:36", "1:05:20"). Distance as a number with a decimal point ("5.2"), 0.01 to 1,000 in km or miles, stored to the nearest metre, shown with up to 2 decimals ("5.2 km", "3.11 miles", "1 mile"); its box is filled so that saving it unchanged gives back the same metres. |
 | Q28 | What happens to a run's details when it is marked skipped, or back to planned? | They are removed: a skipped run has no distance. The page says so beside those buttons, before they are pressed. |
 | Q29 | What do the effort numbers mean? | 1 very easy, 2-3 easy, 4-6 moderate, 7-8 hard, 9 very hard, 10 all out (a common perceived-effort scale), shown as "6 of 10, moderate". |
+
+Decided by the owner on 4 November 2026 for the strength log (FIT-2), before it was built; the plan is
+[docs/plans/phase-7-strength-log.md](plans/phase-7-strength-log.md):
+
+| # | Question | Decision |
+|---|---|---|
+| Q30 | How is an exercise chosen? | Typed in a box that suggests as you type: the 30 starter exercises (Q4) and every exercise you've used. A name not on the list becomes your own exercise, with no separate page to set one up. Names are matched ignoring capitals. |
+| Q31 | How are sets entered? | As rows (exercise, reps, weight, rest): six empty rows, and "Add more rows" for six more, with no script needed; rows left blank are ignored. Consecutive rows with the same exercise are its sets. Up to 60 sets a session. |
+| Q32 | Is rest time recorded? | Optionally, per set, in seconds (up to an hour). |
+| Q33 | How is weight stored? | In whole grams (100 kg is 100,000 g), exact as distances are in metres, and shown in kg or lb as chosen in Preferences (kg by default). CLAUDE.md rule 6 says so. |

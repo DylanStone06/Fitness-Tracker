@@ -42,7 +42,8 @@ xUnit. Don't add a framework, database, package or front-end library without say
 4. **Never mark an activity completed because its time has passed** (FIT-1).
 5. Every query is limited to the signed-in user; another user's data returns "not found". Every new data endpoint
    gets an access-control test (T19).
-6. Store metric units (metres, seconds, kilograms); convert only for display.
+6. Store metric units (metres, seconds, kilograms); convert only for display. Weights are stored as whole grams (exact,
+   as distances are whole metres: the owner's choice, 4 November 2026, requirements Q33).
 
 ## Testing
 
