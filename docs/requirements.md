@@ -388,3 +388,12 @@ Decided by the owner on 4 November 2026 for other activities (FIT-4), before the
 | Q34 | Which types of other activity? | Walk, cycle, swim, mobility, and custom with a name of up to 40 characters, as a run's. |
 | Q35 | How is intensity recorded? | On the same 1-10 "How hard it felt" scale as runs (Q29), so every session's effort can be compared. |
 | Q36 | Do they have a distance? | Optionally, any of them (meant for walks, cycles and swims), in km or miles, stored in whole metres. Shown on its own: no speed or swim pace yet (FIT-7). |
+
+Decided by the owner on 4 November 2026 for planned against completed (FIT-5), before it was built; the plan is
+[docs/plans/phase-7-goal-progress.md](plans/phase-7-goal-progress.md):
+
+| # | Question | Decision |
+|---|---|---|
+| Q37 | Where does a goal's progress for the week show? | On the Goals page (this week), on Plan my week (the week it plans, in place of "1 of 3 already planned") and on the home page (a "This week" card). |
+| Q38 | Does a skipped session still count towards its goal? | No: Plan my week then suggests another time that week. The skipped session stays on the calendar, marked skipped, and its own time stays busy, so it isn't offered. |
+| Q39 | Which goals does an activity's "Counts towards" offer? | All of the user's weekly goals, each with its category beside its name, and "No goal". |
