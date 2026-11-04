@@ -64,10 +64,10 @@
                     <button type="submit" name="Change" value="@OccurrenceChangeChoice.Restore" class="btn btn-outline-secondary">Put it back to the usual time</button>
                 }
             </div>
-            @if (Model.PutBackRemovesIt is { } putBackNote)
+            @if (Model.KeptMoveNote is { } keptMoveNote)
             {
-                @* Q17: said before the button is pressed. *@
-                <p class="form-text mt-n2 mb-3">@putBackNote</p>
+                @* Q17: said before either button is pressed. *@
+                <p class="form-text mt-n2 mb-3">@keptMoveNote</p>
             }
         </form>
 

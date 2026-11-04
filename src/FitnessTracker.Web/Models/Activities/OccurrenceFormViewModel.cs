@@ -80,12 +80,13 @@ public class OccurrenceFormViewModel : IConfirmsClashes
     public string ShownOn { get; set; } = "";
 
     /// <summary>
-    /// Q17: said beside "Put it back" when that would take it away: it was moved from a date it no longer happens on (a
-    /// week since given to a holiday), and is only kept because it was moved to one it does. Null otherwise.
+    /// Q17: said beside the buttons for a kept move, one moved from a date it no longer happens on (a week since given to
+    /// a holiday) and kept because it was moved to one it does: putting it back takes it away, and once cancelled its page
+    /// can't be found to undo it until that date is in use again. Null otherwise.
     /// </summary>
     [BindNever]
     [ValidateNever]
-    public string? PutBackRemovesIt { get; set; }
+    public string? KeptMoveNote { get; set; }
 
     /// <summary>
     /// The new start, once the form is valid. Never validated: MVC's validation reads every property of a posted model,
@@ -137,8 +138,9 @@ public class OccurrenceFormViewModel : IConfirmsClashes
             }
             : (usual, false);
         ShownOn = FormInput.Date.Format(change is OccurrenceChange.Moved moved ? moved.Start.Date : date);
-        PutBackRemovesIt = change is OccurrenceChange.Moved && !series.RestoreOccurrence(date).FallsOn(date)
-            ? $"Its usual date, {Named.Format(date)}, is one this activity doesn't happen on now, so putting it back removes it."
+        KeptMoveNote = change is OccurrenceChange.Moved && !series.Allows(date)
+            ? $"Its usual date, {Named.Format(date)}, is one this activity doesn't happen on now: putting it back removes it, " +
+              "and cancelling it can't be undone until that date is in use again."
             : null;
         return this;
     }
