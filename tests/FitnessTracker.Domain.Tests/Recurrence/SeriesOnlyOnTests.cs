@@ -211,6 +211,25 @@ public class SeriesOnlyOnTests
         Assert.Equal(Instant.FromUtc(2026, 10, 9, 17, 0), friday.Time.Start);
     }
 
+    // §8, T5 with Q17, on the clock change itself (scheduling review of Q17, L5: the test above moves to an ordinary
+    // Friday). A daily 01:30 series for 30 minutes from 22 March 2027 has Saturday 27 March's moved to Sunday 28 March at
+    // 01:45, a time the clocks skip, so 02:45 BST (01:45 UTC); then only the Saturday is left out. The move still happens,
+    // after Sunday's own (01:30, really 02:30 BST: 01:30 UTC), known by Saturday's date.
+    [Fact]
+    public void Q17_AMoveToATimeTheClocksSkip_StillHappens()
+    {
+        var nightly = new Series(new(2027, 3, 22), new(1, 30), Duration.FromMinutes(30), London, RecurrenceRule.Daily());
+        var moved = nightly.MoveOccurrence(new LocalDate(2027, 3, 27), new LocalDateTime(2027, 3, 28, 1, 45), Duration.FromMinutes(30))
+            .OnlyOn(date => date != new LocalDate(2027, 3, 27));
+
+        Occurrence[] expected =
+        [
+            new(new(2027, 3, 28), new(Instant.FromUtc(2027, 3, 28, 1, 30), Instant.FromUtc(2027, 3, 28, 2, 0))),
+            new(new(2027, 3, 27), new(Instant.FromUtc(2027, 3, 28, 1, 45), Instant.FromUtc(2027, 3, 28, 2, 15))),
+        ];
+        Assert.Equal(expected, moved.OccurrencesBetween(new(2027, 3, 27), new(2027, 3, 28)));
+    }
+
     // Q17 with P5 (scheduling review of Q17, M2): changing an every-week activity to week A only, where Monday 12
     // October's (week B) was moved to Friday 9 October (week A), keeps that session where it was moved to, since it still
     // happens there, and gives the same answer whether or not a holiday covered 12 October when the edit was made

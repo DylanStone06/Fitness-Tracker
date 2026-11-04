@@ -2,8 +2,11 @@
 
 Written 4 November 2026, before any code, after the owner's decision on requirements Q17 ("what you recommend").
 
-**Status: built the same day**, as planned, then reviewed by the `scheduling-reviewer` agent (its findings, if any,
-in follow-up commits). One domain test from the Phase 6b scheduling review pinned the old rule (a hidden move
+**Status: built the same day**, as planned, then reviewed by the `scheduling-reviewer` agent: no high findings; each
+of the others fixed in its own commit (the refusal moved into the one check on save; an edit treating a moved session
+the same with or without a holiday; Find another time offering only days a kept session happens on; a note that
+cancelling one can't be undone for now; more tests), except an older gap in the re-check after removing a routine's
+dates, now in the known limitations. One domain test from the Phase 6b scheduling review pinned the old rule (a hidden move
 mustn't count as happening); it now uses a move whose both ends are left out, which still mustn't count, and a new
 test checks that a kept move is checked where it is.
 

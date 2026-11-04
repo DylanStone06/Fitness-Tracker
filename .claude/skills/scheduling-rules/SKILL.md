@@ -98,10 +98,14 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   to a holiday), moved within dates left out it goes with them, and moved by the user *into* a week the activity isn't
   usually in it still happens (its own date is allowed). `FallsOn` (public) is rule and that same rule (private
   `Happens`), so a kept move has its pages and can be moved again, cancelled or marked; other changes on dates left
-  out are kept as data and refused as new changes. The occurrence page says before "Put it back" that it would remove
-  a kept move, and refuses moving one to a date where neither end would be allowed (P1: it would vanish). Tests:
-  `SeriesOnlyOnTests.Q17_*`, `AnOccurrenceMovedWithinALeftOutWeek_IsLeftOut`, `AKeptMove_CanBeChangedAgain`,
-  `ActivityCheckTests.Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs`, web `RoutineDatesTests.Q17_*`. `Edit` keeps
+  out are kept as data and refused as new changes. The check on one occurrence (`CheckOccurrence`) refuses moving a kept
+  move to a date where neither end would be allowed (P1: it would vanish; aspect `Date`); the occurrence page says
+  beside its buttons that putting a kept move back removes it and that cancelling it can't be undone until its date is
+  in use again (its page can't be found then). Tests: `SeriesOnlyOnTests.Q17_*` (one on the night the clocks go
+  forward, moved to a skipped time), `AnOccurrenceMovedWithinALeftOutWeek_IsLeftOut`, `AKeptMove_CanBeChangedAgain`,
+  `ActivityCheckTests.Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs`, `CheckOccurrence_AKeptMove*`, web
+  `RoutineDatesTests.Q17_*`. Not covered (known limitations): removing a routine's dates re-checks from those dates,
+  so a moved session that comes back before them isn't re-checked. `Edit` keeps
   the filter and removes (and counts, P5) each change the edit **stops happening**: it happened before (its date
   allowed, or for a move either end: Q17) and doesn't after. So changing an activity from every week to week A only
   removes its week B changes and says so, except a week B session moved into week A, which still happens there, the
