@@ -27,9 +27,11 @@ own form ("Counts towards"). The owner chose Q37-Q39 the same day, each the reco
 
 ## Rules (domain, test first)
 
-- `GoalProgress` (Domain/Workouts): from a goal's target and the states of its sessions that week (`SessionState`,
-  or none for a category without statuses): done, skipped, not logged, still to come, planned without statuses, and
-  how many aren't planned yet (the target less every session but the skipped ones).
+- `GoalProgress` (Domain/Workouts): from a goal's target, the states of its sessions with statuses that week
+  (`SessionState`) and how many it has in a category without them: done, skipped, not logged, still to come, planned
+  without statuses, and how many aren't planned yet (the target less every session but the skipped ones). No state
+  means not planned at all (a cancelled session, Q21), as `Sessions.StateOf` has it, so it isn't counted (scheduling
+  review, L5).
 - The planner (Q38): `PlanRequest.Skipped` lists sessions marked skipped (activity and the date its rule puts them
   on); one of them doesn't count towards its goal (the number planned, one a day, the spread), and is still busy time.
   The `scheduling-reviewer` agent reviews this.

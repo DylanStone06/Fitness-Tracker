@@ -14,18 +14,19 @@ public sealed record GoalProgress(int Target, int Done, int Skipped, int NotLogg
     public int NotPlanned => Math.Max(0, Target - (Done + NotLogged + ToCome + Planned));
 
     /// <summary>
-    /// The week of a goal asking for <paramref name="target"/> sessions, from its <paramref name="sessions"/>' states
-    /// (<see cref="Sessions.StateOf"/>), null for a session without statuses. A moved one (Q22) counts at its new time.
+    /// The week of a goal asking for <paramref name="target"/> sessions, from the states of its sessions with statuses
+    /// (<see cref="Sessions.StateOf"/>; a moved one, Q22, counts at its new time) and how many it has in a category
+    /// without them (<paramref name="withoutStatuses"/>, Q20). No state is what <see cref="Sessions.StateOf"/> gives a
+    /// session that isn't planned at all (cancelled, Q21), so it isn't counted (scheduling review of Q38, L5).
     /// </summary>
-    public static GoalProgress Of(int target, IEnumerable<SessionState?> sessions)
+    public static GoalProgress Of(int target, IEnumerable<SessionState?> sessions, int withoutStatuses = 0)
     {
-        int done = 0, skipped = 0, notLogged = 0, toCome = 0, planned = 0;
+        int done = 0, skipped = 0, notLogged = 0, toCome = 0;
         foreach (var session in sessions)
         {
             switch (session)
             {
                 case null:
-                    planned++;
                     break;
                 case { Status: SessionStatus.Completed }:
                     done++;
@@ -42,6 +43,6 @@ public sealed record GoalProgress(int Target, int Done, int Skipped, int NotLogg
             }
         }
 
-        return new GoalProgress(target, done, skipped, notLogged, toCome, planned);
+        return new GoalProgress(target, done, skipped, notLogged, toCome, withoutStatuses);
     }
 }
