@@ -1,20 +1,11 @@
-using System.Globalization;
 using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
-using NodaTime;
 
 namespace FitnessTracker.Web.Models.Workouts;
-
-/// <summary>FIT-3: a saved run as its page shows it: a heading ("Easy run") and the figures that were given.</summary>
-public sealed record RunSummary(string Heading, IReadOnlyList<SessionFigure> Figures);
 
 /// <summary>FIT-3, Q26-Q29: how a run's details are written, in the form's lists and on its page.</summary>
 public static class RunDisplay
 {
-    public const int LowestEffort = 1;
-
-    public const int HighestEffort = 10;
-
     /// <summary>The type as its list offers it: "Easy", …, "Custom".</summary>
     public static string TypeName(RunType type) => type switch
     {
@@ -35,48 +26,13 @@ public static class RunDisplay
         { } given => $"{TypeName(given)} run",
     };
 
-    /// <summary>Q29: what an effort of 1 to 10 means, on a common perceived-effort scale.</summary>
-    public static string EffortWord(int effort) => effort switch
-    {
-        1 => "very easy",
-        2 or 3 => "easy",
-        4 or 5 or 6 => "moderate",
-        7 or 8 => "hard",
-        9 => "very hard",
-        10 => "all out",
-        _ => throw new ArgumentOutOfRangeException(nameof(effort), effort, "Effort is from 1 to 10."),
-    };
-
-    /// <summary>An effort as its list offers it: "6: moderate".</summary>
-    public static string EffortChoice(int effort) => string.Create(CultureInfo.InvariantCulture, $"{effort}: {EffortWord(effort)}");
-
     /// <summary>
     /// The run <paramref name="log"/> saved, in <paramref name="unit"/>, with <paramref name="planned"/> ("1 h") beside its
-    /// time; null when it has no details. Pace is worked out here, never stored (Q25).
+    /// time; null when it has no details. Pace is worked out, never stored (Q25).
     /// </summary>
-    public static RunSummary? Summary(SessionLog log, DistanceUnit unit, string planned)
+    public static SessionSummary? Summary(SessionLog log, DistanceUnit unit, string planned)
     {
-        var figures = new List<SessionFigure>();
-        if (log.DistanceMetres is { } metres)
-        {
-            figures.Add(SessionFigure.WithUnit("Distance", Distances.Text(metres, unit)));
-        }
-
-        if (log.ActualSeconds is { } seconds)
-        {
-            var time = Duration.FromSeconds(seconds);
-            figures.Add(new SessionFigure("Time", StopwatchText.Format(time), Note: $"planned {planned}"));
-            if (log.DistanceMetres is { } distance && Pace.Text(time, distance, unit) is { } pace)
-            {
-                figures.Add(SessionFigure.WithUnit("Pace", pace));
-            }
-        }
-
-        if (log.Effort is { } effort)
-        {
-            figures.Add(new SessionFigure("Effort", effort.ToString(CultureInfo.InvariantCulture), "of 10", EffortWord(effort)));
-        }
-
-        return figures.Count == 0 && log.RunType is null ? null : new RunSummary(Heading(log.RunType, log.CustomRunType), figures);
+        var figures = SessionDetails.Figures(log, unit, planned, withPace: true);
+        return figures.Count == 0 && log.RunType is null ? null : new SessionSummary(Heading(log.RunType, log.CustomRunType), figures);
     }
 }

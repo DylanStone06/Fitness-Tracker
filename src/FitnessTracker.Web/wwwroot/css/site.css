@@ -503,8 +503,8 @@ h2, .h2, h3, .h3, .h4, .h5 {
   border-radius: var(--bs-border-radius);
 }
 
-/* Q26: a custom type's name box only once "Custom" is chosen. A browser without :has() shows it always. */
-.ft-run-type:not(:has(option[value="Custom"]:checked)) .ft-custom-type {
+/* Q26, Q34: a custom type's name box only once "Custom" is chosen. A browser without :has() shows it always. */
+.ft-type:not(:has(option[value="Custom"]:checked)) .ft-custom-type {
   display: none;
 }
 

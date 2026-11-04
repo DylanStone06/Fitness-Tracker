@@ -51,11 +51,14 @@ public class SessionLogViewModel
     public const int MaxDistance = 1000;
 
     /// <summary>
-    /// The boxes only saving a run as done uses: the other buttons, and other kinds of session, ignore what is in them,
-    /// even what can't be read.
+    /// The time, distance and effort boxes runs and other activities share (FIT-3, FIT-4): only saving one of those as
+    /// done reads them; the other buttons, and other kinds of session, ignore what is in them, even what can't be read.
     /// </summary>
-    public static readonly IReadOnlyList<string> RunBoxes =
-        [nameof(RunType), nameof(CustomRunType), nameof(TimeHours), nameof(TimeMinutes), nameof(TimeSeconds), nameof(Distance), nameof(Effort)];
+    public static readonly IReadOnlyList<string> DetailBoxes =
+        [nameof(TimeHours), nameof(TimeMinutes), nameof(TimeSeconds), nameof(Distance), nameof(Effort)];
+
+    /// <summary>A run's own boxes, read only when a run is saved as done.</summary>
+    public static readonly IReadOnlyList<string> RunTypeBoxes = [nameof(RunType), nameof(CustomRunType)];
 
     /// <summary>Q31: the most sets one session can have.</summary>
     public const int MaxSets = 60;
@@ -152,7 +155,7 @@ public class SessionLogViewModel
     public string PlannedLength { get; private set; } = "";
 
     /// <summary>A run marked done, as saved, when it has details.</summary>
-    public RunSummary? Run { get; private set; }
+    public SessionSummary? Run { get; private set; }
 
     /// <summary>FIT-2: a gym session's, whose page logs its sets.</summary>
     public bool IsGym { get; private set; }
@@ -213,23 +216,17 @@ public class SessionLogViewModel
 
     /// <summary>
     /// FIT-3: problems with a run's details as typed, for saving it as done, listed with any the boxes' own reading
-    /// found. A blank time box counts as none of that unit, so "45" minutes alone is enough.
+    /// found: its type, then the details it shares with other activities (<see cref="DetailProblems"/>).
     /// </summary>
-    public IEnumerable<ValidationResult> RunProblems(DistanceUnit unit)
-    {
-        if (RunType == Data.RunType.Custom)
-        {
-            if (CustomRunType is null)
-            {
-                yield return new ValidationResult("Enter a name for the custom type, or choose another type.", [nameof(CustomRunType)]);
-            }
-            else if (CustomRunType.Length > SessionLog.CustomRunTypeMaxLength)
-            {
-                yield return new ValidationResult(
-                    $"The name of the custom type must be {SessionLog.CustomRunTypeMaxLength} characters or fewer.", [nameof(CustomRunType)]);
-            }
-        }
+    public IEnumerable<ValidationResult> RunProblems(DistanceUnit unit) =>
+        CustomTypeProblems(RunType == Data.RunType.Custom, CustomRunType, nameof(CustomRunType)).Concat(DetailProblems(unit));
 
+    /// <summary>
+    /// FIT-3, FIT-4: problems with the time, distance and effort boxes as typed. A blank time box counts as none of that
+    /// unit, so "45" minutes alone is enough.
+    /// </summary>
+    public IEnumerable<ValidationResult> DetailProblems(DistanceUnit unit)
+    {
         foreach (var problem in TimeProblems())
         {
             yield return problem;
@@ -253,7 +250,7 @@ public class SessionLogViewModel
             }
         }
 
-        if (Effort is < RunDisplay.LowestEffort or > RunDisplay.HighestEffort)
+        if (Effort is < SessionDetails.LowestEffort or > SessionDetails.HighestEffort)
         {
             yield return new ValidationResult("Choose how hard it felt from the list.", [nameof(Effort)]);
         }
@@ -268,11 +265,7 @@ public class SessionLogViewModel
     {
         log.RunType = RunType;
         log.CustomRunType = RunType == Data.RunType.Custom ? CustomRunType : null;
-        log.ActualSeconds = TimeHours is null && TimeMinutes is null && TimeSeconds is null
-            ? null
-            : ((TimeHours ?? 0) * 3600) + ((TimeMinutes ?? 0) * 60) + (TimeSeconds ?? 0);
-        log.DistanceMetres = FormInput.ParseAmount(Distance) is { } amount ? Distances.Metres(amount, unit) : null;
-        log.Effort = Effort;
+        ApplyDetailsTo(log, unit);
     }
 
     /// <summary>
@@ -431,11 +424,45 @@ public class SessionLogViewModel
         }
     }
 
-    // A saved run's details in the boxes, the distance as text that saves back to the same metres (Q27).
+    // A custom type needs a name, of up to 40 characters (Q26, Q34).
+    private static IEnumerable<ValidationResult> CustomTypeProblems(bool custom, string? name, string box)
+    {
+        if (!custom)
+        {
+            yield break;
+        }
+
+        if (name is null)
+        {
+            yield return new ValidationResult("Enter a name for the custom type, or choose another type.", [box]);
+        }
+        else if (name.Length > SessionLog.CustomRunTypeMaxLength)
+        {
+            yield return new ValidationResult($"The name of the custom type must be {SessionLog.CustomRunTypeMaxLength} characters or fewer.", [box]);
+        }
+    }
+
+    // The time, distance and effort boxes onto the log, in seconds and whole metres (Q25).
+    private void ApplyDetailsTo(SessionLog log, DistanceUnit unit)
+    {
+        log.ActualSeconds = TimeHours is null && TimeMinutes is null && TimeSeconds is null
+            ? null
+            : ((TimeHours ?? 0) * 3600) + ((TimeMinutes ?? 0) * 60) + (TimeSeconds ?? 0);
+        log.DistanceMetres = FormInput.ParseAmount(Distance) is { } amount ? Distances.Metres(amount, unit) : null;
+        log.Effort = Effort;
+    }
+
+    // A saved run's details in the boxes.
     private void FillRunBoxes(SessionLog log, DistanceUnit unit)
     {
         RunType = log.RunType;
         CustomRunType = log.CustomRunType;
+        FillDetailBoxes(log, unit);
+    }
+
+    // The saved time, distance and effort in the boxes, the distance as text that saves back to the same metres (Q27).
+    private void FillDetailBoxes(SessionLog log, DistanceUnit unit)
+    {
         if (log.ActualSeconds is { } seconds)
         {
             (TimeHours, TimeMinutes, TimeSeconds) = (seconds / 3600, seconds / 60 % 60, seconds % 60);

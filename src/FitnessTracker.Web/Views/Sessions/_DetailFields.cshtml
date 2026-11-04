@@ -1,0 +1,55 @@
+@model FitnessTracker.Web.Models.Workouts.SessionLogViewModel
+@using System.Globalization
+@using FitnessTracker.Domain.Workouts
+@using FitnessTracker.Web.Models.Workouts
+@* FIT-3, FIT-4: the details a run and an other activity share, each optional: the time it took, the distance (stored in
+   whole metres, Q25) and how hard it felt (Q29, Q35). Checked on the server only, and only when saved as done. *@
+@{
+    var efforts = Enumerable.Range(SessionDetails.LowestEffort, SessionDetails.HighestEffort - SessionDetails.LowestEffort + 1)
+        .Select(effort => new SelectListItem(SessionDetails.EffortChoice(effort), effort.ToString(CultureInfo.InvariantCulture)))
+        .ToList();
+    var (unitName, unitShort) = Model.DistanceUnit == DistanceUnit.Kilometres ? ("kilometres", "km") : ("miles", "miles");
+}
+@* The boxes are narrow on a phone, so their messages sit above them, across the whole width. *@
+<fieldset class="mb-3" aria-describedby="time-hint">
+    <legend class="fs-6 mb-1">Time it took</legend>
+    <div class="form-text mt-0 mb-1" id="time-hint">Planned: @Model.PlannedLength</div>
+    <span asp-validation-for="TimeHours" class="d-block text-danger" id="hours-error"></span>
+    <span asp-validation-for="TimeMinutes" class="d-block text-danger" id="minutes-error"></span>
+    <span asp-validation-for="TimeSeconds" class="d-block text-danger" id="seconds-error"></span>
+    <div class="row g-2 ft-field">
+        <div class="col-4">
+            <label asp-for="TimeHours" class="form-label mb-0"></label>
+            <input asp-for="TimeHours" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="hours-error" aria-invalid="@ViewData.ModelState.AriaInvalid("TimeHours")" />
+        </div>
+        <div class="col-4">
+            <label asp-for="TimeMinutes" class="form-label mb-0"></label>
+            <input asp-for="TimeMinutes" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="minutes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("TimeMinutes")" />
+        </div>
+        <div class="col-4">
+            <label asp-for="TimeSeconds" class="form-label mb-0"></label>
+            <input asp-for="TimeSeconds" type="number" step="1" class="form-control" inputmode="numeric"
+                   aria-describedby="seconds-error" aria-invalid="@ViewData.ModelState.AriaInvalid("TimeSeconds")" />
+        </div>
+    </div>
+</fieldset>
+
+<div class="mb-3">
+    <label asp-for="Distance" class="form-label">Distance (@unitShort)</label>
+    <div class="form-text mt-0 mb-1" id="distance-hint">In @unitName, as set in your <a asp-controller="Preferences" asp-action="Index">preferences</a>. For example 5.2.</div>
+    <span asp-validation-for="Distance" class="d-block text-danger" id="distance-error"></span>
+    <input asp-for="Distance" class="form-control ft-field-short" inputmode="decimal" autocomplete="off"
+           aria-describedby="distance-hint distance-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Distance")" />
+</div>
+
+<div class="mb-3">
+    <label asp-for="Effort" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="effort-hint">From 1, very easy, to 10, all out.</div>
+    <span asp-validation-for="Effort" class="d-block text-danger" id="effort-error"></span>
+    <select asp-for="Effort" class="form-select ft-field" asp-items="efforts"
+            aria-describedby="effort-hint effort-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Effort")">
+        <option value="">Not given</option>
+    </select>
+</div>

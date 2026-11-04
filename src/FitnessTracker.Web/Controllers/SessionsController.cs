@@ -70,7 +70,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         var savesAWorkout = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Gym;
         if (!savesARun)
         {
-            foreach (var box in SessionLogViewModel.RunBoxes)
+            foreach (var box in SessionLogViewModel.RunTypeBoxes.Concat(SessionLogViewModel.DetailBoxes))
             {
                 ModelState.Remove(box);
             }
