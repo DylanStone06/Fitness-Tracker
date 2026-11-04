@@ -545,6 +545,14 @@ h2, .h2, h3, .h3, .h4, .h5 {
   display: none;
 }
 
+/* On a phone a set takes two lines, so a faint line (the decorative edge colour) marks where the next one starts. */
+@media (max-width: 575.98px) {
+  .ft-set + .ft-set {
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--bs-border-color);
+  }
+}
+
 @media (min-width: 576px) {
   .ft-set-grid,
   .ft-set-head {
