@@ -211,7 +211,11 @@ public sealed class Series
     private Series WithChanges(FrozenDictionary<LocalDate, OccurrenceChange> changes) =>
         new(FirstDate, StartTime, Length, Zone, Rule, changes, _happensOn);
 
-    private bool Allows(LocalDate date) => Allowed(_happensOn, date);
+    /// <summary>
+    /// Whether <see cref="OnlyOn"/> lets it happen on <paramref name="date"/> (CAL-9: its routine, and week, in use then),
+    /// whatever its rule says; every date when it isn't limited. A session moved to such a date happens there (Q17).
+    /// </summary>
+    public bool Allows(LocalDate date) => Allowed(_happensOn, date);
 
     private bool Happens(LocalDate date) => Happens(_happensOn, date, _changes.GetValueOrDefault(date));
 

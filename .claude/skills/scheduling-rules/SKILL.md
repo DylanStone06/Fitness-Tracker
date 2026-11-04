@@ -319,7 +319,9 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   the occurrence, plans it as its goal (`GoalId`, or the activity's own id when it has none) with the activity's
   other occurrences counted as that goal's, so one session a day and the spread apply to them (review M-2: a daily
   series was offered days that already had one), prefers the part of the day it was in and leaves out the time it
-  has now. Tests: `PlannerTests.OptionsFor_*`, `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`. None
+  has now. A kept move (Q17: its own date isn't in use) is only offered days its activity is in use on
+  (`Series.Allows`); the others say "Moved here, Gym would disappear: it doesn't happen on this day now" (scheduling
+  review of Q17, M1; `PlannerTests.OptionsFor_AKeptMove_*`). Tests: `PlannerTests.OptionsFor_*`, `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`. None
   fitting gives the same day reasons as a shortfall.
 - Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
   T16, T22.
