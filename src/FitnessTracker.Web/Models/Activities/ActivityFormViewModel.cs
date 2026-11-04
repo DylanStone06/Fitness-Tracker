@@ -135,8 +135,16 @@ public class ActivityFormViewModel : IConfirmsClashes
     /// <summary>Opened from "Plan my week" (SCH-4): saving (or cancelling) goes back to the plan, on the activity's week.</summary>
     public bool ReturnToPlan { get; set; }
 
-    /// <summary>GOL-1: the weekly goal it is for, carried by the page, or null.</summary>
+    /// <summary>
+    /// GOL-1, FIT-5: the weekly goal its sessions count towards, chosen from the user's goals (Q39), or null for none.
+    /// </summary>
+    [Display(Name = "Counts towards")]
     public Guid? GoalId { get; set; }
+
+    /// <summary>The signed-in person's weekly goals, for "Counts towards". Filled by the controller, never posted.</summary>
+    [BindNever]
+    [ValidateNever]
+    public IReadOnlyList<WeeklyGoal> Goals { get; set; } = [];
 
     /// <summary>The start date as saved, once the form is valid: the week the calendar goes back to.</summary>
     public string? SavedStartDate => FormInput.ParseDate(StartDate) is { } date ? FormInput.Date.Format(date) : null;

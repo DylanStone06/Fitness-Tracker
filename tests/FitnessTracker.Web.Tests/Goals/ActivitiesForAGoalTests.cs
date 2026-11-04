@@ -4,9 +4,10 @@ using FitnessTracker.Web.Tests.Infrastructure;
 
 namespace FitnessTracker.Web.Tests.Goals;
 
-// GOL-1, SCH-4: an activity added for a weekly goal remembers it, so it counts towards the goal when the week is
-// planned. A suggestion is saved through the ordinary activity form (SCH-1: the one check on save), filled in from the
-// goal; the form can also be opened filled in to change it first ("Change"), and goes back to the plan once saved.
+// GOL-1, SCH-4, FIT-5: an activity added for a weekly goal remembers it, so it counts towards the goal when the week is
+// planned and in the goal's progress. A suggestion is saved through the ordinary activity form (SCH-1: the one check on
+// save), filled in from the goal; the form can also be opened filled in to change it first ("Change"), and goes back to
+// the plan once saved. Any activity's form says which goal it counts towards, if any ("Counts towards", Q24, Q39).
 public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixture<TestAppFactory>
 {
     [Fact]
@@ -20,10 +21,29 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
         Assert.Equal(goal, (await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
     }
 
-    // Architecture rule 5: a form refers to the user's own records only; another user's goal is "not found", so the
-    // activity is saved without it (the goal is a hidden link the user can't choose, so there's nothing to correct).
+    // Q39: "Counts towards" offers every one of the user's own goals, each with its category, by name, after "No goal";
+    // never another user's (T19).
     [Fact]
-    public async Task AnotherUsersGoal_IsNotLinked()
+    public async Task TheForm_OffersEachOfTheUsersGoals_WithItsCategory()
+    {
+        var (_, samsGoal) = await WithAGoalAsync("sam");
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var prep = await AddGoalAsync(browser, "Sunday prep", new() { ["Category"] = "MealPrep" });
+        var gym = await AddGoalAsync(browser, "gym three times");
+
+        var html = await (await browser.GetAsync("/Activities/Create")).Content.ReadAsStringAsync();
+
+        Assert.Equal(
+            [("", "No goal"), (gym.ToString(), "gym three times (Gym)"), (prep.ToString(), "Sunday prep (Meal prep)")],
+            Options(html, "GoalId"));
+        Assert.DoesNotContain(samsGoal.ToString(), html);
+        Assert.Matches("""<label[^>]*for="GoalId"[^>]*>Counts towards</label>""", html);
+    }
+
+    // Architecture rule 5, T19: another user's goal is "not found", so it is said like any choice that isn't on the list,
+    // and nothing is saved.
+    [Fact]
+    public async Task AnotherUsersGoal_IsRefused()
     {
         var (_, samsGoal) = await WithAGoalAsync("sam");
         var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
@@ -31,14 +51,15 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
 
         var response = await alex.AddActivityAsync(title, new() { ["GoalId"] = samsGoal.ToString() });
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Choose a goal from the list.", await response.Content.ReadAsStringAsync());
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
     }
 
-    // A goal deleted in another tab while an activity's form is open doesn't stop the save: the link is dropped, as the
-    // database dropped it (code review, Phase 6).
+    // A goal deleted in another tab while an activity's form is open is no longer on the list, so it is said, as for a
+    // location (it used to be dropped quietly, when the goal was a hidden link with nothing on the page to correct).
     [Fact]
-    public async Task AGoalDeletedMeanwhile_DoesntStopTheSave()
+    public async Task AGoalDeletedMeanwhile_IsSaid_AndTheChangeIsntSaved()
     {
         var (browser, goal) = await WithAGoalAsync();
         var title = TestBrowser.NewName("Gym");
@@ -49,8 +70,9 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
 
         var response = await browser.SubmitAsync(openForm, $"/Activities/Edit/{id}", TestBrowser.ActivityForm(title, new() { ["StartTime"] = "08:00", ["GoalId"] = goal.ToString() }));
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Choose a goal from the list.", await response.Content.ReadAsStringAsync());
+        Assert.Equal(new NodaTime.LocalTime(7, 0), (await StoredData.ActivityTitledAsync(factory, title))!.StartTime);
     }
 
     [Fact]
@@ -61,11 +83,41 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
         await browser.AddActivityAsync(title, new() { ["GoalId"] = goal.ToString() });
         var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
 
-        var form = await browser.GetAsync($"/Activities/Edit/{id}");
+        var form = await (await browser.GetAsync($"/Activities/Edit/{id}")).Content.ReadAsStringAsync();
+        Assert.Equal(goal.ToString(), SelectedValue(form, "GoalId"));
         await browser.SubmitFormAsync($"/Activities/Edit/{id}", $"/Activities/Edit/{id}",
-            TestBrowser.ActivityForm(title, new() { ["StartTime"] = "08:00", ["GoalId"] = HiddenValue(await form.Content.ReadAsStringAsync(), "GoalId") ?? "" }));
+            TestBrowser.ActivityForm(title, new() { ["StartTime"] = "08:00", ["GoalId"] = SelectedValue(form, "GoalId") ?? "" }));
 
         Assert.Equal(goal, (await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
+    }
+
+    // "No goal": it stops counting towards the goal, and stays on the calendar.
+    [Fact]
+    public async Task ChoosingNoGoal_UnlinksIt()
+    {
+        var (browser, goal) = await WithAGoalAsync();
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, new() { ["GoalId"] = goal.ToString() });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var response = await browser.SubmitFormAsync($"/Activities/Edit/{id}", $"/Activities/Edit/{id}",
+            TestBrowser.ActivityForm(title, new() { ["GoalId"] = "" }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Null((await StoredData.ActivityTitledAsync(factory, title))!.GoalId);
+    }
+
+    // Without any goals, there's nothing to choose: the form says where goals are set instead of offering "No goal" alone.
+    [Fact]
+    public async Task WithoutGoals_TheFormSaysWhereToSetOne()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+
+        var html = await (await browser.GetAsync("/Activities/Create")).Content.ReadAsStringAsync();
+
+        Assert.DoesNotMatch("""<select[^>]*name="GoalId""", html);
+        Assert.Contains("It doesn't count towards a weekly goal", html);
+        Assert.Matches("""<a[^>]*href="/Goals"[^>]*>weekly goal</a>""", html);
     }
 
     // "Change" on a suggestion: the form, filled in from the goal at the suggested time, every week on that day.
@@ -94,7 +146,7 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
         Assert.True(IsChecked(html, """name="RepeatDays[2]" type="checkbox" """.TrimEnd()) || IsChecked(html, "id=\"RepeatDays_2_\""), "Wednesday isn't ticked");
         Assert.False(IsChecked(html, "id=\"RepeatDays_0_\""), "Monday is ticked");
         Assert.True(IsChecked(html, "id=\"IsFixed-movable\""), "Movable isn't chosen");
-        Assert.Equal(goal.ToString(), HiddenValue(html, "GoalId"));
+        Assert.Equal(goal.ToString(), SelectedValue(html, "GoalId"));
         Assert.Equal("true", HiddenValue(html, "ReturnToPlan")?.ToLowerInvariant());
     }
 
@@ -117,9 +169,22 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
     private async Task<(TestBrowser Browser, Guid Goal)> WithAGoalAsync(string user = "alex", Dictionary<string, string>? changes = null)
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, user);
-        var title = TestBrowser.NewName("Gym goal");
+        return (browser, await AddGoalAsync(browser, TestBrowser.NewName("Gym goal"), changes));
+    }
+
+    private async Task<Guid> AddGoalAsync(TestBrowser browser, string title, Dictionary<string, string>? changes = null)
+    {
         Assert.Equal(HttpStatusCode.Redirect, (await browser.AddGoalAsync(title, changes)).StatusCode);
-        return (browser, (await StoredData.GoalTitledAsync(factory, title))!.Id);
+        return (await StoredData.GoalTitledAsync(factory, title))!.Id;
+    }
+
+    // Each option of the list, value and text, in order.
+    private static List<(string Value, string Text)> Options(string html, string name)
+    {
+        var select = Regex.Match(html, $"""<select[^>]*\sname="{Regex.Escape(name)}"[^>]*>(.*?)</select>""", RegexOptions.Singleline);
+        return Regex.Matches(select.Groups[1].Value, """<option[^>]*value="([^"]*)"[^>]*>([^<]*)</option>""")
+            .Select(option => (option.Groups[1].Value, WebUtility.HtmlDecode(option.Groups[2].Value)))
+            .ToList();
     }
 
     private static string? InputValue(string html, string name)

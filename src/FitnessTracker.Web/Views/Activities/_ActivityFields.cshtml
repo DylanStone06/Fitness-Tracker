@@ -22,6 +22,26 @@
             aria-describedby="category-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Category")"></select>
 </div>
 
+@* GOL-1, FIT-5: the weekly goal its sessions count towards (Q24): any of the user's goals, with its category (Q39). *@
+<div class="mb-3">
+    @if (Model.Goals.Count == 0)
+    {
+        <p class="form-text mb-0">It doesn't count towards a weekly goal: you haven't set any yet. Set a
+            <a asp-controller="Goals" asp-action="Index">weekly goal</a> to plan your weeks around it and see how each one is going.</p>
+    }
+    else
+    {
+        var goals = Model.Goals.Select(goal => new SelectListItem($"{goal.Title} ({ActivityDisplay.CategoryName(goal.Category)})", goal.Id.ToString())).ToList();
+        <label asp-for="GoalId" class="form-label"></label>
+        <div class="form-text mt-0 mb-1" id="goal-hint">Each of its sessions counts towards that goal's week.</div>
+        <span asp-validation-for="GoalId" class="d-block text-danger" id="goal-error"></span>
+        <select asp-for="GoalId" class="form-select" asp-items="goals"
+                aria-describedby="goal-hint goal-error" aria-invalid="@ViewData.ModelState.AriaInvalid("GoalId")">
+            <option value="">No goal</option>
+        </select>
+    }
+</div>
+
 <div class="mb-3">
     <label asp-for="LocationId" class="form-label"></label>
     <div class="form-text mt-0 mb-1" id="where-hint">

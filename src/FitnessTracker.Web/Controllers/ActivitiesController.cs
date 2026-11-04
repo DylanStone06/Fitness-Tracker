@@ -447,10 +447,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     // Through the per-user filter: another user's activity is simply not found.
     private Task<Activity?> FindAsync(Guid id) => db.Activities.SingleOrDefaultAsync(activity => activity.Id == id);
 
-    // What the form lists (locations, routines) and the category defaults it hints at and fills blank buffers with (ACC-6).
+    // What the form lists (locations, goals, routines) and the category defaults it hints at and fills blank buffers
+    // with (ACC-6).
     private async Task<ActivityFormViewModel> FillListsAsync(ActivityFormViewModel model)
     {
         model.Locations = await MyLocationsAsync();
+        model.Goals = (await db.WeeklyGoals.AsNoTracking().ToListAsync())
+            .OrderBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
         model.Routines = await MyRoutinesAsync();
         model.DefaultBuffers = await planning.DefaultBuffersAsync();
         return model;
@@ -533,8 +537,9 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         _ => nameof(ActivityFormViewModel.EndDate),
     };
 
-    // Problems with what was typed (listed with each field's own, all at once), and a location that must be the
-    // user's own: another user's id is "not found" by the filter, and reported like any choice that isn't on the list.
+    // Problems with what was typed (listed with each field's own, all at once), and a location, routine and goal that
+    // must be the user's own: another user's id is "not found" by the filter, and reported like any choice that isn't on
+    // the list.
     private async Task CheckFormAsync(ActivityFormViewModel model)
     {
         foreach (var problem in model.ProblemsAcrossTheForm())
@@ -559,11 +564,11 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             ModelState.AddModelError(nameof(model.Weeks), ActivityFormViewModel.ChooseWeeksFromTheList);
         }
 
-        // The goal is a hidden link, not a choice: one that isn't the user's, or was deleted in another tab, is dropped
-        // (as the database drops it), rather than stopping a save there's nothing on the page to correct.
-        if (model.GoalId is { } goalId && !await db.WeeklyGoals.AnyAsync(goal => goal.Id == goalId))
+        // FIT-5, Q39: a goal of the user's own, from the list. Another user's is "not found" by the filter, as is one
+        // deleted in another tab while the form was open, and either is said like any choice that isn't on the list.
+        if (model.GoalId is { } goalId && model.Goals.All(goal => goal.Id != goalId))
         {
-            model.GoalId = null;
+            ModelState.AddModelError(nameof(model.GoalId), "Choose a goal from the list.");
         }
     }
 }
