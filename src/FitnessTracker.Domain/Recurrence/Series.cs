@@ -149,9 +149,10 @@ public sealed class Series
 
     /// <summary>
     /// <see cref="Edit(LocalDate, LocalTime, Duration, RecurrenceRule)"/>, allowed on the dates <paramref name="happensOn"/>
-    /// says (CAL-9: its routine's weeks, as they are now) instead of this series' own. A change on a date this series
-    /// already left out (a week since given to another routine) wasn't taken away by the edit: it is kept while the
-    /// edited rule still falls on that date, so it shows again if the date is allowed again.
+    /// says (CAL-9: its routine's weeks, as they are now) instead of this series' own. A change is removed (and counted:
+    /// P5) when the edit stops it happening: it did before, on its date or, for a move, at either end (Q17), and doesn't
+    /// after. One this series already left out (a week since given to another routine) wasn't taken away by the edit: it
+    /// is kept while the edited rule still falls on that date, so it shows again if the date is allowed again.
     /// </summary>
     public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule, Func<LocalDate, bool>? happensOn)
     {
@@ -160,8 +161,7 @@ public sealed class Series
         var removed = 0;
         foreach (var (date, change) in Changes)
         {
-            var allowedAfter = happensOn?.Invoke(date) ?? true;
-            if (!edited.FallsOn(date) || (!allowedAfter && Allows(date)))
+            if (!edited.FallsOn(date) || (Happens(date) && !Happens(happensOn, date, change)))
             {
                 removed++;
                 continue;
@@ -211,13 +211,17 @@ public sealed class Series
     private Series WithChanges(FrozenDictionary<LocalDate, OccurrenceChange> changes) =>
         new(FirstDate, StartTime, Length, Zone, Rule, changes, _happensOn);
 
-    private bool Allows(LocalDate date) => _happensOn?.Invoke(date) ?? true;
+    private bool Allows(LocalDate date) => Allowed(_happensOn, date);
 
-    // Whether the occurrence its rule puts on date happens, if the rule falls on it: the date is allowed, or the
-    // occurrence was moved to a date that is (Q17). One moved within dates left out goes with them; a cancelled one is
-    // handled by its change, not here.
-    private bool Happens(LocalDate date) =>
-        Allows(date) || (_changes.TryGetValue(date, out var change) && change is OccurrenceChange.Moved move && Allows(move.Start.Date));
+    private bool Happens(LocalDate date) => Happens(_happensOn, date, _changes.GetValueOrDefault(date));
+
+    // Whether the occurrence its rule puts on date happens, if the rule falls on it, with the dates happensOn allows: the
+    // date is allowed, or the occurrence was moved to a date that is (Q17). One moved within dates left out goes with
+    // them; a cancelled one is handled by its change, not here.
+    private static bool Happens(Func<LocalDate, bool>? happensOn, LocalDate date, OccurrenceChange? change) =>
+        Allowed(happensOn, date) || (change is OccurrenceChange.Moved move && Allowed(happensOn, move.Start.Date));
+
+    private static bool Allowed(Func<LocalDate, bool>? happensOn, LocalDate date) => happensOn?.Invoke(date) ?? true;
 
     private Occurrence OccurrenceAt(LocalDate date, LocalDateTime start, Duration length)
     {

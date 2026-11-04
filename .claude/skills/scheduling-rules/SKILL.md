@@ -102,9 +102,12 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   a kept move, and refuses moving one to a date where neither end would be allowed (P1: it would vanish). Tests:
   `SeriesOnlyOnTests.Q17_*`, `AnOccurrenceMovedWithinALeftOutWeek_IsLeftOut`, `AKeptMove_CanBeChangedAgain`,
   `ActivityCheckTests.Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs`, web `RoutineDatesTests.Q17_*`. `Edit` keeps
-  the filter and counts a change on a date no longer allowed as removed (P5), so changing an activity from every week
-  to week A only removes its week B changes and says so; its `HiddenChanges` are the ones kept that can't be seen (a
-  kept move to an allowed date is seen). `RecurrenceRule` itself knows nothing of routines: "after N
+  the filter and removes (and counts, P5) each change the edit **stops happening**: it happened before (its date
+  allowed, or for a move either end: Q17) and doesn't after. So changing an activity from every week to week A only
+  removes its week B changes and says so, except a week B session moved into week A, which still happens there, the
+  same with or without a holiday over its date (scheduling review of Q17, M2); a change already out of use (a week
+  given to a holiday) is kept for when it is in use again. Its `HiddenChanges` are the ones kept that can't be seen (a
+  kept move to an allowed date is seen). Tests: `SeriesOnlyOnTests.AnEdit*`. `RecurrenceRule` itself knows nothing of routines: "after N
   times" counts the dates its rule falls on, so the form refuses a count for an activity in a routine.
 - `RoutineCalendar.Across(dates)`: the dates in runs of the same routine and week, for "Usual week, week B" on the
   calendar (`/Calendar/Weeks`) and Plan my week.

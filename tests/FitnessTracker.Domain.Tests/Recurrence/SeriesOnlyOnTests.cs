@@ -211,6 +211,39 @@ public class SeriesOnlyOnTests
         Assert.Equal(Instant.FromUtc(2026, 10, 9, 17, 0), friday.Time.Start);
     }
 
+    // Q17 with P5 (scheduling review of Q17, M2): changing an every-week activity to week A only, where Monday 12
+    // October's (week B) was moved to Friday 9 October (week A), keeps that session where it was moved to, since it still
+    // happens there, and gives the same answer whether or not a holiday covered 12 October when the edit was made
+    // (without one it was removed; with one, kept).
+    [Fact]
+    public void AnEditToWeekAOnly_KeepsAWeekBSessionMovedIntoWeekA_WithOrWithoutAHoliday()
+    {
+        var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 9, 18, 0), Duration.FromMinutes(50));
+        Func<LocalDate, bool> weekAOffHoliday = date => WeekA(date) && NotOnHoliday(date);
+
+        var plain = moved.Edit(moved.FirstDate, moved.StartTime, moved.Length, moved.Rule, WeekA);
+        var duringHoliday = moved.OnlyOn(NotOnHoliday).Edit(moved.FirstDate, moved.StartTime, moved.Length, moved.Rule, weekAOffHoliday);
+
+        Assert.Equal((1, 0, 0), (plain.KeptChanges, plain.HiddenChanges, plain.RemovedChanges));
+        Assert.Equal((1, 0, 0), (duringHoliday.KeptChanges, duringHoliday.HiddenChanges, duringHoliday.RemovedChanges));
+        Assert.Contains(plain.Series.OccurrencesBetween(new(2026, 10, 5), new(2026, 10, 11)), occurrence => occurrence.Time.Start == Instant.FromUtc(2026, 10, 9, 17, 0));
+    }
+
+    // P5: an edit that stops a kept move being seen (it happens on Friday 9 October, in week A, though 12 October is in a
+    // holiday; the edit makes the activity week B only) removes it and says so, rather than hiding it for later
+    // (scheduling review of Q17, L5).
+    [Fact]
+    public void AnEdit_ThatStopsAKeptMoveBeingSeen_RemovesIt()
+    {
+        var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 9, 18, 0), Duration.FromMinutes(50))
+            .OnlyOn(NotOnHoliday);
+        Func<LocalDate, bool> weekBOffHoliday = date => WeekB(date) && NotOnHoliday(date);
+
+        var edit = moved.Edit(moved.FirstDate, moved.StartTime, moved.Length, moved.Rule, weekBOffHoliday);
+
+        Assert.Equal((0, 0, 1), (edit.KeptChanges, edit.HiddenChanges, edit.RemovedChanges));
+    }
+
     // ... but not once the edited rule no longer falls on it (Mondays dropped): then nothing could show it again.
     [Fact]
     public void AnEdit_RemovesAChangeOnALeftOutDate_WhenTheRuleNoLongerFallsOnIt()
