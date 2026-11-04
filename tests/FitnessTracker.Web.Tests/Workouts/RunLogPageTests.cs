@@ -55,6 +55,20 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         Assert.DoesNotMatch(FoldedOpen(), page);
     }
 
+    // break-ui: a long figure (0.01 km in nearly a day is "2399:58:20" per km) may break after a colon on a narrow
+    // screen, never inside a number, and still reads as one figure.
+    [Fact]
+    public async Task ALongFigure_BreaksAfterAColon_NotInsideANumber()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
+        await LogRunAsync(browser, id, "2026-10-19", new() { ["TimeHours"] = "23", ["TimeMinutes"] = "59", ["TimeSeconds"] = "59", ["Distance"] = "0.01" });
+
+        var page = await PageAsync(browser, id, "2026-10-19");
+
+        Assert.Contains("2399:<wbr>58:<wbr>20", page, StringComparison.Ordinal);
+        Assert.Contains("Pace 2399:58:20 per km", TextOf(page), StringComparison.Ordinal);
+    }
+
     // Q25: in miles, when chosen in Preferences: typed and shown in miles, stored in metres, and the pace is per mile.
     [Fact]
     public async Task InMiles_ARunIsTypedAndShownInMiles_AndStoredInMetres()
@@ -324,9 +338,10 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         return await response.Content.ReadAsStringAsync();
     }
 
-    // The words of a page as it reads, without its markup: "Distance 5.2 km".
+    // The words of a page as it reads, without its markup: "Distance 5.2 km". A place a word may break (<wbr>) is
+    // nothing; any other tag is a space.
     private static string TextOf(string html) =>
-        Spaces().Replace(WebUtility.HtmlDecode(Tags().Replace(html, " ")), " ");
+        Spaces().Replace(WebUtility.HtmlDecode(Tags().Replace(BreakHints().Replace(html, ""), " ")), " ");
 
     // What the box named name is filled with.
     private static string BoxValue(string html, string name)
@@ -338,6 +353,9 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
 
     [GeneratedRegex("<[^>]+>")]
     private static partial Regex Tags();
+
+    [GeneratedRegex("<wbr\\s*/?>")]
+    private static partial Regex BreakHints();
 
     [GeneratedRegex("\\s+")]
     private static partial Regex Spaces();

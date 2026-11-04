@@ -31,7 +31,7 @@
                                 <div class="ft-stat">
                                     <dt>@figure.Label</dt>
                                     <dd>
-                                        @figure.Value
+                                        @RunDisplay.Breakable(figure.Value)
                                         @if (figure.Unit is { } unit)
                                         {
                                             <span class="ft-stat-unit">@unit</span>

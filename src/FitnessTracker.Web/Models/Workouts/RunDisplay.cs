@@ -1,6 +1,7 @@
 using System.Globalization;
 using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
+using Microsoft.AspNetCore.Html;
 using NodaTime;
 
 namespace FitnessTracker.Web.Models.Workouts;
@@ -81,6 +82,27 @@ public static class RunDisplay
         }
 
         return figures.Count == 0 && log.RunType is null ? null : new RunSummary(Heading(log.RunType, log.CustomRunType), figures);
+    }
+
+    /// <summary>
+    /// A figure as its tile shows it, free to break after a colon on a narrow screen ("2399:" then "58:20"), never
+    /// inside a number (break-ui, Phase 7). Each part is encoded; only the break hints are markup.
+    /// </summary>
+    public static IHtmlContent Breakable(string figure)
+    {
+        var html = new HtmlContentBuilder();
+        var parts = figure.Split(':');
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (i > 0)
+            {
+                html.AppendHtml(":<wbr>");
+            }
+
+            html.Append(parts[i]);
+        }
+
+        return html;
     }
 
     // "5.2 km" as the figure 5.2 and its unit, which is shown smaller. The domain writes a number, a space and the unit,

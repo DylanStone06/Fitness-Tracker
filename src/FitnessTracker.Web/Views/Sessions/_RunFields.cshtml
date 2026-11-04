@@ -33,7 +33,7 @@
 @* The boxes are narrow on a phone, so their messages sit above them, across the whole width. *@
 <fieldset class="mb-3" aria-describedby="time-hint">
     <legend class="fs-6 mb-1">Time it took</legend>
-    <div class="form-text mt-0 mb-1" id="time-hint">Planned: @Model.PlannedLength.</div>
+    <div class="form-text mt-0 mb-1" id="time-hint">Planned: @Model.PlannedLength</div>
     <span asp-validation-for="TimeHours" class="d-block text-danger" id="hours-error"></span>
     <span asp-validation-for="TimeMinutes" class="d-block text-danger" id="minutes-error"></span>
     <span asp-validation-for="TimeSeconds" class="d-block text-danger" id="seconds-error"></span>
