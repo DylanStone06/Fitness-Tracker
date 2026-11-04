@@ -3,6 +3,9 @@
 Written 4 November 2026, before any code. FIT-4: "Other activities (walk, cycle, swim, mobility, custom): duration and
 optional intensity." The owner chose Q34-Q36 the same day, each the recommended option.
 
+**Status: built and checked, 4 November 2026**, as planned, in the commits listed below: the shared boxes first (every
+run test passing unchanged), then the page. The browser check (320 px, a 40-letter custom name) found nothing to fix.
+
 ## What it adds, as the user sees it
 
 An "Other exercise" session's page, once it has started, logs what it was, as a run's page does: the **type** (walk,
