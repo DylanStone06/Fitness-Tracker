@@ -56,6 +56,12 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             }
         }
 
+        // Back to planned removes the session's log, notes and all, so what is in the notes box doesn't matter.
+        if (model.Mark == SessionChoice.Planned)
+        {
+            ModelState.Remove(nameof(SessionLogViewModel.Notes));
+        }
+
         // Requirements §9: saved only from a page that showed the session as it is now. The database checks the version
         // again as it saves (a concurrency token), for another tab saving at the same moment.
         var stored = await db.SessionLogs.SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
@@ -103,6 +109,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             }
 
             stored.Mark = model.Mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
+            stored.Notes = model.Notes;
             if (model.Mark == SessionChoice.Skipped)
             {
                 // Q28: a skipped session has no details.

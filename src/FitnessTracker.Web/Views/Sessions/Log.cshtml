@@ -82,10 +82,26 @@
                 }
             }
 
+            @* FIT-2: notes on any session, saved with its mark; once marked, "Save notes" keeps the mark. *@
+            <div class="mb-3">
+                <label asp-for="Notes" class="form-label"></label>
+                @if (Model.Marked is null)
+                {
+                    <div class="form-text mt-0 mb-1" id="notes-hint">Saved when you mark it done or skipped.</div>
+                }
+                <span asp-validation-for="Notes" class="d-block text-danger" id="notes-error"></span>
+                <textarea asp-for="Notes" class="form-control" rows="3" dir="auto"
+                          aria-describedby="@(Model.Marked is null ? "notes-hint " : "")notes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Notes")"></textarea>
+            </div>
+
             <div class="d-flex flex-wrap gap-2">
                 @if (!Model.IsRun && Model.Marked != SessionMark.Done && Model.CanMarkDone)
                 {
                     <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">Mark as done</button>
+                }
+                @if (Model.Marked is { } marked)
+                {
+                    <button type="submit" name="Mark" value="@(marked == SessionMark.Done ? SessionChoice.Done : SessionChoice.Skipped)" class="btn btn-outline-primary">Save notes</button>
                 }
                 @if (Model.Marked != SessionMark.Skipped)
                 {

@@ -77,6 +77,11 @@ public class SessionLogViewModel
     [Display(Name = "How hard it felt")]
     public int? Effort { get; set; }
 
+    /// <summary>FIT-2: notes on any session, saved with its mark (kept when skipped); trimmed, and blank is none.</summary>
+    [Display(Name = "Notes")]
+    [StringLength(SessionLog.NotesMaxLength, ErrorMessage = "Notes must be {1} characters or fewer.")]
+    public string? Notes { get; set => field = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+
     public Guid ActivityId { get; private set; }
 
     public string Title { get; private set; } = "";
@@ -139,6 +144,7 @@ public class SessionLogViewModel
             IsRun = category == ActivityCategory.Run,
             DistanceUnit = unit,
             PlannedLength = ActivityDisplay.Length((int)occurrence.Time.Duration.TotalMinutes),
+            Notes = log?.Notes,
         };
 
         if (model.IsRun && log is { Mark: SessionMark.Done })
