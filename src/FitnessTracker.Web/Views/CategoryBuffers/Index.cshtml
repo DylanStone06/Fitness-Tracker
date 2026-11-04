@@ -1,0 +1,51 @@
+@model FitnessTracker.Web.Models.Preferences.CategoryBuffersFormViewModel
+@{
+    ViewData["Title"] = "Default time around activities";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Default time around activities</h1>
+        <p>
+            How long you usually take to get ready before each kind of activity, and to change or shower afterwards. An
+            activity whose times are left blank gets these. They count in the time it takes up, so nothing else is planned
+            then.
+        </p>
+
+        @if (ViewData["Saved"] is true)
+        {
+            <div class="alert alert-success" role="status">Your defaults are saved. Activities already saved keep their own times.</div>
+        }
+
+        <form asp-action="Index" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+
+            @for (var i = 0; i < Model.Rows.Count; i++)
+            {
+                var name = ActivityDisplay.CategoryName(Model.Rows[i].Category);
+                <fieldset class="border rounded p-2 mb-2">
+                    <legend class="fs-6 fw-bold float-none w-auto px-1 mb-1">@name</legend>
+                    <input type="hidden" asp-for="Rows[i].Category" />
+                    <input type="hidden" asp-for="Rows[i].Version" />
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label asp-for="Rows[i].PreparationMinutes" class="form-label mb-0"></label>
+                            <span asp-validation-for="Rows[i].PreparationMinutes" class="d-block text-danger" id="preparation-@i-error"></span>
+                            <input asp-for="Rows[i].PreparationMinutes" type="number" step="1" class="form-control" inputmode="numeric"
+                                   aria-describedby="preparation-@i-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"Rows[{i}].PreparationMinutes")" />
+                        </div>
+                        <div class="col-6">
+                            <label asp-for="Rows[i].ChangingMinutes" class="form-label mb-0"></label>
+                            <span asp-validation-for="Rows[i].ChangingMinutes" class="d-block text-danger" id="changing-@i-error"></span>
+                            <input asp-for="Rows[i].ChangingMinutes" type="number" step="1" class="form-control" inputmode="numeric"
+                                   aria-describedby="changing-@i-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"Rows[{i}].ChangingMinutes")" />
+                        </div>
+                    </div>
+                </fieldset>
+            }
+
+            <button type="submit" class="btn btn-primary">Save defaults</button>
+            <a class="btn btn-link" asp-controller="Preferences" asp-action="Index">Back to preferences</a>
+        </form>
+    </div>
+</div>

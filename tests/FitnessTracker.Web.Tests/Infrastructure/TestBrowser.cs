@@ -101,8 +101,79 @@ public sealed partial class TestBrowser
     public Task<HttpResponseMessage> LogoutAsync() =>
         SubmitFormAsync("/", "/Account/Logout", []);
 
-    public Task<HttpResponseMessage> AddLocationAsync(string name) =>
-        SubmitFormAsync("/Locations/Create", "/Locations/Create", new() { ["Name"] = name });
+    public Task<HttpResponseMessage> AddLocationAsync(string name, Dictionary<string, string>? fields = null) =>
+        SubmitFormAsync("/Locations/Create", "/Locations/Create", new(fields ?? []) { ["Name"] = name });
+
+    public Task<HttpResponseMessage> AddTravelLegAsync(Guid from, Guid to, int minutes, bool alsoTheReturnJourney = false, string mode = "Walk") =>
+        SubmitFormAsync("/TravelLegs/Create", "/TravelLegs/Create", new()
+        {
+            ["FromLocationId"] = from.ToString(),
+            ["ToLocationId"] = to.ToString(),
+            ["Minutes"] = minutes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Mode"] = mode,
+            ["AlsoAddReturnJourney"] = alsoTheReturnJourney ? "true" : "false",
+        });
+
+    /// <summary>
+    /// Adds an activity: a one-off, one-hour gym session at 07:00 on Monday 2 November 2026 unless
+    /// <paramref name="changes"/> says otherwise. Every field is filled, as the page would send them.
+    /// </summary>
+    public Task<HttpResponseMessage> AddActivityAsync(string title, Dictionary<string, string>? changes = null) =>
+        SubmitFormAsync("/Activities/Create", "/Activities/Create", ActivityForm(title, changes));
+
+    /// <summary>Every field of the activity form, filled in as for <see cref="AddActivityAsync"/>, with the given changes.</summary>
+    public static Dictionary<string, string> ActivityForm(string title, Dictionary<string, string>? changes = null)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["Title"] = title,
+            ["Category"] = "Gym",
+            ["LocationId"] = "",
+            ["StartDate"] = "2026-11-02",
+            ["StartTime"] = "07:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+            ["IsFixed"] = "true",
+            ["Priority"] = "Normal",
+            ["IsDemanding"] = "false",
+            ["PreparationMinutes"] = "0",
+            ["ChangingMinutes"] = "0",
+            ["Notes"] = "",
+            ["Repeats"] = "Never",
+            ["RepeatEvery"] = "1",
+            ["Ends"] = "Never",
+            ["EndDate"] = "",
+            ["EndCount"] = "",
+        };
+        foreach (var (name, value) in changes ?? [])
+        {
+            form[name] = value;
+        }
+
+        return form;
+    }
+
+    /// <summary>
+    /// Every row of the default-buffers form (ACC-6) as a new user's page fills it (the built-in defaults), with the
+    /// given changes. Rows are in ActivityCategory order: Gym is row 2, Run row 3.
+    /// </summary>
+    public static Dictionary<string, string> CategoryBuffersForm(Dictionary<string, string>? changes = null)
+    {
+        var form = new Dictionary<string, string>();
+        foreach (var (category, i) in Enum.GetValues<FitnessTracker.Web.Data.ActivityCategory>().Select((category, i) => (category, i)))
+        {
+            var (preparation, changing) = FitnessTracker.Web.Data.CategoryBuffers.BuiltIn(category);
+            form[$"Rows[{i}].PreparationMinutes"] = preparation.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            form[$"Rows[{i}].ChangingMinutes"] = changing.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        foreach (var (name, value) in changes ?? [])
+        {
+            form[name] = value;
+        }
+
+        return form;
+    }
 
     /// <summary>True when the home page opens instead of redirecting to sign-in.</summary>
     public async Task<bool> IsSignedInAsync() =>

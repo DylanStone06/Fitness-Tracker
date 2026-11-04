@@ -1,0 +1,51 @@
+﻿@model LocationFormViewModel
+@* The fields shared by the add and edit forms, after the name: home, and opening hours (TRV-1). *@
+<div class="mb-3 form-check">
+    <input asp-for="IsHome" class="form-check-input" aria-describedby="home-hint" />
+    <label asp-for="IsHome" class="form-check-label"></label>
+    <div class="form-text" id="home-hint">Travel to your other locations is measured from home. Only one location can be home.</div>
+</div>
+
+<fieldset class="mb-3" aria-describedby="hours-hint hours-error">
+    <legend class="h5">Opening hours</legend>
+    <span asp-validation-for="HasOpeningHours" class="d-block text-danger" id="hours-error"></span>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" asp-for="HasOpeningHours" value="false" id="HasOpeningHours" />
+        <label class="form-check-label" for="HasOpeningHours">No set opening hours (always open), such as home or a park</label>
+    </div>
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="radio" asp-for="HasOpeningHours" value="true" id="HasOpeningHours-set" />
+        <label class="form-check-label" for="HasOpeningHours-set">Set opening hours</label>
+    </div>
+
+    <div class="form-text mt-0 mb-2" id="hours-hint">
+        Only used with set opening hours. A closing time earlier than the opening time means after midnight, for
+        example 18:00 to 02:00. Your activity itself must be inside these hours; travel to and from it needn't be.
+    </div>
+
+    @for (var i = 0; i < Model.OpeningDays.Count; i++)
+    {
+        <fieldset class="border rounded p-2 mb-2">
+            <legend class="fs-6 fw-bold float-none w-auto px-1 mb-1">@Model.OpeningDays[i].Day</legend>
+            <input type="hidden" asp-for="OpeningDays[i].Day" />
+            <div class="form-check mb-1">
+                <input asp-for="OpeningDays[i].Closed" class="form-check-input" />
+                <label asp-for="OpeningDays[i].Closed" class="form-check-label">Closed</label>
+            </div>
+            <div class="row g-2">
+                <div class="col-6">
+                    <label asp-for="OpeningDays[i].Opens" class="form-label mb-0">Opens</label>
+                    <span asp-validation-for="OpeningDays[i].Opens" class="d-block text-danger" id="opens-@i-error"></span>
+                    <input asp-for="OpeningDays[i].Opens" type="time" class="form-control"
+                           aria-describedby="opens-@i-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"OpeningDays[{i}].Opens")" />
+                </div>
+                <div class="col-6">
+                    <label asp-for="OpeningDays[i].Closes" class="form-label mb-0">Closes</label>
+                    <span asp-validation-for="OpeningDays[i].Closes" class="d-block text-danger" id="closes-@i-error"></span>
+                    <input asp-for="OpeningDays[i].Closes" type="time" class="form-control"
+                           aria-describedby="closes-@i-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"OpeningDays[{i}].Closes")" />
+                </div>
+            </div>
+        </fieldset>
+    }
+</fieldset>

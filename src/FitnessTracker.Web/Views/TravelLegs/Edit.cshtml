@@ -1,0 +1,20 @@
+@model FitnessTracker.Web.Models.Locations.TravelLegFormViewModel
+@{
+    ViewData["Title"] = "Edit travel time";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Edit travel time</h1>
+
+        @* Posts back to this page's own address, which carries the leg's id. *@
+        <form asp-action="Edit" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="Version" />
+            <partial name="_TravelLegFields" />
+
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

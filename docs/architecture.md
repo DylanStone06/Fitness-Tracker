@@ -7,7 +7,7 @@ are in [ADR 0001](decisions/0001-stack.md); what's still missing is in [known li
 
 | Project | Holds | Rule |
 |---|---|---|
-| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, one-off changes), `Templates` (A/B week cycles); later footprints, scheduling, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
+| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, RRULE text, one-off changes), `Templates` (A/B week cycles), `Footprints` (footprints, travel times), `Locations` (opening hours), `Scheduling` (clashes, daily load, the check on save, the home page's agenda); later the planner, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
 | `FitnessTracker.Web` | MVC controllers and views, `Data/` (database, migrations, Identity), `Services/` | No scheduling rules in controllers or views. |
 | `FitnessTracker.*.Tests` | xUnit v2 tests | Integration tests run the real app in memory (`TestAppFactory`). |
 
@@ -33,17 +33,31 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    without checking the filter again, so never load another user's row into a request's context.
    `Database.ExecuteSql` bypasses every layer above; don't use it for personal data.
 4. **Record ids are a route parameter named `id`.** Add every action that takes one to
-   `AccessControlTests.ActionsThatTakeAnId`; a test fails when one is missing. An endpoint that returns a user's data
-   without an id (such as the calendar feed in Phase 5) needs its own T19 test.
+   `AccessControlTests.ActionsThatTakeAnId`; a test fails when one is missing. For a new controller, also teach
+   `AccessControlTests.AlexAddsARecordForAsync` to create Alex's record of that kind, so the test sends a real id of
+   the right type. An endpoint that returns a user's data without an id (preferences; the calendar feed in Phase 5)
+   needs its own T19 test.
+5. **A form that refers to another record by id checks it is the user's own** (a travel leg's locations, an
+   activity's location): the filter makes another user's id "not found", which the form reports as "choose from
+   the list".
+6. **Every save of an activity goes through `ActivityChecker`** (SCH-1, CLAUDE.md rule 3), on the activity exactly as
+   it would be stored; the rules themselves are in `Domain/Scheduling/ActivityCheck`. A new way of saving (calendar
+   drag and drop, accepted suggestions, imports) calls it too and shows its problems and clashes.
 
 ### Notes for later phases
 
-- **Phase 4, optimistic concurrency** (requirements §9). Because `OwnerId` is already a concurrency token, an
-  ownership mismatch and a genuine "changed in another tab" conflict both raise `DbUpdateConcurrencyException`. When
-  handling it, re-read the row through the filter first: if it's gone, answer "not found"; only otherwise say it was
-  changed elsewhere.
-- **Phase 9, deleting an account** (ACC-9). The database is set to delete a user's rows with the account (cascade;
-  not yet covered by a test). Deleting
+- **Phase 5, one-off changes to an occurrence** (CAL-4). `PlanningData.ActivitiesOnAsync` loads a one-off only if its
+  start date is in the dates asked for, and a repeating activity only if it has started by then. Once a moved
+  occurrence is stored, an activity moved into those dates from outside them must still be loaded, or the check on
+  save and the home page will miss it.
+
+- **Optimistic concurrency** (requirements §9, built for locations). Records that implement `IVersioned` get a new
+  `Version` on every save, checked like `OwnerId`, so an out-of-date tab can't overwrite a newer save. An ownership
+  mismatch and a genuine "changed in another tab" conflict both raise `DbUpdateConcurrencyException`. When handling
+  it, re-read the row through the filter first: if it's gone, answer "not found"; only otherwise say it was changed
+  elsewhere (see `LocationsController`).
+- **Phase 9, deleting an account** (ACC-9). The database deletes a user's rows with the account (cascade, tested by
+  `OwnershipTests.DeletingAnAccount_DeletesItsLocations_AndNobodyElses`). Deleting
   owned rows through EF needs that user to be signed in, because `CheckOwnership` refuses otherwise, so delete before
   signing out, or let the cascade do it without loading the rows.
 

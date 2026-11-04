@@ -45,3 +45,17 @@ window.addEventListener('pageshow', (event) => {
     document.querySelectorAll('form[data-sent="true"]').forEach(release);
   }
 });
+
+// ACC-6: on the activity form, the empty getting-ready and changing boxes show the chosen category's defaults (the
+// server fills a blank box with them when it saves). The page sets them for the category it opens with; this keeps
+// them right when the category changes.
+document.querySelectorAll('select[data-buffers]').forEach((select) => {
+  const defaults = JSON.parse(select.dataset.buffers);
+  const form = select.form;
+  const showDefaults = () => {
+    const [preparation, changing] = defaults[select.value] ?? [0, 0];
+    form?.querySelector('[name="PreparationMinutes"]')?.setAttribute('placeholder', preparation);
+    form?.querySelector('[name="ChangingMinutes"]')?.setAttribute('placeholder', changing);
+  };
+  select.addEventListener('change', showDefaults);
+});

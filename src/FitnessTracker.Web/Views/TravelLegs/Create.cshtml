@@ -1,0 +1,31 @@
+@model FitnessTracker.Web.Models.Locations.TravelLegFormViewModel
+@{
+    ViewData["Title"] = "Add a travel time";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Add a travel time</h1>
+
+        @if (Model.Locations.Count < 2)
+        {
+            <p>A journey needs two places. <a asp-controller="Locations" asp-action="Create">Add a location</a> first.</p>
+        }
+        else
+        {
+            <form asp-action="Create" method="post" novalidate>
+                <partial name="_ErrorSummary" />
+                <partial name="_TravelLegFields" />
+
+                <div class="mb-3 form-check">
+                    <input asp-for="AlsoAddReturnJourney" class="form-check-input" aria-describedby="return-hint" />
+                    <label asp-for="AlsoAddReturnJourney" class="form-check-label"></label>
+                    <div class="form-text" id="return-hint">Skipped if that journey already has a time. You can change either one later.</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Add travel time</button>
+                <a class="btn btn-link" asp-action="Index">Cancel</a>
+            </form>
+        }
+    </div>
+</div>

@@ -1,0 +1,38 @@
+@model FitnessTracker.Web.Models.Locations.TravelLegFormViewModel
+@using FitnessTracker.Web.Data
+@* The fields shared by the add and edit forms (TRV-2). *@
+@{
+    var places = Model.Locations.Select(location => new SelectListItem(location.Name, location.Id.ToString())).ToList();
+}
+<div class="mb-3">
+    <label asp-for="FromLocationId" class="form-label"></label>
+    <span asp-validation-for="FromLocationId" class="d-block text-danger" id="from-error"></span>
+    <select asp-for="FromLocationId" class="form-select" asp-items="places"
+            aria-describedby="from-error" aria-invalid="@ViewData.ModelState.AriaInvalid("FromLocationId")">
+        <option value="">Choose a location</option>
+    </select>
+</div>
+
+<div class="mb-3">
+    <label asp-for="ToLocationId" class="form-label"></label>
+    <span asp-validation-for="ToLocationId" class="d-block text-danger" id="to-error"></span>
+    <select asp-for="ToLocationId" class="form-select" asp-items="places"
+            aria-describedby="to-error" aria-invalid="@ViewData.ModelState.AriaInvalid("ToLocationId")">
+        <option value="">Choose a location</option>
+    </select>
+</div>
+
+<div class="mb-3">
+    <label asp-for="Minutes" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="minutes-hint">Door to door, in this direction only. The way back can take a different time.</div>
+    <span asp-validation-for="Minutes" class="d-block text-danger" id="minutes-error"></span>
+    <input asp-for="Minutes" type="number" step="1" class="form-control" inputmode="numeric"
+           aria-describedby="minutes-hint minutes-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Minutes")" />
+</div>
+
+<div class="mb-3">
+    <label asp-for="Mode" class="form-label"></label>
+    <span asp-validation-for="Mode" class="d-block text-danger" id="mode-error"></span>
+    <select asp-for="Mode" class="form-select" asp-items="@(Enum.GetValues<TravelMode>().Select(mode => new SelectListItem(mode.ToString(), mode.ToString())))"
+            aria-describedby="mode-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Mode")"></select>
+</div>

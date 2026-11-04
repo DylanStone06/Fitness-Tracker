@@ -1,10 +1,12 @@
 using FitnessTracker.Web.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NodaTime;
 
 namespace FitnessTracker.Web.Tests.Infrastructure;
 
@@ -30,6 +32,9 @@ public sealed class TestAppFactory : WebApplicationFactory<Program>
         // Never "Development": that would load the developer's user-secrets, which point at their real database.
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
+        // "Today" is fixed, so checks that look ahead from today (the activity check's 8 weeks) give the same result
+        // whenever the tests run.
+        builder.ConfigureTestServices(services => services.AddSingleton<IClock>(FixedClock.TestsToday));
     }
 
     protected override IHost CreateHost(IHostBuilder builder)

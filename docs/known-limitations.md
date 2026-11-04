@@ -9,17 +9,27 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 |---|---|---|
 | Accounts | The app sends no email, so there is no email confirmation and no emailed password reset (ACC-1). The register page says so. | After the MVP (scope A) |
 | Accounts | The register page ("an account with this email address already exists") and the lockout message can reveal that an address has an account. Sign-in itself gives one message for both. | Reassess before any public hosting (Phase 9) |
-| Locations | Name only: no opening hours, travel legs or base location yet (TRV-1, TRV-2). | Phase 4 |
-| Locations | Two tabs editing the same location can overwrite each other: no optimistic concurrency yet (requirements §9). | Phase 4 |
-| Locations | Duplicate names are allowed. | Decide in Phase 4 (location pickers) |
-| Locations | The browser's 100-character limit cuts a pasted longer name short without a message (ASP.NET adds `maxlength` from the validation rule). Typed or posted names over 100 characters get a proper error. | Phase 4 form rework |
-| Locations | A double-clicked "Delete location" ends on the "Page not found" page. | Phase 4 |
-| Series | The time and recurrence rules exist only in the domain: series can't be saved or shown yet, and rules aren't yet stored as RRULE text (ADR 0001). | Phases 4-5 |
+| Activities | Each activity is stored with a timezone, but there is no way yet to choose one: it is always the Preferences timezone. Changing that moves every activity in the old timezone to the new one, keeping its clock time (§8, T6; the page says so before saving). That includes one-offs and past activities, so a meeting booked abroad, or a planned session already over, moves too. | Choosing a timezone per activity: after the MVP (travel, scope F). Past activities: before workout logging (Phase 7) |
+| Activities | A night shift entered as 22:00 for 8 hours ends at 05:00 or 07:00 by the clock on the two nights a year the clocks change, because lengths are elapsed time (§8). If the shift really ends at 06:00 by the clock, the app will think the user is free, or still at work, for that hour. The form says so. | Kept: the owner's decision (requirements Q6) |
+| Activities | The list describes a repeating activity by its usual time; on the night the clocks go forward, an occurrence at 01:30 really happens at 02:30 (a one-off says so). | Phase 5, when the calendar shows each occurrence |
+| Activities | The check on save looks for clashes 8 weeks ahead, from today or the activity's first date if later (opening hours and the length limit, H8: a year). A clash further ahead (two activities every 9 weeks that first meet in week 9) isn't found then. | The calendar (Phase 5) shows clashes on any week shown |
+| Activities | The check on save covers overlaps (H1), opening hours (H4), travel and the length limit (H8). Sleep (H3) and the recovery rules (H5-H7) aren't checked yet. | Phases 6 and 8 |
+| Activities | "Save anyway" isn't stored: nothing records which clashes were accepted. Clashes can also exist without anyone confirming them (beyond the 8 weeks checked, after travel times, opening hours or home change, or with an activity that could only be checked in part), so the calendar must not show every clash as accepted. | Phase 5, with the calendar: store accepted clashes |
+| Activities | Changing a location's opening hours, a travel time or which location is home doesn't re-check the activities already saved. The other activities a new one is checked against are taken as they are: one whose travel can no longer be worked out is checked without travel, one now longer than the day allows or unreadable is left out, and each is named in a note shown after saving (or with the clashes). | Phase 5: the calendar marks activities that no longer pass |
+| Activities | The activities list and the home page always show 24-hour times, even with the 12-hour clock chosen in Preferences. | Phase 5, with the calendar |
+| Home page | An activity stored in a timezone other than the one in Preferences (only possible by editing the database by hand, or by adding an activity in one tab at the moment the timezone is changed in another) is listed by the date and clock time in its own timezone, without naming it. One whose date in its own timezone is yesterday is left out, of Next up too, even if it starts later today where the user is. | When activities can have their own timezone (travel, after the MVP) |
+| Home page | While an activity is under way, Next up shows it, even if another starts during it. That only happens with a clash kept by "Save anyway" (a dentist visit in the middle of a conference day); the clash is flagged on both. | Owner's decision: keep, or show what starts next while something is under way |
+| Home page | Only the first part of the dashboard (GOL-2): a greeting, what to set up, the next activity, and today and the next 7 days with when to leave and any clashes. Free time left today, tonight's sleep and weekly targets come with the phases that build them. | Phases 6, 8 and 9 |
+| Home page | "Next up" only looks at activities starting today or later, so during a night shift that started yesterday it shows the next thing after the shift. | With the calendar's day view (Phase 5) |
+| Look | Dark mode follows the device only; there's no choice in Preferences. Switching the device's theme while a page is open was checked only by reloading (the browser used for checks doesn't send the change live). | A Preferences choice when asked for |
+| Travel | Deleting a travel time doesn't check whether another tab changed it since the delete page opened (deleting a location does). Nothing is overwritten, but the page may have shown the old time. | When convenient |
+| Travel | Every activity away from home gets its own round trip from home, so two activities back to back at the same place (the office gym straight after work, a work day split at lunch) each get a commute and show as clashing. That is location chaining (SCH-8). | After the MVP: the owner's decision (requirements Q10) |
+| Series | Repeating activities are saved (their rule as RRULE text, ADR 0001) and listed, but their occurrences aren't shown on a calendar yet, and one occurrence can't yet be cancelled or moved on its own (CAL-4: the domain supports it, the screens don't). | Phase 5 |
 | Series | Moving an occurrence into the second 01:00-01:59 on the night the clocks go back lands it on the first one (requirements §8 uses the earlier time). | Phase 5 calendar: warn, or store the offset |
+| Opening hours | When an activity runs through two openings that touch (a place open midnight to midnight on consecutive days) and then past a closing time, the explanation names the opening it started in rather than the one that closed. Only very long activities are affected. | Not fixed by the check on save (it uses the same naming); with the planner's explanations (Phase 6) |
 | Time | A span that would end before it starts once the clocks change (01:45 to 02:00 on the night they go forward) is refused rather than shifted. Chosen as the cautious option; can be revisited. | Owner's choice |
 | Series | Working out occurrences walks from each series' first date, so long-running series cost more each query. | Measured against the 1-second target in Phase 9 |
 | T6 | Only the series half is tested; "logged sleep unchanged" needs the sleep log. | Phase 8 |
-| Accessibility | Error summary items are plain text, not links to their fields as in the GOV.UK pattern. Each field's own message is linked for screen readers. | Phase 9 accessibility pass |
 
 ## Hosting and security
 
@@ -28,6 +38,7 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 | Not hosted anywhere. Where, and how a hosted database is migrated, are decided with hosting. | Phase 9 |
 | The local HTTPS development certificate isn't trusted on this PC, so `ft-dev run` uses `http://localhost:5137`. Trusting it changes the certificate store, so that is left to the owner. | Owner's choice |
 | Host filtering (`AllowedHosts`) isn't configured for a real domain. | Phase 9 |
+| The app doesn't fix its culture. Number boxes send decimals with a dot ("7.5 hours"), which a server set to a decimal-comma culture (German, French) wouldn't read; this PC and the tests use en-GB, so nothing catches it. Fix with `UseRequestLocalization` set to en-GB. | Phase 9 |
 | EF Core's design-time files reach the build output; they are to be kept out of published builds. | Phase 9 |
 | The accounts commit (`11e433f`) deferred 4 review findings "to hosting (Phase 9) or documented" without listing them individually. `/security-review` couldn't run then (it needs git on PATH) and was done by hand. | Re-run a full security review in Phase 9 |
 
@@ -37,7 +48,7 @@ What the app doesn't do yet, or does imperfectly, and when that is planned to ch
 |---|---|
 | A real screen reader (pages were checked against WCAG 2.2 AA by reading their markup and in the built-in browser). | Phase 9 accessibility pass |
 | Visual Studio's Test Explorer (tests are run with `dev\ft-dev.ps1`). | Owner's choice |
-| Account deletion cascading to a user's data (ACC-9). | Phase 9 |
+| The double-submit guard in `wwwroot/js/site.js` (a second click on a form's button is ignored; the button works again after 10 seconds without a new page) has no automated test, because the test suite doesn't run a browser. | Phase 9, with the other browser checks |
 
 ## Harmless, by choice
 
