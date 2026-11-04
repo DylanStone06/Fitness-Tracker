@@ -379,3 +379,12 @@ Decided by the owner on 4 November 2026 for the strength log (FIT-2), before it 
 | Q31 | How are sets entered? | As rows (exercise, reps, weight, rest): six empty rows, and "Add more rows" for six more, with no script needed; rows left blank are ignored. Consecutive rows with the same exercise are its sets. Up to 60 sets a session. |
 | Q32 | Is rest time recorded? | Optionally, per set, in seconds (up to an hour). |
 | Q33 | How is weight stored? | In whole grams (100 kg is 100,000 g), exact as distances are in metres, and shown in kg or lb as chosen in Preferences (kg by default). CLAUDE.md rule 6 says so. |
+
+Decided by the owner on 4 November 2026 for other activities (FIT-4), before they were built; the plan is
+[docs/plans/phase-7-other-activities.md](plans/phase-7-other-activities.md):
+
+| # | Question | Decision |
+|---|---|---|
+| Q34 | Which types of other activity? | Walk, cycle, swim, mobility, and custom with a name of up to 40 characters, as a run's. |
+| Q35 | How is intensity recorded? | On the same 1-10 "How hard it felt" scale as runs (Q29), so every session's effort can be compared. |
+| Q36 | Do they have a distance? | Optionally, any of them (meant for walks, cycles and swims), in km or miles, stored in whole metres. Shown on its own: no speed or swim pace yet (FIT-7). |
