@@ -68,12 +68,13 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         // another kind (Q20).
         var savesARun = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Run;
         var savesAWorkout = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Gym;
-        if (!savesARun)
+        var savesAnOther = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.OtherExercise;
+        var ignored = (savesARun ? [] : SessionLogViewModel.RunTypeBoxes)
+            .Concat(savesAnOther ? [] : SessionLogViewModel.OtherTypeBoxes)
+            .Concat(savesARun || savesAnOther ? [] : SessionLogViewModel.DetailBoxes);
+        foreach (var box in ignored)
         {
-            foreach (var box in SessionLogViewModel.RunTypeBoxes.Concat(SessionLogViewModel.DetailBoxes))
-            {
-                ModelState.Remove(box);
-            }
+            ModelState.Remove(box);
         }
 
         if (!savesAWorkout)
@@ -106,6 +107,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         }
 
         IEnumerable<ValidationResult> problems = savesARun ? model.RunProblems(user.Preferences.DistanceUnit)
+            : savesAnOther ? model.OtherProblems(user.Preferences.DistanceUnit)
             : savesAWorkout ? model.WorkoutProblems(user.Preferences.WeightUnit)
             : [];
         foreach (var problem in problems)
@@ -153,6 +155,10 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             else if (savesARun)
             {
                 model.ApplyRunTo(stored, user.Preferences.DistanceUnit);
+            }
+            else if (savesAnOther)
+            {
+                model.ApplyOtherTo(stored, user.Preferences.DistanceUnit);
             }
             else if (savesAWorkout)
             {

@@ -17,15 +17,15 @@
             <p>Not logged: its time has passed, and it isn't marked done or skipped.</p>
         }
 
-        @if (Model.Run is { } run)
+        @if (Model.Details is { } details)
         {
-            @* FIT-3: the run as saved, with its pace worked out (Q25). Only the figures given are shown. *@
-            <section class="card mt-3" aria-labelledby="run-heading">
+            @* FIT-3, FIT-4: a run or other activity as saved (a run's pace worked out: Q25). Only the figures given show. *@
+            <section class="card mt-3" aria-labelledby="details-heading">
                 <div class="card-body">
-                    <h2 class="h5 text-break @(run.Figures.Count > 0 ? "mb-3" : "mb-0")" id="run-heading" dir="auto">@run.Heading</h2>
-                    @if (run.Figures.Count > 0)
+                    <h2 class="h5 text-break @(details.Figures.Count > 0 ? "mb-3" : "mb-0")" id="details-heading" dir="auto">@details.Heading</h2>
+                    @if (details.Figures.Count > 0)
                     {
-                        <partial name="_Figures" model="run.Figures" />
+                        <partial name="_Figures" model="details.Figures" />
                     }
                 </div>
             </section>
@@ -58,16 +58,17 @@
             <input type="hidden" asp-for="Date" />
             <input type="hidden" asp-for="Version" />
 
-            @if (Model.IsRun && Model.CanMarkDone)
+            @if ((Model.IsRun || Model.IsOther) && Model.CanMarkDone)
             {
-                @* FIT-3: what the run was like (Q26). Once saved with details, folded away under "Change the details"
-                   (P7: detail on demand), and opened again when what was typed needs fixing. *@
-                if (Model.Run is not null)
+                @* FIT-3, FIT-4: what the run or other activity was like (Q26, Q34). Once saved with details, folded away
+                   under "Change the details" (P7: detail on demand), and opened again when what was typed needs fixing. *@
+                var fields = Model.IsRun ? "_RunFields" : "_OtherFields";
+                if (Model.Details is not null)
                 {
                     <details class="card mb-3 ft-fold" open="@(!ViewData.ModelState.IsValid)">
                         <summary>Change the details</summary>
                         <div class="card-body pt-1">
-                            <partial name="_RunFields" />
+                            <partial name="@fields" />
                             <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">Save changes</button>
                         </div>
                     </details>
@@ -76,9 +77,9 @@
                 {
                     <section class="card mb-3" aria-labelledby="log-heading">
                         <div class="card-body">
-                            <h2 class="h5 mb-1" id="log-heading">Log this run</h2>
-                            <p class="form-text mt-0 mb-3">Everything is optional. The pace is worked out from the time and distance.</p>
-                            <partial name="_RunFields" />
+                            <h2 class="h5 mb-1" id="log-heading">@(Model.IsRun ? "Log this run" : "Log this activity")</h2>
+                            <p class="form-text mt-0 mb-3">@(Model.IsRun ? "Everything is optional. The pace is worked out from the time and distance." : "Everything is optional.")</p>
+                            <partial name="@fields" />
                             <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">@(Model.Marked == SessionMark.Done ? "Save" : "Save as done")</button>
                         </div>
                     </section>
@@ -131,7 +132,8 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2">
-                @if (!Model.IsRun && !Model.IsGym && Model.Marked != SessionMark.Done && Model.CanMarkDone)
+                @* Every exercise category has its own form, with its own save; this is for any kind added without one. *@
+                @if (!Model.IsRun && !Model.IsGym && !Model.IsOther && Model.Marked != SessionMark.Done && Model.CanMarkDone)
                 {
                     <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">Mark as done</button>
                 }
@@ -148,10 +150,10 @@
                     <button type="submit" name="Mark" value="@SessionChoice.Planned" class="btn btn-outline-secondary">Back to planned</button>
                 }
             </div>
-            @if (Model.Run is not null)
+            @if (Model.Details is not null)
             {
                 @* Q28 *@
-                <p class="form-text">Marking it skipped or back to planned removes the run's details.</p>
+                <p class="form-text">Marking it skipped or back to planned removes @(Model.IsRun ? "the run's" : "its") details.</p>
             }
             @if (Model.Workout is not null)
             {

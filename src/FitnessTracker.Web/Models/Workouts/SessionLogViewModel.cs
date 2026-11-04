@@ -60,6 +60,9 @@ public class SessionLogViewModel
     /// <summary>A run's own boxes, read only when a run is saved as done.</summary>
     public static readonly IReadOnlyList<string> RunTypeBoxes = [nameof(RunType), nameof(CustomRunType)];
 
+    /// <summary>An other activity's own boxes, read only when one is saved as done (FIT-4).</summary>
+    public static readonly IReadOnlyList<string> OtherTypeBoxes = [nameof(OtherType), nameof(CustomOtherType)];
+
     /// <summary>Q31: the most sets one session can have.</summary>
     public const int MaxSets = 60;
 
@@ -95,6 +98,15 @@ public class SessionLogViewModel
     /// <summary>Only with <see cref="Data.RunType.Custom"/>; its box is hidden otherwise.</summary>
     [Display(Name = "Name of the custom type")]
     public string? CustomRunType { get; set => field = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+
+    // FIT-4, Q34: an other activity's type; its time, distance and effort are the boxes below, shared with runs.
+
+    [Display(Name = "Type of activity")]
+    public OtherType? OtherType { get; set; }
+
+    /// <summary>Only with <see cref="Data.OtherType.Custom"/>; its box is hidden otherwise.</summary>
+    [Display(Name = "Name of the custom type")]
+    public string? CustomOtherType { get; set => field = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
 
     [Display(Name = "Hours")]
     public int? TimeHours { get; set; }
@@ -154,8 +166,11 @@ public class SessionLogViewModel
     /// <summary>How long it is planned to take, written as everywhere else: "1 h".</summary>
     public string PlannedLength { get; private set; } = "";
 
-    /// <summary>A run marked done, as saved, when it has details.</summary>
-    public SessionSummary? Run { get; private set; }
+    /// <summary>FIT-4: an Other exercise session's, whose page logs what it was.</summary>
+    public bool IsOther { get; private set; }
+
+    /// <summary>A run or an other activity marked done, as saved, when it has details.</summary>
+    public SessionSummary? Details { get; private set; }
 
     /// <summary>FIT-2: a gym session's, whose page logs its sets.</summary>
     public bool IsGym { get; private set; }
@@ -200,6 +215,7 @@ public class SessionLogViewModel
             CanMarkDone = Sessions.CanMarkDone(occurrence, now),
             IsRun = category == ActivityCategory.Run,
             IsGym = category == ActivityCategory.Gym,
+            IsOther = category == ActivityCategory.OtherExercise,
             DistanceUnit = unit,
             PlannedLength = ActivityDisplay.Length((int)occurrence.Time.Duration.TotalMinutes),
             Notes = log?.Notes,
@@ -207,8 +223,15 @@ public class SessionLogViewModel
 
         if (model.IsRun && log is { Mark: SessionMark.Done })
         {
-            model.Run = RunDisplay.Summary(log, unit, model.PlannedLength);
+            model.Details = RunDisplay.Summary(log, unit, model.PlannedLength);
             model.FillRunBoxes(log, unit);
+        }
+        else if (model.IsOther && log is { Mark: SessionMark.Done })
+        {
+            model.Details = OtherDisplay.Summary(log, unit, model.PlannedLength);
+            model.OtherType = log.OtherType;
+            model.CustomOtherType = log.CustomOtherType;
+            model.FillDetailBoxes(log, unit);
         }
 
         return model;
@@ -220,6 +243,10 @@ public class SessionLogViewModel
     /// </summary>
     public IEnumerable<ValidationResult> RunProblems(DistanceUnit unit) =>
         CustomTypeProblems(RunType == Data.RunType.Custom, CustomRunType, nameof(CustomRunType)).Concat(DetailProblems(unit));
+
+    /// <summary>FIT-4: problems with an other activity's details as typed, as for a run's (Q34-Q36).</summary>
+    public IEnumerable<ValidationResult> OtherProblems(DistanceUnit unit) =>
+        CustomTypeProblems(OtherType == Data.OtherType.Custom, CustomOtherType, nameof(CustomOtherType)).Concat(DetailProblems(unit));
 
     /// <summary>
     /// FIT-3, FIT-4: problems with the time, distance and effort boxes as typed. A blank time box counts as none of that
@@ -265,6 +292,17 @@ public class SessionLogViewModel
     {
         log.RunType = RunType;
         log.CustomRunType = RunType == Data.RunType.Custom ? CustomRunType : null;
+        ApplyDetailsTo(log, unit);
+    }
+
+    /// <summary>
+    /// FIT-4: copies an other activity's details onto its <paramref name="log"/>, as a run's (a name typed with a type
+    /// other than custom isn't kept). Only call once <see cref="OtherProblems"/> finds none.
+    /// </summary>
+    public void ApplyOtherTo(SessionLog log, DistanceUnit unit)
+    {
+        log.OtherType = OtherType;
+        log.CustomOtherType = OtherType == Data.OtherType.Custom ? CustomOtherType : null;
         ApplyDetailsTo(log, unit);
     }
 
