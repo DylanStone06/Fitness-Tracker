@@ -52,6 +52,9 @@ public enum CheckAspect
     Time,
     Length,
     Repeat,
+
+    /// <summary>The date one occurrence is moved to (Q17: it would disappear).</summary>
+    Date,
 }
 
 /// <summary>A problem that stops an activity being saved, in plain English.</summary>
@@ -194,15 +197,22 @@ public static class ActivityCheck
     /// SCH-1, CAL-4: the check for a change to one occurrence (moved, resized or put back), on that occurrence alone,
     /// wherever it now is: its travel (never guessed, P1), its length against its own day (H8), the opening hours (H4),
     /// and clashes (H1) with the other activities and with the rest of its own series. A cancelled one takes no time,
-    /// so it has nothing to check. Problems and clashes elsewhere in the series aren't the change's doing, so they
-    /// aren't looked at. <paramref name="occurrenceDate"/> is the date the rule puts it on.
+    /// so it has nothing to check; nor has one put back on a date it doesn't happen on (the user's choice, said
+    /// beforehand). A move that wouldn't happen at all is a problem (Q17, P1). Problems and clashes elsewhere in the
+    /// series aren't the change's doing, so they aren't looked at. <paramref name="occurrenceDate"/> is the date the rule
+    /// puts it on.
     /// </summary>
     public static ActivityCheckResult CheckOccurrence(PlannedActivity candidate, LocalDate occurrenceDate, IEnumerable<PlannedActivity> others, PlanningContext context)
     {
         var series = candidate.Series;
         if (OccurrenceOn(series, occurrenceDate) is not { } occurrence)
         {
-            return new ActivityCheckResult([], [], new DateInterval(occurrenceDate, occurrenceDate));
+            // Q17: moved from a date it doesn't happen on (a week since given to a holiday) to another such date, it would
+            // disappear without a word.
+            CheckProblem[] wouldDisappear = series.Changes.TryGetValue(occurrenceDate, out var change) && change is OccurrenceChange.Moved move
+                ? [new CheckProblem(CheckAspect.Date, WouldDisappear(occurrenceDate, move.Start.Date))]
+                : [];
+            return new ActivityCheckResult(wouldDisappear, [], new DateInterval(occurrenceDate, occurrenceDate));
         }
 
         var day = Travel.DayOf(occurrence, series.Zone);
@@ -381,6 +391,13 @@ public static class ActivityCheck
     }
 
     private static DateInterval Around(LocalDate day) => new(day.PlusDays(-MarginDays), day.PlusDays(MarginDays));
+
+    // Q17: why a move that doesn't happen is refused, naming the date once when it was moved within its own date.
+    private static string WouldDisappear(LocalDate usual, LocalDate movedTo) =>
+        (movedTo == usual
+            ? $"It would disappear: {DateText.Named.Format(usual)} is a date this activity doesn't happen on now."
+            : $"It would disappear: neither {DateText.Named.Format(movedTo)} nor its usual date, {DateText.Named.Format(usual)}, is a date this activity happens on now.")
+        + " Choose another date, or cancel it.";
 
     /// <summary>
     /// The dates on which another activity has to start (or, for a repeating one, be running) to be able to clash with

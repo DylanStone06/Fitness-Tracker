@@ -4,7 +4,6 @@ using System.Text;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Templates;
-using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models;
 using FitnessTracker.Web.Models.Activities;
@@ -313,16 +312,6 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             _ => found.Series.MoveOccurrence(found.Date, model.NewStart, model.NewLength),
         };
 
-        // Q17, P1: an occurrence moved from a date it no longer happens on (a week since given to a holiday) is kept only
-        // while it is moved to a date it does. Moved anywhere else, it would disappear without a word, so that is refused.
-        if (model.Change == OccurrenceChangeChoice.Move && !changed.FallsOn(found.Date))
-        {
-            ModelState.AddModelError(nameof(OccurrenceFormViewModel.NewDate),
-                $"It would disappear: neither {DateText.Named.Format(model.NewStart.Date)} nor its usual date, " +
-                $"{DateText.Named.Format(found.Date)}, is a date this activity happens on now. Choose another date, or cancel it.");
-            return View(model);
-        }
-
         // Saved only if nobody has saved this activity since the page was opened (requirements §9).
         db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
         // SCH-1 on that occurrence, where it now is (nothing for a cancelled one): what the rest of the series already
@@ -377,6 +366,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 
     private static string OccurrenceFieldFor(CheckAspect aspect) => aspect switch
     {
+        CheckAspect.Date => nameof(OccurrenceFormViewModel.NewDate),
         CheckAspect.Time => nameof(OccurrenceFormViewModel.NewStartTime),
         CheckAspect.Length => nameof(OccurrenceFormViewModel.DurationHours),
         _ => string.Empty,
@@ -537,6 +527,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     private static string FieldFor(CheckAspect aspect) => aspect switch
     {
         CheckAspect.Location => nameof(ActivityFormViewModel.LocationId),
+        CheckAspect.Date => nameof(ActivityFormViewModel.StartDate),
         CheckAspect.Time => nameof(ActivityFormViewModel.StartTime),
         CheckAspect.Length => nameof(ActivityFormViewModel.DurationHours),
         _ => nameof(ActivityFormViewModel.EndDate),

@@ -947,6 +947,53 @@ public class ActivityCheckTests
         Assert.True(ActivityCheck.OthersThatCanClash(AtHome(series), Today).Contains(new LocalDate(2026, 11, 9)));
     }
 
+    // Q17, P1, SCH-1: a kept move (Monday 2 November's moved to Friday 30 October, then 2-8 November given to a holiday)
+    // moved on to a date where neither end is in use would disappear without a word. The check on save says so, whatever
+    // made the change (scheduling review of Q17, L1: only the occurrence page refused it).
+    [Fact]
+    public void CheckOccurrence_AKeptMoveMovedWhereNeitherEndIsInUse_IsAProblem()
+    {
+        var series = KeptMove().MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 11, 4, 7, 0), Duration.FromMinutes(50));
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(AtHome(series), new LocalDate(2026, 11, 2), [], Context()).Problems);
+
+        Assert.Equal(CheckAspect.Date, problem.Aspect);
+        Assert.Equal(
+            "It would disappear: neither Wed 4 Nov 2026 nor its usual date, Mon 2 Nov 2026, is a date this activity happens on now. Choose another date, or cancel it.",
+            problem.Message);
+    }
+
+    // ... moved to another time on its own date, it names the date once (review L2: "neither Mon 2 Nov 2026 nor its usual
+    // date, Mon 2 Nov 2026").
+    [Fact]
+    public void CheckOccurrence_AKeptMoveMovedToAnotherTimeOnItsOwnDate_NamesTheDateOnce()
+    {
+        var series = KeptMove().MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 11, 2, 19, 0), Duration.FromMinutes(50));
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(AtHome(series), new LocalDate(2026, 11, 2), [], Context()).Problems);
+
+        Assert.Equal("It would disappear: Mon 2 Nov 2026 is a date this activity doesn't happen on now. Choose another date, or cancel it.", problem.Message);
+    }
+
+    // ... while putting it back (or moving it to its usual time, which is the same) is the user's choice, said on the page
+    // beforehand, and cancelling it takes no time: neither is a problem.
+    [Fact]
+    public void CheckOccurrence_AKeptMovePutBackOrCancelled_IsNoProblem()
+    {
+        var putBack = KeptMove().RestoreOccurrence(new LocalDate(2026, 11, 2));
+        var cancelled = KeptMove().CancelOccurrence(new LocalDate(2026, 11, 2));
+
+        Assert.Empty(ActivityCheck.CheckOccurrence(AtHome(putBack), new LocalDate(2026, 11, 2), [], Context()).Problems);
+        Assert.Empty(ActivityCheck.CheckOccurrence(AtHome(cancelled), new LocalDate(2026, 11, 2), [], Context()).Problems);
+    }
+
+    // Mondays at 07:00 for 50 minutes from 19 October 2026; 2 November's moved to Friday 30 October at 07:00, then 2-8
+    // November left out (given to a holiday).
+    private static Series KeptMove() =>
+        new Series(new LocalDate(2026, 10, 19), new LocalTime(7, 0), Duration.FromMinutes(50), London, RecurrenceRule.Weekly([IsoDayOfWeek.Monday]))
+            .MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 10, 30, 7, 0), Duration.FromMinutes(50))
+            .OnlyOn(date => date < new LocalDate(2026, 11, 2) || date > new LocalDate(2026, 11, 8));
+
     // Mondays at 07:00 for 50 minutes, 5 and 12 October 2026 only; 12 October's moved to Monday 9 November at 07:00.
     private static Series EndedMondaysWithTheLastMovedTo9November() =>
         new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
