@@ -33,6 +33,8 @@ public class ActivityFormViewModel : IConfirmsClashes
 
     public const int MaxEndCount = 500;
 
+    /// <summary>CAL-9: a choice of weeks that isn't one of the user's routines, or one of its weeks.</summary>
+    public const string ChooseWeeksFromTheList = "Choose which weeks it happens in from the list.";
 
     // Trimmed as it is bound, so the checks see exactly what will be saved.
     [Required(ErrorMessage = "Enter a title for the activity.")]
@@ -103,6 +105,18 @@ public class ActivityFormViewModel : IConfirmsClashes
     public int? EndCount { get; set; }
 
     /// <summary>
+    /// CAL-9: which weeks it happens in, as the list offers them: empty for every week, a routine's id for whenever
+    /// that routine is in use, or the id and a week ("…/B") for one week of its cycle. Only counts when it repeats.
+    /// </summary>
+    [Display(Name = "Which weeks")]
+    public string? Weeks { get; set; }
+
+    /// <summary>The signed-in person's routines, for the list of weeks. Filled by the controller, never posted.</summary>
+    [BindNever]
+    [ValidateNever]
+    public IReadOnlyList<Routine> Routines { get; set; } = [];
+
+    /// <summary>
     /// Q2: the user has seen the clashes with other activities and wants to keep them (§7.2: an accepted conflict).
     /// Only counts for the clashes in <see cref="ShownClashes"/>, so a clash is always a decision made with it in view.
     /// </summary>
@@ -145,9 +159,10 @@ public class ActivityFormViewModel : IConfirmsClashes
 
     /// <summary>
     /// SCH-4: a session of a weekly goal at a suggested date and time, filled in from the goal, to change before saving:
-    /// movable (the planner chose the time), and every week on that day when <paramref name="everyWeek"/> (Q12).
+    /// movable (the planner chose the time), and every week on that day when <paramref name="everyWeek"/> (Q12), in
+    /// <paramref name="weeks"/> of a routine (CAL-9: week B, when week B was planned).
     /// </summary>
-    public static ActivityFormViewModel ForGoal(WeeklyGoal goal, string? date, string? time, bool everyWeek, bool returnToPlan)
+    public static ActivityFormViewModel ForGoal(WeeklyGoal goal, string? date, string? time, bool everyWeek, bool returnToPlan, string? weeks = null)
     {
         var model = ForNew(date, time, returnToCalendar: false);
         model.Title = goal.Title;
@@ -165,6 +180,7 @@ public class ActivityFormViewModel : IConfirmsClashes
         {
             model.Repeats = RepeatChoice.Weekly;
             model.RepeatDays = Week.Days.Select(weekday => weekday == day.DayOfWeek).ToList();
+            model.Weeks = weeks;
         }
 
         return model;
@@ -199,6 +215,7 @@ public class ActivityFormViewModel : IConfirmsClashes
             PreparationMinutes = activity.PreparationMinutes,
             ChangingMinutes = activity.ChangingMinutes,
             Notes = activity.Notes,
+            Weeks = WeeksValue(activity.RoutineId, activity.RoutineWeek),
             Version = activity.Version,
         };
 
@@ -287,7 +304,38 @@ public class ActivityFormViewModel : IConfirmsClashes
         activity.Notes = Notes;
         activity.GoalId = GoalId;
         activity.RepeatRule = Repeats == RepeatChoice.Never ? null : RecurrenceRuleText.Format(Rule(weekStart)!);
+        (activity.RoutineId, activity.RoutineWeek) = Repeats == RepeatChoice.Never ? (null, null) : ChosenWeeks()!.Value;
     }
+
+    /// <summary>
+    /// CAL-9: the routine and week <see cref="Weeks"/> names ((null, null) for every week), or null when it can't be
+    /// read (a list edited by hand). Whether that routine is the user's, and has that week, is the controller's check.
+    /// </summary>
+    public (Guid? Routine, char? Week)? ChosenWeeks()
+    {
+        if (string.IsNullOrWhiteSpace(Weeks))
+        {
+            return (null, null);
+        }
+
+        var parts = Weeks.Split('/');
+        if (parts.Length > 2 || !Guid.TryParse(parts[0], out var routine))
+        {
+            return null;
+        }
+
+        return parts.Length == 1 ? (routine, null)
+            : parts[1] is [var week and >= 'A' and <= 'D'] ? (routine, week)
+            : null;
+    }
+
+    /// <summary>CAL-9: the list's value for a routine and week: "" for every week, the id, or the id and week ("…/B").</summary>
+    public static string WeeksValue(Guid? routine, char? week) => (routine, week) switch
+    {
+        (null, _) => "",
+        ({ } id, null) => id.ToString(),
+        ({ } id, { } letter) => $"{id}/{letter}",
+    };
 
     private List<ValidationResult> RepeatProblems()
     {
@@ -327,6 +375,19 @@ public class ActivityFormViewModel : IConfirmsClashes
         if (Ends == RepeatEndChoice.AfterCount && EndCount is not (>= 1 and <= MaxEndCount))
         {
             problems.Add(new ValidationResult($"Enter how many times it happens as a number from 1 to {MaxEndCount}.", [nameof(EndCount)]));
+        }
+
+        var weeks = ChosenWeeks();
+        if (weeks is null)
+        {
+            problems.Add(new ValidationResult(ChooseWeeksFromTheList, [nameof(Weeks)]));
+        }
+        else if (weeks.Value.Routine is not null && Ends == RepeatEndChoice.AfterCount)
+        {
+            // CAL-9: the count is of the dates its repeat falls on, so the weeks it's left out of would count too.
+            problems.Add(new ValidationResult(
+                "An activity in a routine can't end after a number of times, because the weeks it's left out of would count too. Choose a last date, or no end.",
+                [nameof(Ends)]));
         }
 
         return problems;

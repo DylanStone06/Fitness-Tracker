@@ -66,6 +66,12 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("RoutineId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<char?>("RoutineWeek")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("StartDate")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -95,6 +101,8 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasIndex("LocationId");
 
                     b.HasIndex("OwnerId");
+
+                    b.HasIndex("RoutineId");
 
                     b.ToTable("Activities");
                 });
@@ -265,6 +273,89 @@ namespace FitnessTracker.Web.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("LocationOpeningTimes");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.Routine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("BaseLocationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CycleWeeks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsUsual")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WeekAStarts")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WeekStart")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BaseLocationId");
+
+                    b.HasIndex("OwnerId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Routines_OneUsualPerOwner")
+                        .HasFilter("\"IsUsual\" = 1");
+
+                    b.ToTable("Routines");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.RoutineDateRange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EndDate")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RoutineId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartDate")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("RoutineId");
+
+                    b.ToTable("RoutineDateRanges");
                 });
 
             modelBuilder.Entity("FitnessTracker.Web.Data.TravelLeg", b =>
@@ -588,6 +679,11 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.Routine", null)
+                        .WithMany()
+                        .HasForeignKey("RoutineId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("FitnessTracker.Web.Data.CategoryBuffers", b =>
@@ -619,6 +715,35 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.Routine", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Location", null)
+                        .WithMany()
+                        .HasForeignKey("BaseLocationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.RoutineDateRange", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.Routine", null)
+                        .WithMany()
+                        .HasForeignKey("RoutineId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

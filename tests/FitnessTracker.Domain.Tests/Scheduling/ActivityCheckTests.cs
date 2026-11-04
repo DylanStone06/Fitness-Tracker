@@ -903,6 +903,47 @@ public class ActivityCheckTests
         Assert.Equal("On Sun 25 Oct 2026 there's already a demanding session, Night ride; your preferences allow 1 a day.", problem.Message);
     }
 
+    // CAL-9, SCH-1: an activity that only happens on some dates months ahead (a holiday routine's, 21-27 December) is
+    // checked for clashes from the first of them, not for 8 weeks in which it doesn't happen at all (scheduling review,
+    // Phase 6b). The other activities to load reach there too.
+    [Fact]
+    public void AnActivityLimitedToDatesMonthsAhead_IsCheckedForClashesThere()
+    {
+        var weekly = Weekly(new LocalDate(2026, 10, 19), [IsoDayOfWeek.Monday], new LocalTime(18, 0));
+        var holidayOnly = weekly with { Series = weekly.Series.OnlyOn(date => date >= new LocalDate(2026, 12, 21) && date <= new LocalDate(2026, 12, 27)) };
+        var party = OneOff("Party", new LocalDate(2026, 12, 21), new LocalTime(18, 0), minutes: 120, at: Home);
+
+        var result = ActivityCheck.Check(holidayOnly, [party], Context());
+
+        Assert.Equal("Party", Assert.Single(result.Clashes).Other.Label);
+        Assert.Equal(new LocalDate(2026, 12, 21), result.Checked.Start);
+        Assert.True(ActivityCheck.OthersThatCanClash(holidayOnly, Today).Contains(new LocalDate(2026, 12, 21)));
+    }
+
+    // SCH-1: a series that has ended, whose only later occurrence is a move from a date its routine now leaves out (the
+    // week of 12 October given to a holiday), has nothing from today on, so it is checked from its own first date
+    // (scheduling review, Phase 6b: the hidden move counted as happening).
+    [Fact]
+    public void ASeriesWhoseOnlyFutureMoveIsLeftOut_IsCheckedFromItsFirstDate()
+    {
+        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(2026, 10, 12)))
+            .MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 11, 9, 7, 0), Duration.FromMinutes(50))
+            .OnlyOn(date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18));
+
+        Assert.Equal(new LocalDate(2026, 10, 5), ActivityCheck.Check(AtHome(series), [], Context()).Checked.Start);
+    }
+
+    // ... while one that happens within the 8 weeks is checked from today, as ever.
+    [Fact]
+    public void AnActivityHappeningSoon_IsStillCheckedFromToday()
+    {
+        var weekly = Weekly(new LocalDate(2026, 10, 19), [IsoDayOfWeek.Monday], new LocalTime(18, 0));
+        var fromNovember = weekly with { Series = weekly.Series.OnlyOn(date => date >= new LocalDate(2026, 11, 2)) };
+
+        Assert.Equal(Today, ActivityCheck.Check(fromNovember, [], Context()).Checked.Start);
+    }
+
     // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks. Taken
     // from the activity itself, so a caller can't leave it out (code review, Phase 6).
     [Fact]
@@ -970,6 +1011,37 @@ public class ActivityCheckTests
 
         Assert.Equal(new LocalDate(2026, 10, 28), dates.Start);
     }
+
+    // P1: Mondays every 60 weeks from Monday 5 October 2026 next fall on Monday 29 November 2027, after the year checked
+    // (to Sunday 24 October 2027). Its travel must still be known before it is saved, from the base then: home
+    // (scheduling review, Phase 6b: with no occurrence in the year, no travel was checked).
+    [Fact]
+    public void ARepeatNextHappeningOverAYearAway_StillNeedsItsTravel()
+    {
+        var gym = EverySixtyWeeks();
+
+        var problem = Assert.Single(ActivityCheck.Check(gym, [], Context(travel: TravelTimes.None)).Problems);
+
+        Assert.Equal(CheckAspect.Location, problem.Aspect);
+        Assert.StartsWith("There's no travel time", problem.Message);
+    }
+
+    // ... but one in a routine happens after the year only on that routine's dates, whose base isn't known yet: it is
+    // checked when they are chosen (CAL-9), so it isn't asked for travel from home it may never need (a Brighton pool).
+    [Fact]
+    public void ARepeatInARoutine_NextHappeningOverAYearAway_IsntAskedForTravelFromHome()
+    {
+        var gym = EverySixtyWeeks();
+        var inARoutine = gym with { Series = gym.Series.OnlyOn(_ => false) };
+
+        Assert.Empty(ActivityCheck.Check(inARoutine, [], Context(travel: TravelTimes.None)).Problems);
+    }
+
+    private static PlannedActivity EverySixtyWeeks() =>
+        new(Guid.NewGuid(), "Gym",
+            new Series(new LocalDate(2026, 10, 5), new LocalTime(18, 0), Duration.FromMinutes(50), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday], everyWeeks: 60)),
+            Buffers.None, Gym);
 
     private static PlanningContext WithRest(int hours, IsoDayOfWeek[]? recovery = null) =>
         Context() with { Rest = new RestRules(Duration.FromHours(hours), 1, new HashSet<IsoDayOfWeek>(recovery ?? [])) };

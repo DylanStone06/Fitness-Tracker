@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
+using FitnessTracker.Domain.Templates;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models;
 using FitnessTracker.Web.Models.Activities;
@@ -32,9 +33,14 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     {
         ViewData[CheckNotes] = TempData[CheckNotes] as string[] ?? [];
         ViewData[SeriesEdit] = TempData[SeriesEdit] as string;
-        ViewData[Clock] = (await PreferencesAsync()).TimesShownAs();
+        var user = await planning.LoadAsync();
+        ViewData[Clock] = user.Preferences.TimesShownAs();
         var activities = await db.Activities.AsNoTracking().ToListAsync();
         ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
+        var routines = user.Routines;
+        ViewData["Routines"] = routines.All.ToDictionary(routine => routine.Id);
+        ViewData["RoutineDates"] = routines.Dates;
+        ViewData["Today"] = user.Now.Date;
         return View(activities
             .OrderBy(activity => activity.StartDate)
             .ThenBy(activity => activity.StartTime)
@@ -43,16 +49,18 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     }
 
     // From the calendar: the date and time selected there, and back to the calendar once saved. From "Plan my week"
-    // (SCH-4, "Change"): a session of the user's own weekly goal at the suggested time, back to the plan once saved; a
-    // goal that isn't theirs is simply not found, and the form starts empty.
+    // (SCH-4, "Change"): a session of the user's own weekly goal at the suggested time, in the weeks of the routine in
+    // use then (CAL-9), back to the plan once saved; a goal that isn't theirs is simply not found, and the form starts
+    // empty. Weeks that aren't the user's are refused when the form is saved, like any choice.
     [HttpGet]
     public async Task<IActionResult> Create(
-        string? date, string? time, bool returnToCalendar = false, Guid? goal = null, bool everyWeek = false, bool returnToPlan = false)
+        string? date, string? time, bool returnToCalendar = false, Guid? goal = null, bool everyWeek = false, bool returnToPlan = false,
+        string? weeks = null)
     {
         var forGoal = goal is { } goalId ? await db.WeeklyGoals.AsNoTracking().SingleOrDefaultAsync(saved => saved.Id == goalId) : null;
         var model = forGoal is null
             ? ActivityFormViewModel.ForNew(date, time, returnToCalendar)
-            : ActivityFormViewModel.ForGoal(forGoal, date, time, everyWeek, returnToPlan);
+            : ActivityFormViewModel.ForGoal(forGoal, date, time, everyWeek, returnToPlan, weeks);
         return View(await FillListsAsync(model));
     }
 
@@ -120,18 +128,21 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             : (await PreferencesAsync()).WeekStart;
 
         // CAL-4, T8: occurrences changed on their own keep their changes where the edited activity still falls on
-        // their dates.
-        var before = SeriesOf(activity);
+        // their dates, in the weeks it is now in (CAL-9).
+        var routines = (await planning.RoutinesAsync()).Calendar;
+        var before = SeriesOf(activity, routines);
 
         // Saved only if nobody has saved this activity since the form was opened (requirements §9). If the check
         // stops it, the changed activity is simply never saved.
         db.Entry(activity).Property(saved => saved.Version).OriginalValue = model.Version;
         model.ApplyTo(activity, weekStart);
         // An activity that couldn't be read as it was (edited by hand: a length of 0, say) keeps changes that can be
-        // read with it as it is now. Others can't be kept.
-        before ??= activity.OccurrenceChanges is null ? null : SeriesOf(activity);
+        // read with it as it is now. Others can't be kept. Its weeks as they were aren't known (the form has replaced
+        // them), so it is taken to have happened on every date: a change on a date the edit leaves out is removed and
+        // said, rather than kept unseen.
+        before ??= activity.OccurrenceChanges is null ? null : SeriesOf(activity, routines)?.OnlyOn(null);
         var unreadableChanges = before is null && activity.OccurrenceChanges is not null;
-        var (kept, removed) = before is null ? (0, 0) : activity.KeepChangesFrom(before);
+        var (kept, hidden, removed) = before is null ? (0, 0, 0) : activity.KeepChangesFrom(before, routines);
         if (unreadableChanges)
         {
             activity.OccurrenceChanges = null;
@@ -163,7 +174,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return View(model);
         }
 
-        if (SeriesEditMessage(kept, removed, unreadableChanges) is { } message)
+        if (SeriesEditMessage(kept, hidden, removed, unreadableChanges) is { } message)
         {
             TempData[SeriesEdit] = message;
         }
@@ -171,8 +182,9 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         return AfterSaving(model);
     }
 
-    // CAL-4: what happened to the occurrences changed on their own, in plain English (P5: never silently).
-    private static string? SeriesEditMessage(int kept, int removed, bool unreadable)
+    // CAL-4: what happened to the occurrences changed on their own, in plain English (P5: never silently). Those kept
+    // on dates another routine is in use can't be seen now, so are said apart (CAL-9).
+    private static string? SeriesEditMessage(int kept, int hidden, int removed, bool unreadable)
     {
         var parts = new List<string>();
         if (kept > 0)
@@ -180,6 +192,13 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             parts.Add(kept == 1
                 ? "1 occurrence you changed on its own keeps its change"
                 : $"{kept} occurrences you changed on their own keep their changes");
+        }
+
+        if (hidden > 0)
+        {
+            parts.Add(hidden == 1
+                ? "1 change is on a date another routine is in use, so it is kept for when this one is again"
+                : $"{hidden} changes are on dates another routine is in use, so they are kept for when this one is again");
         }
 
         if (removed > 0)
@@ -197,12 +216,13 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         return parts.Count == 0 ? null : $"Saved. {string.Join("; ", parts)}.";
     }
 
-    // The activity's series with its one-off changes, or null when it can't be read (edited by hand).
-    private static Series? SeriesOf(Activity activity)
+    // The activity's series with its one-off changes, in the weeks its routine allows (CAL-9), or null when it can't be
+    // read (edited by hand).
+    private static Series? SeriesOf(Activity activity, RoutineCalendar routines)
     {
         try
         {
-            return activity.ToPlannedActivity().Series;
+            return activity.ToPlannedActivity(routines).Series;
         }
         catch (Exception error) when (error is FormatException or DateTimeZoneNotFoundException)
         {
@@ -232,7 +252,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return RedirectToAction(nameof(Edit), new { id, returnToCalendar = returnToCalendar ? "true" : null });
         }
 
-        if (OccurrenceOf(activity, date) is not { } found)
+        if (OccurrenceOf(activity, date, (await planning.RoutinesAsync()).Calendar) is not { } found)
         {
             return NotFound();
         }
@@ -258,7 +278,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
             return RedirectToAction(nameof(Edit), new { id, returnToCalendar = model.ReturnToCalendar ? "true" : null });
         }
 
-        if (OccurrenceOf(activity, model.Date) is not { } found)
+        if (OccurrenceOf(activity, model.Date, (await planning.RoutinesAsync()).Calendar) is not { } found)
         {
             return NotFound();
         }
@@ -335,10 +355,11 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     }
 
     // The occurrence on date (as the page sends it), with the series it belongs to; null when the activity doesn't
-    // happen that day, or can't be read (edited by hand: the ordinary form shows it to fix).
-    private static (Series Series, LocalDate Date)? OccurrenceOf(Activity activity, string? date)
+    // happen that day (its rule doesn't fall on it, or its routine leaves that week out: CAL-9), or can't be read
+    // (edited by hand: the ordinary form shows it to fix).
+    private static (Series Series, LocalDate Date)? OccurrenceOf(Activity activity, string? date, RoutineCalendar routines)
     {
-        return FormInput.ParseDate(date) is { } day && SeriesOf(activity) is { } series && series.Rule.FallsOn(series.FirstDate, day)
+        return FormInput.ParseDate(date) is { } day && SeriesOf(activity, routines) is { } series && series.FallsOn(day)
             ? (series, day)
             : null;
     }
@@ -357,7 +378,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     public async Task<IActionResult> Reschedule(Guid id, string? date, bool returnToCalendar = false)
     {
         var activity = await FindAsync(id);
-        if (activity is null || FormInput.ParseDate(date) is not { } day || SeriesOf(activity) is null)
+        if (activity is null || FormInput.ParseDate(date) is not { } day || SeriesOf(activity, (await planning.RoutinesAsync()).Calendar) is null)
         {
             return NotFound();
         }
@@ -425,13 +446,21 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     // Through the per-user filter: another user's activity is simply not found.
     private Task<Activity?> FindAsync(Guid id) => db.Activities.SingleOrDefaultAsync(activity => activity.Id == id);
 
-    // What the form lists (locations) and the category defaults it hints at and fills blank buffers with (ACC-6).
+    // What the form lists (locations, routines) and the category defaults it hints at and fills blank buffers with (ACC-6).
     private async Task<ActivityFormViewModel> FillListsAsync(ActivityFormViewModel model)
     {
         model.Locations = await MyLocationsAsync();
+        model.Routines = await MyRoutinesAsync();
         model.DefaultBuffers = await planning.DefaultBuffersAsync();
         return model;
     }
+
+    // The usual routine first, then by name, as the Routines page lists them.
+    private async Task<IReadOnlyList<Routine>> MyRoutinesAsync() =>
+        (await db.Routines.AsNoTracking().ToListAsync())
+            .OrderByDescending(routine => routine.IsUsual)
+            .ThenBy(routine => routine.Name, StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
 
     private async Task<IReadOnlyList<Location>> MyLocationsAsync() =>
         (await db.Locations.AsNoTracking().ToListAsync())
@@ -517,6 +546,15 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
         if (model.LocationId is { } locationId && !await db.Locations.AnyAsync(location => location.Id == locationId))
         {
             ModelState.AddModelError(nameof(model.LocationId), "Choose a location from the list.");
+        }
+
+        // CAL-9: a routine of the user's own, and a week its cycle has (week C of A/B weeks would never come round).
+        // Only for a repeating activity: a one-off's choice of weeks is ignored, as its other repeat boxes are.
+        if (model.Repeats != RepeatChoice.Never && model.ChosenWeeks() is ({ } routineId, var week)
+            && (model.Routines.FirstOrDefault(routine => routine.Id == routineId) is not { } routine
+                || (week is { } letter && letter - 'A' >= routine.CycleWeeks)))
+        {
+            ModelState.AddModelError(nameof(model.Weeks), ActivityFormViewModel.ChooseWeeksFromTheList);
         }
 
         // The goal is a hidden link, not a choice: one that isn't the user's, or was deleted in another tab, is dropped

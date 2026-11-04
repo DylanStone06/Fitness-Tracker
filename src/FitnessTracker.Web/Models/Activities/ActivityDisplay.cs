@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Models.Routines;
 using NodaTime;
 using NodaTime.Text;
 
@@ -86,6 +87,39 @@ public static class ActivityDisplay
             _ => "",
         };
         return $"{pattern} {at}, from {Date.Format(activity.StartDate)}{ending}";
+    }
+
+    /// <summary>
+    /// CAL-9: the weeks a repeating activity happens in, when not every week: "Week B of Usual week only", or "Only
+    /// while Holiday is in use". Null for every week. <paramref name="routines"/> are the user's routines and
+    /// <paramref name="dates"/> the dates chosen for them, earliest first. For a routine other than the usual one, its
+    /// next dates from <paramref name="today"/> ("Only while Holiday is in use: Mon 2 Nov 2026 – Sun 8 Nov 2026, and
+    /// 1 more"); P1: with none, it is said not to happen.
+    /// </summary>
+    public static string? Weeks(Activity activity, IReadOnlyDictionary<Guid, Routine> routines, IReadOnlyList<RoutineDateRange> dates, LocalDate today)
+    {
+        if (activity.RoutineId is not { } id || activity.RepeatRule is null)
+        {
+            return null;
+        }
+
+        var routine = routines.GetValueOrDefault(id);
+        var name = routine?.Name ?? "its routine";
+        var weeks = activity.RoutineWeek is { } week ? $"Week {week} of {name} only" : $"Only while {name} is in use";
+        if (routine is { IsUsual: true })
+        {
+            return weeks;
+        }
+
+        var chosen = dates.Where(range => range.RoutineId == id).ToList();
+        var coming = chosen.Where(range => range.EndDate >= today).ToList();
+        return (coming.Count, chosen.Count) switch
+        {
+            (0, 0) => $"{weeks}: it isn't on any dates yet, so this doesn't happen",
+            (0, _) => $"{weeks}: it isn't on any dates from today on, so this doesn't happen",
+            (1, _) => $"{weeks}: {RoutineDisplay.Dates(coming[0])}",
+            var (count, _) => $"{weeks}: {RoutineDisplay.Dates(coming[0])}, and {count - 1} more",
+        };
     }
 
     /// <summary>For example "50 min", "8 h" or "1 h 30 min".</summary>

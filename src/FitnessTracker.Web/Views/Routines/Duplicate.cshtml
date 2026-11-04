@@ -1,0 +1,39 @@
+@model DuplicateRoutineViewModel
+@{
+    ViewData["Title"] = "Duplicate routine";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Duplicate this routine?</h1>
+        @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+        <p class="fs-5 text-break mb-1" dir="auto">@Model.Original.Name</p>
+        <p>@RoutineDisplay.Cycle(Model.Original)</p>
+        <p>
+            The copy has the same weeks, and isn't your usual routine.
+            @if (Model.Activities == 0)
+            {
+                <text>It has no activities in it to copy.</text>
+            }
+            else
+            {
+                <text>@(Model.Activities == 1 ? "Its activity is copied" : $"Its {Model.Activities} activities are copied"), in the same weeks, without changes you made to single occurrences.</text>
+            }
+            Nothing new happens until you choose dates for the copy, or make it your usual routine.
+        </p>
+
+        @* Posts back to this page's own address, which carries the routine's id. *@
+        <form asp-action="Duplicate" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label"></label>
+                <span asp-validation-for="Name" class="d-block text-danger" id="name-error"></span>
+                <input asp-for="Name" class="form-control" autocomplete="off"
+                       aria-describedby="name-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Name")" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Duplicate routine</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

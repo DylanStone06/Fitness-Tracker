@@ -1,0 +1,22 @@
+@model FitnessTracker.Web.Data.RoutineDateRange
+@{
+    ViewData["Title"] = "Remove dates";
+    var name = (string)ViewData[FitnessTracker.Web.Controllers.RoutineDatesController.RoutineName]!;
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Remove these dates?</h1>
+        <partial name="_ErrorSummary" />
+        @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+        <p class="fs-5 text-break mb-1">@RoutineDisplay.Dates(Model): <span dir="auto">@name</span></p>
+        <p>They go back to your usual routine.</p>
+
+        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+            @* The version this page shows, so dates changed in another tab since aren't removed unseen. *@
+            <input type="hidden" name="version" value="@Model.Version" />
+            <button type="submit" class="btn btn-danger">Remove dates</button>
+            <a class="btn btn-link" asp-controller="Routines" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

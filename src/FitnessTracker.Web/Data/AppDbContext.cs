@@ -36,6 +36,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<WeeklyGoal> WeeklyGoals => Set<WeeklyGoal>();
 
+    public DbSet<Routine> Routines => Set<Routine>();
+
+    public DbSet<RoutineDateRange> RoutineDateRanges => Set<RoutineDateRange>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -102,6 +106,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             activity.HasOne<Location>().WithMany().HasForeignKey(a => a.LocationId).OnDelete(DeleteBehavior.SetNull);
             // Deleting a weekly goal keeps the activities added for it, as ordinary activities.
             activity.HasOne<WeeklyGoal>().WithMany().HasForeignKey(a => a.GoalId).OnDelete(DeleteBehavior.SetNull);
+            // A routine with activities isn't deleted (RoutinesController says which to change first): they would
+            // otherwise never happen, or quietly start happening every week. NO ACTION rather than RESTRICT, as SQLite
+            // checks it once the whole delete is done, so deleting an account still deletes both (ACC-9).
+            activity.HasOne<Routine>().WithMany().HasForeignKey(a => a.RoutineId).OnDelete(DeleteBehavior.NoAction);
             activity.HasOne<AppUser>().WithMany().HasForeignKey(a => a.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -118,6 +126,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // Deleting a location keeps its goals, with no location.
             goal.HasOne<Location>().WithMany().HasForeignKey(g => g.LocationId).OnDelete(DeleteBehavior.SetNull);
             goal.HasOne<AppUser>().WithMany().HasForeignKey(g => g.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Routine>(routine =>
+        {
+            routine.Property(r => r.Name).HasMaxLength(Routine.NameMaxLength);
+            // At most one usual routine per person, even if two tabs make different ones usual at once.
+            routine.HasIndex(r => r.OwnerId).IsUnique().HasFilter($"\"{nameof(Routine.IsUsual)}\" = 1").HasDatabaseName("IX_Routines_OneUsualPerOwner");
+            // Deleting its base keeps the routine, based at home again.
+            routine.HasOne<Location>().WithMany().HasForeignKey(r => r.BaseLocationId).OnDelete(DeleteBehavior.SetNull);
+            routine.HasOne<AppUser>().WithMany().HasForeignKey(r => r.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RoutineDateRange>(dates =>
+        {
+            // Deleting a routine deletes the dates chosen for it: they go back to the usual routine (its delete page
+            // says so).
+            dates.HasOne<Routine>().WithMany().HasForeignKey(d => d.RoutineId).OnDelete(DeleteBehavior.Cascade);
+            dates.HasOne<AppUser>().WithMany().HasForeignKey(d => d.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every owned entity type gets the same protection, so a new one can't be forgotten.

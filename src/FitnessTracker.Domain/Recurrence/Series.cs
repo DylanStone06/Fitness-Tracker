@@ -27,26 +27,37 @@ public abstract record OccurrenceChange
 /// The result of editing a whole series. One-off changes are kept where the edited series still falls on their
 /// date and removed otherwise; both are counted so the user can be told (CAL-4, principle P5).
 /// </summary>
-public sealed record SeriesEdit(Series Series, int KeptChanges, int RemovedChanges);
+public sealed record SeriesEdit(Series Series, int KeptChanges, int RemovedChanges)
+{
+    /// <summary>
+    /// Of <see cref="KeptChanges"/>, those on dates it doesn't happen on now (CAL-9: another routine in use), kept for
+    /// when it does: they can't be seen, so they are told apart.
+    /// </summary>
+    public int HiddenChanges { get; init; }
+}
 
 /// <summary>
 /// A repeating activity, defined in clock time plus a timezone (requirements §8). It starts at the same clock time
 /// on every date its rule falls on, using the clock-change rules in <see cref="ClockTimes"/>, and lasts the same
-/// elapsed time, except for occurrences with a one-off change.
+/// elapsed time, except for occurrences with a one-off change. It can be limited to some of those dates
+/// (<see cref="OnlyOn"/>): an activity in one week of a routine's cycle (CAL-9).
 /// </summary>
 public sealed class Series
 {
     // Frozen, so a series can't be changed once made: every change returns a new series.
     private readonly FrozenDictionary<LocalDate, OccurrenceChange> _changes;
 
+    // The dates it may happen on, of those its rule falls on; null for all of them.
+    private readonly Func<LocalDate, bool>? _happensOn;
+
     public Series(LocalDate firstDate, LocalTime startTime, Duration length, DateTimeZone zone, RecurrenceRule rule)
-        : this(firstDate, startTime, length, zone, rule, FrozenDictionary<LocalDate, OccurrenceChange>.Empty)
+        : this(firstDate, startTime, length, zone, rule, FrozenDictionary<LocalDate, OccurrenceChange>.Empty, happensOn: null)
     {
     }
 
     private Series(
         LocalDate firstDate, LocalTime startTime, Duration length, DateTimeZone zone, RecurrenceRule rule,
-        FrozenDictionary<LocalDate, OccurrenceChange> changes)
+        FrozenDictionary<LocalDate, OccurrenceChange> changes, Func<LocalDate, bool>? happensOn)
     {
         FirstDate = firstDate;
         StartTime = startTime;
@@ -54,6 +65,7 @@ public sealed class Series
         Zone = zone;
         Rule = rule;
         _changes = changes;
+        _happensOn = happensOn;
     }
 
     public LocalDate FirstDate { get; }
@@ -73,18 +85,19 @@ public sealed class Series
     /// The occurrences that start on dates from <paramref name="from"/> to <paramref name="to"/>, inclusive, in
     /// order. An occurrence belongs to the day it starts (requirements §8), so one starting the evening before
     /// <paramref name="from"/> isn't included even if it runs past midnight: to work out a day's load, include the
-    /// day before too. A moved occurrence is included by the day it now starts.
+    /// day before too. A moved occurrence is included by the day it now starts, if the date it was moved from is one
+    /// the series happens on (<see cref="OnlyOn"/>).
     /// </summary>
     public IReadOnlyList<Occurrence> OccurrencesBetween(LocalDate from, LocalDate to)
     {
         var occurrences = Rule.Dates(FirstDate, from, through: to)
-            .Where(date => !Changes.ContainsKey(date))
+            .Where(date => !Changes.ContainsKey(date) && Allows(date))
             .Select(date => OccurrenceAt(date, date.At(StartTime), Length))
             .ToList();
 
         foreach (var (date, change) in Changes)
         {
-            if (change is OccurrenceChange.Moved move && move.Start.Date >= from && move.Start.Date <= to)
+            if (change is OccurrenceChange.Moved move && move.Start.Date >= from && move.Start.Date <= to && Allows(date))
             {
                 occurrences.Add(OccurrenceAt(date, move.Start, move.Length));
             }
@@ -92,6 +105,19 @@ public sealed class Series
 
         return occurrences.OrderBy(occurrence => occurrence.Time.Start).ToList();
     }
+
+    /// <summary>Whether it happens on only some of the dates its rule falls on (<see cref="OnlyOn"/>): it's in a routine.</summary>
+    public bool IsLimited => _happensOn is not null;
+
+    /// <summary>Whether it has an occurrence on <paramref name="date"/>: its rule falls on it, and it may happen then.</summary>
+    public bool FallsOn(LocalDate date) => Rule.FallsOn(firstDate: FirstDate, date: date) && Allows(date);
+
+    /// <summary>
+    /// The same series, happening only on the dates its rule falls on that <paramref name="happensOn"/> allows (CAL-9:
+    /// week A only), instead of any dates allowed before; null allows them all again. One-off changes are kept, by the
+    /// date the rule put each on: a change on a date left out isn't shown, and shows again if that date is allowed again.
+    /// </summary>
+    public Series OnlyOn(Func<LocalDate, bool>? happensOn) => new(FirstDate, StartTime, Length, Zone, Rule, _changes, happensOn);
 
     /// <summary>The same series with one occurrence cancelled; the others are untouched.</summary>
     public Series CancelOccurrence(LocalDate date) => WithChange(date, new OccurrenceChange.Cancelled());
@@ -108,18 +134,30 @@ public sealed class Series
     }
 
     /// <summary>
-    /// The whole series with a new first date, clock time, length or rule. One-off changes are kept for every date
-    /// the edited series still falls on (T8); the result says how many were kept and how many were removed. A move to
-    /// what is now the usual time and length is no longer a change, so it is neither: the occurrence simply follows
-    /// the series, where it already was.
+    /// The whole series with a new first date, clock time, length or rule, on the dates it is allowed to happen on
+    /// now (<see cref="OnlyOn"/>). One-off changes are kept for every date the edited series still falls on (T8), and
+    /// for dates already left out on which its rule still falls (see the overload below); the result says how many
+    /// were kept and how many were removed. A move to what is now the usual time and length is no longer a change, so
+    /// it is neither: the occurrence simply follows the series, where it already was.
     /// </summary>
-    public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule)
+    public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule) =>
+        Edit(firstDate, startTime, length, rule, _happensOn);
+
+    /// <summary>
+    /// <see cref="Edit(LocalDate, LocalTime, Duration, RecurrenceRule)"/>, allowed on the dates <paramref name="happensOn"/>
+    /// says (CAL-9: its routine's weeks, as they are now) instead of this series' own. A change on a date this series
+    /// already left out (a week since given to another routine) wasn't taken away by the edit: it is kept while the
+    /// edited rule still falls on that date, so it shows again if the date is allowed again.
+    /// </summary>
+    public SeriesEdit Edit(LocalDate firstDate, LocalTime startTime, Duration length, RecurrenceRule rule, Func<LocalDate, bool>? happensOn)
     {
-        var edited = new Series(firstDate, startTime, length, Zone, rule);
+        // Built on every date the rule falls on, so a change kept on a date left out can be added; limited at the end.
+        var edited = new Series(firstDate, startTime, length, Zone, rule, FrozenDictionary<LocalDate, OccurrenceChange>.Empty, happensOn: null);
         var removed = 0;
         foreach (var (date, change) in Changes)
         {
-            if (!edited.FallsOn(date))
+            var allowedAfter = happensOn?.Invoke(date) ?? true;
+            if (!edited.FallsOn(date) || (!allowedAfter && Allows(date)))
             {
                 removed++;
                 continue;
@@ -128,14 +166,18 @@ public sealed class Series
             edited = edited.WithChange(date, change);
         }
 
-        return new SeriesEdit(edited, KeptChanges: edited.Changes.Count, RemovedChanges: removed);
+        var limited = edited.OnlyOn(happensOn);
+        return new SeriesEdit(limited, KeptChanges: limited.Changes.Count, RemovedChanges: removed)
+        {
+            HiddenChanges = limited.Changes.Keys.Count(date => !(happensOn?.Invoke(date) ?? true)),
+        };
     }
 
     /// <summary>
     /// The same series in another timezone, keeping its clock times, one-off changes included (T6: "gym at 7am
     /// wherever I am").
     /// </summary>
-    public Series InZone(DateTimeZone newZone) => new(FirstDate, StartTime, Length, newZone, Rule, _changes);
+    public Series InZone(DateTimeZone newZone) => new(FirstDate, StartTime, Length, newZone, Rule, _changes, _happensOn);
 
     private Series WithChange(LocalDate date, OccurrenceChange change)
     {
@@ -162,9 +204,9 @@ public sealed class Series
     }
 
     private Series WithChanges(FrozenDictionary<LocalDate, OccurrenceChange> changes) =>
-        new(FirstDate, StartTime, Length, Zone, Rule, changes);
+        new(FirstDate, StartTime, Length, Zone, Rule, changes, _happensOn);
 
-    private bool FallsOn(LocalDate date) => Rule.FallsOn(firstDate: FirstDate, date: date);
+    private bool Allows(LocalDate date) => _happensOn?.Invoke(date) ?? true;
 
     private Occurrence OccurrenceAt(LocalDate date, LocalDateTime start, Duration length)
     {

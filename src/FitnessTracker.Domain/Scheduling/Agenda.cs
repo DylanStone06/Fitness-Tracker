@@ -11,7 +11,11 @@ namespace FitnessTracker.Domain.Scheduling;
 /// (null if that would be longer than the day allows, H8). <see cref="Note"/> says, in plain English, what couldn't be worked
 /// out (travel, or the footprint): P1, said, never guessed. <see cref="ClashesWith"/>: the titles of what it overlaps.
 /// </summary>
-public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith);
+public sealed record AgendaItem(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note, IReadOnlyList<string> ClashesWith)
+{
+    /// <summary>TRV-4: where its travel starts and ends, by name, when that isn't home ("Brighton flat"); null for home.</summary>
+    public string? LeavesFrom { get; init; }
+}
 
 /// <summary>The agenda item to do next (GOL-2), and whether it has begun: getting ready or the journey out counts.</summary>
 public sealed record NextUp(AgendaItem Item, bool UnderWay);
@@ -35,11 +39,13 @@ public static class Agenda
         var entries = new List<(PlannedActivity Activity, Occurrence Occurrence, Footprint? Footprint, string? Note)>();
         foreach (var activity in activities)
         {
-            var journeys = Travel.KnownJourneys(activity.LocationId, context);
-            var travel = journeys ?? Journeys.None;
-            var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context)}." : null;
             foreach (var occurrence in activity.Series.OccurrencesBetween(from.PlusDays(-MarginDays), through.PlusDays(MarginDays)))
             {
+                // TRV-4: from the base of the day it starts.
+                var day = Travel.DayOf(occurrence, activity.Series.Zone);
+                var journeys = Travel.KnownJourneys(activity.LocationId, context, day);
+                var travel = journeys ?? Journeys.None;
+                var travelNote = journeys is null ? $"Travel isn't counted, because {Travel.WhyUnknown(activity.LocationId, context, day)}." : null;
                 var longest = Times.LongestFor(occurrence.Time, activity.Series.Zone);
                 if (Footprint.ProblemsWith(occurrence.Time.Duration, activity.Buffers, travel, longest).Count > 0)
                 {
@@ -77,9 +83,19 @@ public static class Agenda
             .ThenBy(item => item.Entry.Activity.Title, StringComparer.Ordinal)
             .ThenBy(item => item.Entry.Activity.Id)
             .ThenBy(item => item.Entry.Occurrence.Date)
-            .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith))
+            .Select(item => new AgendaItem(item.Entry.Activity, item.Entry.Occurrence, item.Entry.Footprint, item.Entry.Note, item.ClashesWith)
+            {
+                LeavesFrom = LeavesFrom(context, Travel.DayOf(item.Entry.Occurrence, item.Entry.Activity.Series.Zone)),
+            })
             .ToList();
     }
+
+    /// <summary>
+    /// TRV-4: for <see cref="AgendaItem.LeavesFrom"/>, the name of the base on <paramref name="date"/> when that isn't home
+    /// (a routine's own base: "Brighton flat"); null for home.
+    /// </summary>
+    public static string? LeavesFrom(PlanningContext context, LocalDate date) =>
+        context.BaseOn(date) is { } fromBase && fromBase != context.Home ? Travel.NameOf(fromBase, context) : null;
 
     /// <summary>
     /// GOL-2's "the next activity": of the items not over at <paramref name="now"/>, the one you start getting ready or
@@ -146,9 +162,9 @@ public static class Agenda
 
     /// <summary>
     /// When to go and when it's over, from the footprint: "Leave home 17:35, back 19:45" away from home (leaving is when
-    /// the journey out starts, after getting ready at home, §7.1), "With getting ready and changing: 06:55 to 07:40" for
-    /// buffers at home, or null. A time on another day says "the day before" or "the next day" (§8), and a time the
-    /// clocks repeat says which one ("01:15 GMT").
+    /// the journey out starts, after getting ready at home, §7.1; "Leave Brighton flat …" from a routine's own base,
+    /// TRV-4), "With getting ready and changing: 06:55 to 07:40" for buffers at the base, or null. A time on another day
+    /// says "the day before" or "the next day" (§8), and a time the clocks repeat says which one ("01:15 GMT").
     /// </summary>
     public static string? Trip(AgendaItem item, ClockFormat clock = ClockFormat.TwentyFourHour)
     {
@@ -169,7 +185,10 @@ public static class Agenda
         var away = footprint.Segments.Any(segment => segment.Part is FootprintPart.TravelOut or FootprintPart.TravelBack);
         if (away)
         {
-            return $"Leave home {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
+            // A base's name is isolated (U+2068 to U+2069): a time straight after a name in Arabic or Hebrew would
+            // otherwise be drawn inside it, "Leave 4:40 <name> pm" (break-ui, Phase 6b).
+            var from = item.LeavesFrom is { } place ? $"⁨{place}⁩" : "home";
+            return $"Leave {from} {At(travelOut ?? footprint.Activity.Start)}, back {At(footprint.Whole.End)}";
         }
 
         return footprint.Whole != footprint.Activity
@@ -186,31 +205,52 @@ public static class Agenda
     }
 }
 
-/// <summary>Travel around an activity, decided the same way for the check on save and the agenda (§7.1).</summary>
+/// <summary>
+/// Travel around an activity, decided the same way for the check on save, the agenda and the planner (§7.1): to and from
+/// the base on the day it starts (TRV-4: a routine's own base on the dates it is in use, otherwise home).
+/// </summary>
 internal static class Travel
 {
-    /// <summary>None at home or at no particular place; the journeys when known; null when they can't be worked out.</summary>
-    public static Journeys? KnownJourneys(Guid? locationId, PlanningContext context)
+    /// <summary>None at the base or at no particular place; the journeys when known; null when they can't be worked out.</summary>
+    public static Journeys? KnownJourneys(Guid? locationId, PlanningContext context, LocalDate date)
     {
-        if (locationId is not { } at || at == context.Home)
+        var from = context.BaseOn(date);
+        if (locationId is not { } at || at == from)
         {
             return Journeys.None;
         }
 
-        return context.Home is { } home ? context.Travel.JourneysFor(at, home).Journeys : null;
+        return from is { } fromBase ? context.Travel.JourneysFor(at, fromBase).Journeys : null;
     }
 
-    /// <summary>Why <see cref="KnownJourneys"/> is null, to finish a sentence: "none of your locations is marked as home".</summary>
-    public static string WhyUnknown(Guid? locationId, PlanningContext context)
+    /// <summary>
+    /// Why <see cref="KnownJourneys"/> is null on <paramref name="date"/>, to finish a sentence: "none of your locations
+    /// is marked as home", "there's no travel time from Home to Town gym", or, away from home, "your base then is Brighton
+    /// flat, and there's no travel time …", next to something dated; with <paramref name="sayTheDate"/>, for a note that
+    /// isn't, "on Sat 7 Nov 2026 your base is Brighton flat, and …".
+    /// </summary>
+    public static string WhyUnknown(Guid? locationId, PlanningContext context, LocalDate date, bool sayTheDate = false)
     {
-        if (context.Home is not { } home || locationId is not { } at)
+        if (context.BaseOn(date) is not { } fromBase || locationId is not { } at)
         {
             return "none of your locations is marked as home";
         }
 
-        var missing = context.Travel.JourneysFor(at, home).MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}");
-        return $"there's no travel time {string.Join(", or ", missing)}";
+        var missing = $"there's no travel time {MissingLegs(at, fromBase, context)}";
+        return fromBase == context.Home ? missing
+            : sayTheDate ? $"on {Times.Date.Format(date)} your base is {NameOf(fromBase, context)}, and {missing}"
+            : $"your base then is {NameOf(fromBase, context)}, and {missing}";
     }
+
+    /// <summary>
+    /// The day whose base an occurrence's travel is from: the day it starts (§8: an occurrence belongs to it), in its own
+    /// timezone. Every travel lookup uses it, so the check on save, the agenda and the planner agree.
+    /// </summary>
+    public static LocalDate DayOf(Occurrence occurrence, DateTimeZone zone) => occurrence.Time.Start.InZone(zone).Date;
+
+    /// <summary>"from Brighton flat to Town gym, or from Town gym to Brighton flat": the legs travel needs and lacks.</summary>
+    public static string MissingLegs(Guid at, Guid fromBase, PlanningContext context) =>
+        string.Join(", or ", context.Travel.JourneysFor(at, fromBase).MissingLegs.Select(leg => $"from {NameOf(leg.From, context)} to {NameOf(leg.To, context)}"));
 
     public static string NameOf(Guid location, PlanningContext context) =>
         context.Places.TryGetValue(location, out var place) ? place.Name : "that location";

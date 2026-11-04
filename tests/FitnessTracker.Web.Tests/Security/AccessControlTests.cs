@@ -35,6 +35,16 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Goals/Edit/{id}" },
         { "GET", "/Goals/Delete/{id}" },
         { "POST", "/Goals/Delete/{id}" },
+        { "GET", "/Routines/Edit/{id}" },
+        { "POST", "/Routines/Edit/{id}" },
+        { "GET", "/Routines/Delete/{id}" },
+        { "POST", "/Routines/Delete/{id}" },
+        { "GET", "/Routines/Duplicate/{id}" },
+        { "POST", "/Routines/Duplicate/{id}" },
+        { "GET", "/RoutineDates/Edit/{id}" },
+        { "POST", "/RoutineDates/Edit/{id}" },
+        { "GET", "/RoutineDates/Delete/{id}" },
+        { "POST", "/RoutineDates/Delete/{id}" },
     };
 
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
@@ -109,6 +119,22 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
 
         Assert.Contains(samsTitle, html);
         Assert.DoesNotContain(alexsTitle, html);
+    }
+
+    [Fact]
+    public async Task RoutinesList_ShowsOnlyTheSignedInUsersOwn()
+    {
+        var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var alexsName = TestBrowser.NewName("Alex rota");
+        await alex.AddRoutineAsync(alexsName);
+        var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
+        var samsName = TestBrowser.NewName("Sam week");
+        await sam.AddRoutineAsync(samsName);
+
+        var html = await (await sam.GetAsync("/Routines")).Content.ReadAsStringAsync();
+
+        Assert.Contains(samsName, html);
+        Assert.DoesNotContain(alexsName, html);
     }
 
     [Fact]
@@ -194,6 +220,24 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
             return (await StoredData.GoalTitledAsync(factory, title))!.Id;
         }
 
+        if (path.StartsWith("/Routines/", StringComparison.Ordinal))
+        {
+            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+            var name = TestBrowser.NewName("Alex rota");
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.AddRoutineAsync(name)).StatusCode);
+            return (await StoredData.RoutineNamedAsync(factory, name))!.Id;
+        }
+
+        if (path.StartsWith("/RoutineDates/", StringComparison.Ordinal))
+        {
+            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+            var name = TestBrowser.NewName("Alex holiday");
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.AddRoutineAsync(name)).StatusCode);
+            var routine = (await StoredData.RoutineNamedAsync(factory, name))!.Id;
+            Assert.Equal(HttpStatusCode.Redirect, (await alex.ChooseRoutineDatesAsync(routine, "2026-11-02", "2026-11-08")).StatusCode);
+            return Assert.Single(await StoredData.DatesChosenForAsync(factory, routine)).Id;
+        }
+
         throw new ArgumentOutOfRangeException(nameof(path), path, "Add a way to create Alex's record for this controller.");
     }
 
@@ -203,7 +247,11 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
     private static Task<HttpResponseMessage> SendAsync(TestBrowser browser, string method, string url) => method switch
     {
         "GET" => browser.GetAsync(url),
-        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam").Concat(TestBrowser.GoalForm("Changed by Sam")).DistinctBy(field => field.Key).ToDictionary())
+        "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam")
+            .Concat(TestBrowser.GoalForm("Changed by Sam"))
+            .Concat(TestBrowser.RoutineForm("Changed by Sam"))
+            .Concat(TestBrowser.RoutineDatesForm(Guid.NewGuid(), "2026-12-01", "2026-12-02"))
+            .DistinctBy(field => field.Key).ToDictionary())
         {
             ["Name"] = "Changed by Sam",
             ["Minutes"] = "5",

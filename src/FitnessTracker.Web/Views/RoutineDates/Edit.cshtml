@@ -1,0 +1,20 @@
+@model RoutineDatesFormViewModel
+@{
+    ViewData["Title"] = "Change dates";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Change dates</h1>
+
+        @* Posts back to this page's own address, which carries the id. *@
+        <form asp-action="Edit" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+            <input type="hidden" asp-for="Version" />
+            <partial name="_RoutineDatesFields" />
+
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <a class="btn btn-link" asp-controller="Routines" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

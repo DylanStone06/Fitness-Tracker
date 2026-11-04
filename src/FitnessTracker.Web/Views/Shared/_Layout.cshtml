@@ -72,6 +72,9 @@
                                 <a class="nav-link @(Current("Activities") is null ? null : "active")" aria-current="@Current("Activities")" asp-controller="Activities" asp-action="Index">Activities</a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link @(Current("Routines") is null ? null : "active")" aria-current="@Current("Routines")" asp-controller="Routines" asp-action="Index">Routines</a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link @(Current("Goals") is null ? null : "active")" aria-current="@Current("Goals")" asp-controller="Goals" asp-action="Index">Goals</a>
                             </li>
                             <li class="nav-item">

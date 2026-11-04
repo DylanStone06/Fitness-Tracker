@@ -1,0 +1,33 @@
+@model RoutineDatesFormViewModel
+@* The fields shared by the add and change forms for a routine chosen for some dates (CAL-9, Q14). Checked on the server
+   only. *@
+@{
+    var routines = Model.Routines.Select(routine => new SelectListItem(routine.IsUsual ? $"{routine.Name} (your usual routine)" : routine.Name, routine.Id.ToString())).ToList();
+}
+<div class="mb-3">
+    <label asp-for="RoutineId" class="form-label"></label>
+    <span asp-validation-for="RoutineId" class="d-block text-danger" id="routine-error"></span>
+    <select asp-for="RoutineId" class="form-select" asp-items="routines"
+            aria-describedby="routine-error" aria-invalid="@ViewData.ModelState.AriaInvalid("RoutineId")">
+        <option value="">Choose a routine</option>
+    </select>
+</div>
+
+<fieldset class="mb-3" aria-describedby="dates-hint">
+    <legend class="fs-6 mb-1">Dates</legend>
+    <div class="form-text mt-0 mb-1" id="dates-hint">Both days included. These dates can't overlap others you've chosen a routine for.</div>
+    <div class="row g-2">
+        <div class="col-sm-6">
+            <label asp-for="From" class="form-label mb-0"></label>
+            <span asp-validation-for="From" class="d-block text-danger" id="from-error"></span>
+            <input asp-for="From" type="date" class="form-control"
+                   aria-describedby="dates-hint from-error" aria-invalid="@ViewData.ModelState.AriaInvalid("From")" />
+        </div>
+        <div class="col-sm-6">
+            <label asp-for="To" class="form-label mb-0"></label>
+            <span asp-validation-for="To" class="d-block text-danger" id="to-error"></span>
+            <input asp-for="To" type="date" class="form-control"
+                   aria-describedby="dates-hint to-error" aria-invalid="@ViewData.ModelState.AriaInvalid("To")" />
+        </div>
+    </div>
+</fieldset>

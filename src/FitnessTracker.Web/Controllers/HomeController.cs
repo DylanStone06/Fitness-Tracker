@@ -21,7 +21,7 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
         var unreadable = new List<string>();
         // A few days either side, so clashes with activities just before or after the week still show.
         var loaded = new DateInterval(today.PlusDays(-Agenda.MarginDays), today.PlusDays(HomeViewModel.DaysAhead + Agenda.MarginDays));
-        var activities = await planning.ActivitiesOnAsync(loaded, unreadable);
+        var activities = await planning.ActivitiesOnAsync(loaded, user.Routines.Calendar, unreadable);
         var agenda = Agenda.Between(activities, user.Context, today, today.PlusDays(HomeViewModel.DaysAhead));
         // A few columns, not whole rows: every activity's category, for its colour and name (CAL-2), and whether it
         // repeats, so an occurrence opens its own page (CAL-4).

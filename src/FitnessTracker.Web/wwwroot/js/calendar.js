@@ -7,7 +7,7 @@
     return;
   }
 
-  const { eventsUrl, createUrl, editUrl, occurrenceUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
+  const { eventsUrl, weeksUrl, createUrl, editUrl, occurrenceUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
 
   // CAL-4: an occurrence of a repeating activity opens its own page, to change just that one; a one-off, its form.
   const pageFor = (props) => (props.repeats
@@ -69,6 +69,32 @@
       .catch((error) => {
         failure(error);
         say(error.message);
+      });
+  };
+
+  // CAL-9: which routine and week the days shown are in ("Usual week, week B"), from the server, which works it out.
+  // Nothing for someone with no routines; if it can't be loaded, the line stays empty rather than saying something wrong.
+  // Only the latest answer is shown: moving quickly through the weeks mustn't leave an earlier week's words.
+  const weeksLine = document.getElementById('calendar-weeks');
+  let weeksAsked = 0;
+  const showWeeks = (range) => {
+    if (!weeksLine) {
+      return;
+    }
+    weeksLine.textContent = '';
+    const asked = ++weeksAsked;
+    const url = `${weeksUrl}?start=${encodeURIComponent(clockTime(range.start))}&end=${encodeURIComponent(clockTime(range.end))}`;
+    fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : { text: null }))
+      .then((weeks) => {
+        if (asked === weeksAsked) {
+          weeksLine.textContent = weeks.text ? `Routine: ${weeks.text}` : '';
+        }
+      })
+      .catch(() => {
+        if (asked === weeksAsked) {
+          weeksLine.textContent = '';
+        }
       });
   };
 
@@ -211,6 +237,7 @@
     // at any width (break-ui). Clashes are rare, and each says so in words.
     eventMaxStack: 2,
     events: load,
+    datesSet: showWeeks,
     eventContent: content,
     eventDidMount: listTimes,
     editable: true,

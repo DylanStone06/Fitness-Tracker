@@ -60,7 +60,7 @@
 <div class="mb-3">
     <label asp-for="LocationId" class="form-label"></label>
     <div class="form-text mt-0 mb-1" id="where-hint">
-        Travel to and from it is added when it's away from home, using your <a asp-controller="TravelLegs" asp-action="Index">travel times</a>,
+        Travel to and from it is added when it's away from home (or from the base of a routine in use then), using your <a asp-controller="TravelLegs" asp-action="Index">travel times</a>,
         and it's only planned when the place is open.
     </div>
     <span asp-validation-for="LocationId" class="d-block text-danger" id="where-error"></span>

@@ -1,6 +1,7 @@
 @model FitnessTracker.Web.Data.Location
 @{
     ViewData["Title"] = "Delete location";
+    var basedHere = (IReadOnlyList<string>)ViewData[FitnessTracker.Web.Controllers.LocationsController.RoutinesBasedHere]!;
 }
 
 <div class="row">
@@ -9,6 +10,12 @@
         <partial name="_ErrorSummary" />
         <p class="fs-5 text-break">@Model.Name</p>
         <p>Its travel times are deleted too. Activities there are kept, with no location. This can't be undone.</p>
+        @if (basedHere.Count > 0)
+        {
+            @* TRV-4. dir="auto": a name in Arabic or Hebrew reads right to left. *@
+            <p class="text-break">Routines based here are based at home again: @for (var i = 0; i < basedHere.Count; i++)
+                {@(i > 0 ? ", " : "")<span dir="auto">@basedHere[i]</span>}.</p>
+        }
 
         <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
             @* The version this page shows, so a location changed in another tab since isn't deleted unseen. *@

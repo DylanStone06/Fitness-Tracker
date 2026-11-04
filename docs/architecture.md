@@ -7,7 +7,7 @@ are in [ADR 0001](decisions/0001-stack.md); what's still missing is in [known li
 
 | Project | Holds | Rule |
 |---|---|---|
-| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, RRULE text, one-off changes), `Templates` (A/B week cycles), `Footprints` (footprints, travel times), `Locations` (opening hours), `Scheduling` (clashes, daily load, the check on save, the home page's agenda); later the planner, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
+| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, RRULE text, one-off changes), `Templates` (A/B week cycles, and which routine and week each date is in), `Footprints` (footprints, travel times), `Locations` (opening hours), `Scheduling` (clashes, daily load, the check on save, the home page's agenda); later the planner, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
 | `FitnessTracker.Web` | MVC controllers and views, `Data/` (database, migrations, Identity), `Services/` | No scheduling rules in controllers or views. |
 | `FitnessTracker.*.Tests` | xUnit v2 tests | Integration tests run the real app in memory (`TestAppFactory`). |
 
@@ -46,6 +46,22 @@ Isolation is enforced in the data layer, so a controller that forgets to filter 
    never saves: it opens the occurrence's page or the activity's form with the new time filled in, which check it as
    any save (Phase 5). A new way of saving (accepted suggestions, imports) calls the checker too and shows its
    problems and clashes.
+
+7. **Turning an activity into its series always takes the user's routines** (CAL-9, Phase 6b):
+   `Activity.ToPlannedActivity(routines)`, with the routine calendar loaded with the user's planning data
+   (`UserPlanning.Routines`, from `PlanningData.LoadAsync`; `RoutinesAsync` only where nothing else is loaded), so an
+   activity in week A only is left out of week B on every page and in every check. The argument is required so it
+   can't be forgotten; `RoutineCalendar.None` is only for reading whether an activity can be read at all.
+
+8. **Travel is always from the day's base** (TRV-4, Phase 6b): a routine can have its own base, so travel goes through
+   `Travel.KnownJourneys(location, context, Travel.DayOf(occurrence, zone))`, never `context.Home` directly. The
+   context carries the routine calendar and each routine's base (`PlanningData.LoadAsync`). Text that names a base
+   right before a time isolates the name (U+2068 to U+2069), or a right-to-left name swallows the time.
+
+9. **A change to which routine is in use when, or where one is based, says what it breaks** (SCH-1, Phase 6b): run
+   `ActivityChecker.RoutineActivityFindingsAsync` before saving and `RoutineActivityFindingsSinceAsync` with its
+   result after, which checks the same activities from the same dates; show what is new on the Routines page
+   (`RoutinesController.RoutineChangeFindings`). A new page that changes routines, their dates or bases does the same.
 
 ### Notes for later phases
 

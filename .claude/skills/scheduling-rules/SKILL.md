@@ -36,7 +36,11 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 - **One-off changes** (cancelled, or moved/resized) are keyed by the **date the rule put the occurrence on**, never by
   its time, so editing the series' time keeps track of them. A moved occurrence shows on the day it now starts.
 - **Editing the series** keeps changes for dates the edited series still falls on, removes the rest, and reports
-  both counts (`SeriesEdit`), so the app never loses a change silently (P5). Restoring, or moving an occurrence back
+  both counts (`SeriesEdit`), so the app never loses a change silently (P5). With routines (CAL-9), only the dates
+  the edit itself stops it happening on count as removed: a change on a date it already didn't happen on (a week
+  since given to a holiday, Q14) is kept while the repeat still falls on it, and shows again if that date is
+  allowed again (`Series.Edit(..., happensOn)`, given the series as it was with its own dates; tests
+  `SeriesOnlyOnTests.AnEdit_*`, web `RoutineDatesTests.EditingAnActivity_KeepsAChangeInAWeekGivenToAHoliday`). Restoring, or moving an occurrence back
   to its usual **moment** and length, removes its change (compared as moments: a 01:30 series happens at 02:30 on
   the night the clocks go forward).
 - A move is stored as a **clock time**, so a drop in the second 01:00-01:59 on the night the clocks go back resolves
@@ -65,6 +69,41 @@ how it will work. When code and this file disagree, the tests decide; then fix t
 `WeekCycle`: 1-4 weeks; week A is the week of the anchor date (requirements Q3: the week the template is first
 applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keeps its sign).
 
+Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
+- **Which routine is in use on a date** (`RoutineCalendar.On`): a routine chosen for a range of dates
+  (`RoutineDates`, inclusive) wins there; every other date uses the usual routine, or none. Overlapping ranges (the
+  pages refuse them; two tabs at once could still save both) are settled the same way every time: later start, then
+  shorter, then id. A routine or usual id with no cycle is left out. The dates are stored as `Web/Data/RoutineDateRange`
+  and chosen on the Routines page (`RoutineDatesController`); `PlanningData.RoutinesAsync` passes them in, so every
+  page and check sees them. Deleting a routine deletes its dates (they go back to the usual routine).
+- **A change to which routine is in use when** (dates chosen, changed or removed; a routine added, edited or
+  deleted) re-runs the check on save for every activity in a routine, before and after, and the Routines page lists
+  what is new (`ActivityChecker.RoutineActivityFindingsAsync`, as for a timezone move, Q8). While a routine has a base
+  (or the change gives one a base), those still to come at a place in every week too: their travel can start from
+  it. The check after is made as the one before was (`RoutineFindings`: the same dates and activities). A change to
+  a routine that isn't the usual one is checked from the first day of each of its date ranges; the usual one (and
+  one becoming or stopping being it, or deleting it with a base) from today. Tests: web `RoutineDatesTests`,
+  `RoutineBasePageTests`.
+- **Each cycle counts by the calendar from its own week A**, through dates another routine is used on (Q13: a rota
+  doesn't pause for a holiday). A routine keeps the week start it was added with (`Routine.WeekStart`), as a rule
+  keeps its WKST.
+- **An activity in a routine** (`Activity.RoutineId`, `RoutineWeek` 'A'-'D' or null for every week of it) happens on a
+  date its rule falls on only when `RoutineCalendar.Includes` says so. This is applied in one place:
+  `Activity.ToPlannedActivity(routines)` limits the series with `Series.OnlyOn`, so the calendar, home page, check on
+  save, planner and Find another time all see it. The routine calendar is a **required** argument, so a new caller
+  can't forget it. One-offs are never in a routine.
+- **`Series.OnlyOn`** replaces the dates allowed (null: all). Occurrences on other dates are left out, and so is a
+  move *from* such a date; a move by the user *into* a week the activity isn't usually in still happens. `FallsOn`
+  (public) is rule and filter; changes on dates left out are kept as data and refused as new changes. `Edit` keeps
+  the filter and counts a change on a date no longer allowed as removed (P5), so changing an activity from every week
+  to week A only removes its week B changes and says so. `RecurrenceRule` itself knows nothing of routines: "after N
+  times" counts the dates its rule falls on, so the form refuses a count for an activity in a routine.
+- `RoutineCalendar.Across(dates)`: the dates in runs of the same routine and week, for "Usual week, week B" on the
+  calendar (`/Calendar/Weeks`) and Plan my week.
+- Plan my week's "Every week" adds a session to the routine and week in use that day (`RoutineDisplay.EveryWeekFor`:
+  "Every week B"), so planning week B builds week B.
+- Tests: `RoutineCalendarTests`, `SeriesOnlyOnTests`; web `Routines/*Tests`.
+
 ## Footprints (`Domain/Footprints`, §7.1, H8, TRV-2)
 
 - `Footprint.Around(activity, buffers, journeys)`: preparation, travel out, activity, changing, travel back, in that
@@ -79,7 +118,22 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   counts as zero towards the limit.
 - Travel (`TravelTimes.JourneysFor`): **none** when the activity is at base or has no location; otherwise the leg
   base to activity and the leg back, which can differ. A missing leg gives no journeys and names the missing legs:
-  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6b, TRV-4).
+  it is **never zero minutes** (P1). The base is the day's (TRV-4, T15): `PlanningContext.BaseOn(date)` is the base of
+  the routine in use that day if it has one (`RoutineBases`, by routine), otherwise home. Every travel lookup goes
+  through `Travel.KnownJourneys(location, context, date)` with the day an occurrence **starts** (§8), so one activity
+  can have different travel on different days: the check on save (`TravelProblems`: a problem per base it can't be
+  worked out from, naming the first date, "On Sat 7 Nov 2026 your base is Brighton flat, and there's no travel time
+  …"; H8 and clashes with each day's own travel), the agenda (home page, calendar), and the planner (each day's travel;
+  a day it can't be worked out from gets a reason, "Your base then is Brighton flat, and …"; a goal is blocked only
+  when no day of the week can reach it). An activity at the base needs no travel. Tests: `RoutineBaseTests` (T15:
+  the home gym out of reach on the Brighton weekend, runs still suggested; pinned: just after midnight, late on the
+  Sunday (back to the flat, though Monday is at home: a known limitation), the night the clocks go back, and Find
+  another time). The trip says "Leave Brighton flat …" on such days (`AgendaItem.LeavesFrom`).
+- The check on save looks at travel on the dates in its year, and, for an activity in every week whose rule still
+  falls after them (every 60 weeks can skip the whole year), from the base the day after them too, the same base its
+  usual length is checked with: so travel is always checked before a save, even with nothing in the year. One in a
+  routine (`Series.IsLimited`) isn't: it happens later only on dates chosen for it, checked when they are. Tests:
+  `ActivityCheckTests.ARepeatNextHappeningOverAYearAway_StillNeedsItsTravel`, `…ARepeatInARoutine_…`.
 - To put a footprint on a day, use `CalendarDays.DayOf(footprint.Activity, zone)`, not `Whole.Start`: an activity at
   00:10 with 25 min travel belongs to the day it starts, not the day before.
 
@@ -264,7 +318,6 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | Area | Requirements | Phase |
 |---|---|---|
 | The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
-| Templates and their base location | CAL-9, TRV-4, T15 | 6 (if the owner still wants them) |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code
@@ -305,11 +358,11 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
 | T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
 | T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
-| T15 | "Brighton weekend" template | Not built (Phase 6b, after A/B weeks) | |
+| T15 | "Brighton weekend" template | **Covered** (domain and pages) | `RoutineCalendarTests.ARoutineCanBeChosenForPartOfAWeek`, `RoutineBaseTests.T15_TheHomeGymIsOutOfReach_ButRunsAreStillSuggested` and the rest of `RoutineBaseTests`, web `RoutineBasePageTests.T15_PlanMyWeek_KeepsTheGymForWeekdays_AndStillSuggestsRuns` |
 | T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
-| T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
-| T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, preferences) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests` |
+| T18 | A/B template: three weeks later is week B | **Covered** (domain and pages) | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA`, `RoutineCalendarTests.TheUsualRoutine_IsInUseOnEveryDate_*`, web `RoutinesTests.TheList_SaysWhichWeekThisIs`, `ActivitiesInRoutinesTests.TheCalendar_ShowsAWeekAActivity_InWeekAOnly` |
+| T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, goals, routines, preferences, the calendar's feeds) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests`, `RoutineWeeksShownTests.TheCalendarsRoutineFeed_IsOnlyTheSignedInUsersOwn` |
 | T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
 | T21 | Calendar at 320 px | **Checked by hand** (a browser check, Phase 5) | |
 | T22 | Same week planned twice: identical | **Covered** (domain) | `PlannerTests.TheSameWeekPlannedTwice_GivesTheSameSuggestions` |
