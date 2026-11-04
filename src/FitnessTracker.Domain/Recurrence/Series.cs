@@ -85,8 +85,8 @@ public sealed class Series
     /// The occurrences that start on dates from <paramref name="from"/> to <paramref name="to"/>, inclusive, in
     /// order. An occurrence belongs to the day it starts (requirements §8), so one starting the evening before
     /// <paramref name="from"/> isn't included even if it runs past midnight: to work out a day's load, include the
-    /// day before too. A moved occurrence is included by the day it now starts, if the date it was moved from is one
-    /// the series happens on (<see cref="OnlyOn"/>).
+    /// day before too. A moved occurrence is included by the day it now starts, if either the date it was moved from
+    /// or the date it was moved to is one the series happens on (<see cref="OnlyOn"/>, Q17).
     /// </summary>
     public IReadOnlyList<Occurrence> OccurrencesBetween(LocalDate from, LocalDate to)
     {
@@ -97,7 +97,7 @@ public sealed class Series
 
         foreach (var (date, change) in Changes)
         {
-            if (change is OccurrenceChange.Moved move && move.Start.Date >= from && move.Start.Date <= to && Allows(date))
+            if (change is OccurrenceChange.Moved move && move.Start.Date >= from && move.Start.Date <= to && Happens(date))
             {
                 occurrences.Add(OccurrenceAt(date, move.Start, move.Length));
             }
@@ -109,13 +109,17 @@ public sealed class Series
     /// <summary>Whether it happens on only some of the dates its rule falls on (<see cref="OnlyOn"/>): it's in a routine.</summary>
     public bool IsLimited => _happensOn is not null;
 
-    /// <summary>Whether it has an occurrence on <paramref name="date"/>: its rule falls on it, and it may happen then.</summary>
-    public bool FallsOn(LocalDate date) => Rule.FallsOn(firstDate: FirstDate, date: date) && Allows(date);
+    /// <summary>
+    /// Whether it has an occurrence on <paramref name="date"/>, the date its rule puts it on: its rule falls on it, and
+    /// it may happen then, or it was moved to a date it may happen (Q17).
+    /// </summary>
+    public bool FallsOn(LocalDate date) => Rule.FallsOn(firstDate: FirstDate, date: date) && Happens(date);
 
     /// <summary>
     /// The same series, happening only on the dates its rule falls on that <paramref name="happensOn"/> allows (CAL-9:
     /// week A only), instead of any dates allowed before; null allows them all again. One-off changes are kept, by the
-    /// date the rule put each on: a change on a date left out isn't shown, and shows again if that date is allowed again.
+    /// date the rule put each on. A change on a date left out isn't shown, and shows again if that date is allowed again,
+    /// except a move to a date allowed, which still happens there (Q17: moved out of a week later given to a holiday).
     /// </summary>
     public Series OnlyOn(Func<LocalDate, bool>? happensOn) => new(FirstDate, StartTime, Length, Zone, Rule, _changes, happensOn);
 
@@ -166,10 +170,11 @@ public sealed class Series
             edited = edited.WithChange(date, change);
         }
 
+        // Hidden: kept but not seen, on a date left out (a move out to a date allowed is seen: Q17).
         var limited = edited.OnlyOn(happensOn);
         return new SeriesEdit(limited, KeptChanges: limited.Changes.Count, RemovedChanges: removed)
         {
-            HiddenChanges = limited.Changes.Keys.Count(date => !(happensOn?.Invoke(date) ?? true)),
+            HiddenChanges = limited.Changes.Keys.Count(date => !limited.Happens(date)),
         };
     }
 
@@ -207,6 +212,12 @@ public sealed class Series
         new(FirstDate, StartTime, Length, Zone, Rule, changes, _happensOn);
 
     private bool Allows(LocalDate date) => _happensOn?.Invoke(date) ?? true;
+
+    // Whether the occurrence its rule puts on date happens, if the rule falls on it: the date is allowed, or the
+    // occurrence was moved to a date that is (Q17). One moved within dates left out goes with them; a cancelled one is
+    // handled by its change, not here.
+    private bool Happens(LocalDate date) =>
+        Allows(date) || (_changes.TryGetValue(date, out var change) && change is OccurrenceChange.Moved move && Allows(move.Start.Date));
 
     private Occurrence OccurrenceAt(LocalDate date, LocalDateTime start, Duration length)
     {

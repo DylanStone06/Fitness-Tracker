@@ -2,6 +2,11 @@
 
 Written 4 November 2026, before any code, after the owner's decision on requirements Q17 ("what you recommend").
 
+**Status: built the same day**, as planned, then reviewed by the `scheduling-reviewer` agent (its findings, if any,
+in follow-up commits). One domain test from the Phase 6b scheduling review pinned the old rule (a hidden move
+mustn't count as happening); it now uses a move whose both ends are left out, which still mustn't count, and a new
+test checks that a kept move is checked where it is.
+
 ## The problem
 
 A session of a repeating activity is known by the date its repeat puts it on (CAL-4). An activity in a routine

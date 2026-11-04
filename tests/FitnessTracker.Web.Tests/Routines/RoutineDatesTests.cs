@@ -354,6 +354,61 @@ public sealed class RoutineDatesTests(TestAppFactory factory) : IClassFixture<Te
         Assert.Contains(office, await TitlesAsync(browser, "2026-11-09", "2026-11-10"));
     }
 
+    // Q17: a session moved out of a week later given to a holiday (Monday 2 November's to Friday 30 October) still
+    // happens where it was moved to, and its page opens. That page says putting it back would remove it, since its own
+    // date is in the holiday.
+    [Fact]
+    public async Task Q17_ASessionMovedOutOfAWeekLaterGivenToAHoliday_StillHappens()
+    {
+        var (browser, id, gym, holiday) = await MondaysWithTheSecondMovedTo30OctoberAsync();
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-02", "2026-11-08");
+
+        var friday = await TitlesAsync(browser, "2026-10-30", "2026-10-31");
+        var page = await browser.GetAsync($"/Activities/Occurrence/{id}?date=2026-11-02");
+
+        Assert.Contains(gym, friday);
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Contains("Its usual date, Mon 2 Nov 2026, is one this activity doesn't happen on now, so putting it back removes it.",
+            WebUtility.HtmlDecode(await page.Content.ReadAsStringAsync()));
+    }
+
+    // Q17, P1: moving that session again into the holiday is refused: neither end of the move would be a date it happens
+    // on, so it would disappear without a word.
+    [Fact]
+    public async Task Q17_AKeptSession_CantBeMovedIntoTheHoliday()
+    {
+        var (browser, id, gym, holiday) = await MondaysWithTheSecondMovedTo30OctoberAsync();
+        await browser.ChooseRoutineDatesAsync(holiday.Id, "2026-11-02", "2026-11-08");
+
+        var response = await MoveAsync(browser, id, "2026-11-02", "2026-11-04");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("It would disappear: neither Wed 4 Nov 2026 nor its usual date, Mon 2 Nov 2026, is a date this activity happens on now.",
+            WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync()));
+        Assert.Contains(gym, await TitlesAsync(browser, "2026-10-30", "2026-10-31"));
+    }
+
+    // A gym session on Mondays at 07:00 in the usual routine, with Monday 2 November's moved to Friday 30 October.
+    private async Task<(TestBrowser Browser, Guid Id, string Title, (Guid Id, string Name) Holiday)> MondaysWithTheSecondMovedTo30OctoberAsync()
+    {
+        var (browser, usual, holiday) = await SignedInWithUsualAndHolidayAsync();
+        var gym = await AddMondaysAsync(browser, "Gym", usual);
+        var id = (await StoredData.ActivityTitledAsync(factory, gym))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await MoveAsync(browser, id, "2026-11-02", "2026-10-30")).StatusCode);
+        return (browser, id, gym, holiday);
+    }
+
+    private static Task<HttpResponseMessage> MoveAsync(TestBrowser browser, Guid id, string date, string to) =>
+        browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date={date}", $"/Activities/Occurrence/{id}", new()
+        {
+            ["Date"] = date,
+            ["Change"] = "Move",
+            ["NewDate"] = to,
+            ["NewStartTime"] = "07:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+        });
+
     // P1: dates the app can't use (edited by hand so the last is before the first) are listed, saying so, so they can be
     // removed, and don't stop other dates being chosen (code review, Phase 6b: they were hidden but still in the way).
     [Fact]

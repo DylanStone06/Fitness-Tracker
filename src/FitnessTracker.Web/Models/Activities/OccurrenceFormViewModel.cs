@@ -80,6 +80,14 @@ public class OccurrenceFormViewModel : IConfirmsClashes
     public string ShownOn { get; set; } = "";
 
     /// <summary>
+    /// Q17: said beside "Put it back" when that would take it away: it was moved from a date it no longer happens on (a
+    /// week since given to a holiday), and is only kept because it was moved to one it does. Null otherwise.
+    /// </summary>
+    [BindNever]
+    [ValidateNever]
+    public string? PutBackRemovesIt { get; set; }
+
+    /// <summary>
     /// The new start, once the form is valid. Never validated: MVC's validation reads every property of a posted model,
     /// and this one has no value until the date and time are right.
     /// </summary>
@@ -129,6 +137,9 @@ public class OccurrenceFormViewModel : IConfirmsClashes
             }
             : (usual, false);
         ShownOn = FormInput.Date.Format(change is OccurrenceChange.Moved moved ? moved.Start.Date : date);
+        PutBackRemovesIt = change is OccurrenceChange.Moved && !series.RestoreOccurrence(date).FallsOn(date)
+            ? $"Its usual date, {Named.Format(date)}, is one this activity doesn't happen on now, so putting it back removes it."
+            : null;
         return this;
     }
 

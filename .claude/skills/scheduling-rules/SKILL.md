@@ -92,11 +92,19 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   `Activity.ToPlannedActivity(routines)` limits the series with `Series.OnlyOn`, so the calendar, home page, check on
   save, planner and Find another time all see it. The routine calendar is a **required** argument, so a new caller
   can't forget it. One-offs are never in a routine.
-- **`Series.OnlyOn`** replaces the dates allowed (null: all). Occurrences on other dates are left out, and so is a
-  move *from* such a date; a move by the user *into* a week the activity isn't usually in still happens. `FallsOn`
-  (public) is rule and filter; changes on dates left out are kept as data and refused as new changes. `Edit` keeps
+- **`Series.OnlyOn`** replaces the dates allowed (null: all). Occurrences on other dates are left out. A moved one
+  happens if **either end of the move** is allowed (Q17, decided by the owner 4 November 2026): moved *from* a date
+  left out *to* one allowed it still happens (Monday 2 November's moved to Friday 30 October, then 2-8 November given
+  to a holiday), moved within dates left out it goes with them, and moved by the user *into* a week the activity isn't
+  usually in it still happens (its own date is allowed). `FallsOn` (public) is rule and that same rule (private
+  `Happens`), so a kept move has its pages and can be moved again, cancelled or marked; other changes on dates left
+  out are kept as data and refused as new changes. The occurrence page says before "Put it back" that it would remove
+  a kept move, and refuses moving one to a date where neither end would be allowed (P1: it would vanish). Tests:
+  `SeriesOnlyOnTests.Q17_*`, `AnOccurrenceMovedWithinALeftOutWeek_IsLeftOut`, `AKeptMove_CanBeChangedAgain`,
+  `ActivityCheckTests.Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs`, web `RoutineDatesTests.Q17_*`. `Edit` keeps
   the filter and counts a change on a date no longer allowed as removed (P5), so changing an activity from every week
-  to week A only removes its week B changes and says so. `RecurrenceRule` itself knows nothing of routines: "after N
+  to week A only removes its week B changes and says so; its `HiddenChanges` are the ones kept that can't be seen (a
+  kept move to an allowed date is seen). `RecurrenceRule` itself knows nothing of routines: "after N
   times" counts the dates its rule falls on, so the form refuses a count for an activity in a routine.
 - `RoutineCalendar.Across(dates)`: the dates in runs of the same routine and week, for "Usual week, week B" on the
   calendar (`/Calendar/Weeks`) and Plan my week.

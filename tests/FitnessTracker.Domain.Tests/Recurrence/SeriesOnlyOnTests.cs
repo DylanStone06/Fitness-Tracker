@@ -37,17 +37,75 @@ public class SeriesOnlyOnTests
         Assert.True(Gym.FallsOn(new LocalDate(2026, 10, 12)));
     }
 
-    // The change is kept with the activity, as the date its rule put it on is: it shows again if that week is allowed
-    // again. A week the activity isn't in has no occurrence to show, moved or not.
+    // Q17: moved by the user from a date later left out (Monday 12 October's to Friday 9 October, then week B given to
+    // something else) to a date it is in use on: it still happens where it was moved to, known by the date its rule put
+    // it on (until 4 November 2026 it was left out, without a word).
     [Fact]
-    public void AnOccurrenceMovedFromALeftOutDate_IsLeftOutToo()
+    public void Q17_AnOccurrenceMovedFromALeftOutDate_ToADateInUse_StillHappens()
     {
         var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 9, 18, 0), Duration.FromMinutes(50));
 
         var weekA = moved.OnlyOn(WeekA);
 
-        Assert.Equal([new LocalDate(2026, 10, 5), new LocalDate(2026, 10, 7)], DatesOf(weekA, new(2026, 10, 5), new(2026, 10, 18)));
+        Occurrence[] expected =
+        [
+            new(new(2026, 10, 5), new(Instant.FromUtc(2026, 10, 5, 6, 0), Instant.FromUtc(2026, 10, 5, 6, 50))),
+            new(new(2026, 10, 7), new(Instant.FromUtc(2026, 10, 7, 6, 0), Instant.FromUtc(2026, 10, 7, 6, 50))),
+            new(new(2026, 10, 12), new(Instant.FromUtc(2026, 10, 9, 17, 0), Instant.FromUtc(2026, 10, 9, 17, 50))),
+        ];
+        Assert.Equal(expected, weekA.OccurrencesBetween(new(2026, 10, 5), new(2026, 10, 18)));
+        Assert.True(weekA.FallsOn(new LocalDate(2026, 10, 12)));
+    }
+
+    // ... but one moved from a date left out to another date left out (Monday 12 October's to Wednesday 14 October at
+    // 18:00, both week B) goes with that week, as an unmoved one does. The change is kept, and shows again if the week
+    // is allowed again.
+    [Fact]
+    public void AnOccurrenceMovedWithinALeftOutWeek_IsLeftOut()
+    {
+        var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 14, 18, 0), Duration.FromMinutes(50));
+
+        var weekA = moved.OnlyOn(WeekA);
+
+        Assert.Empty(weekA.OccurrencesBetween(new(2026, 10, 12), new(2026, 10, 18)));
+        Assert.False(weekA.FallsOn(new LocalDate(2026, 10, 12)));
         Assert.Contains(new LocalDate(2026, 10, 12), weekA.Changes.Keys);
+    }
+
+    // Q17: a kept move is a session like any other: it can be moved again or cancelled. Putting it back leaves it out,
+    // since its own date isn't in use (the occurrence page says so first).
+    [Fact]
+    public void AKeptMove_CanBeChangedAgain()
+    {
+        var monday = new LocalDate(2026, 10, 12);
+        var weekA = Gym.MoveOccurrence(monday, new LocalDateTime(2026, 10, 9, 18, 0), Duration.FromMinutes(50)).OnlyOn(WeekA);
+
+        var movedAgain = weekA.MoveOccurrence(monday, new LocalDateTime(2026, 10, 10, 9, 0), Duration.FromMinutes(50));
+        var cancelled = weekA.CancelOccurrence(monday);
+        var putBack = weekA.RestoreOccurrence(monday);
+
+        Assert.Equal(Instant.FromUtc(2026, 10, 10, 8, 0), movedAgain.OccurrencesBetween(new(2026, 10, 5), new(2026, 10, 18)).Single(occurrence => occurrence.Date == monday).Time.Start);
+        Assert.DoesNotContain(monday, DatesOf(cancelled, new(2026, 10, 5), new(2026, 10, 18)));
+        Assert.DoesNotContain(monday, DatesOf(putBack, new(2026, 10, 5), new(2026, 10, 18)));
+    }
+
+    // §8, T5 with Q17: the same on the night the clocks go forward. A daily 01:30 series has Sunday 28 March 2027's
+    // occurrence (really 02:30 BST) moved to Friday 26 March at 08:00 (GMT, so 08:00 UTC); that weekend is then left
+    // out. It still happens on the Friday, beside Friday's own; the weekend's own don't.
+    [Fact]
+    public void Q17_AMoveOutOfALeftOutWeekend_StillHappens_OnTheNightTheClocksGoForward()
+    {
+        var nightly = new Series(new(2027, 3, 22), new(1, 30), Duration.FromMinutes(30), London, RecurrenceRule.Daily());
+        Func<LocalDate, bool> notThatWeekend = date => date < new LocalDate(2027, 3, 27) || date > new LocalDate(2027, 3, 28);
+        var moved = nightly.MoveOccurrence(new LocalDate(2027, 3, 28), new LocalDateTime(2027, 3, 26, 8, 0), Duration.FromMinutes(30))
+            .OnlyOn(notThatWeekend);
+
+        Occurrence[] expected =
+        [
+            new(new(2027, 3, 26), new(Instant.FromUtc(2027, 3, 26, 1, 30), Instant.FromUtc(2027, 3, 26, 2, 0))),
+            new(new(2027, 3, 28), new(Instant.FromUtc(2027, 3, 26, 8, 0), Instant.FromUtc(2027, 3, 26, 8, 30))),
+        ];
+        Assert.Equal(expected, moved.OccurrencesBetween(new(2027, 3, 26), new(2027, 3, 28)));
     }
 
     // Moved by the user into a week the activity isn't usually in: it still happens, where it was moved to.
@@ -136,6 +194,21 @@ public class SeriesOnlyOnTests
         Assert.Equal((1, 1, 0), (edit.KeptChanges, edit.HiddenChanges, edit.RemovedChanges));
         var back = Assert.Single(edit.Series.OnlyOn(null).OccurrencesBetween(new(2027, 3, 28), new(2027, 3, 28)));
         Assert.Equal(Instant.FromUtc(2027, 3, 28, 7, 0), back.Time.Start);
+    }
+
+    // Q17: a move out of that week (Monday 12 October's to Friday 9 October, then 12-18 October given to a holiday) is
+    // kept by an edit too, and isn't hidden: it is on a date in use, so it shows.
+    [Fact]
+    public void AnEdit_KeepsAMoveOutOfALeftOutWeek_AndItIsntHidden()
+    {
+        var moved = Gym.MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 10, 9, 18, 0), Duration.FromMinutes(50))
+            .OnlyOn(NotOnHoliday);
+
+        var edit = moved.Edit(moved.FirstDate, new LocalTime(7, 30), moved.Length, moved.Rule, NotOnHoliday);
+
+        Assert.Equal((1, 0, 0), (edit.KeptChanges, edit.HiddenChanges, edit.RemovedChanges));
+        var friday = Assert.Single(edit.Series.OccurrencesBetween(new(2026, 10, 9), new(2026, 10, 9)));
+        Assert.Equal(Instant.FromUtc(2026, 10, 9, 17, 0), friday.Time.Start);
     }
 
     // ... but not once the edited rule no longer falls on it (Mondays dropped): then nothing could show it again.

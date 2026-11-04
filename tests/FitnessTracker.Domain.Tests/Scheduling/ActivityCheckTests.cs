@@ -920,19 +920,38 @@ public class ActivityCheckTests
         Assert.True(ActivityCheck.OthersThatCanClash(holidayOnly, Today).Contains(new LocalDate(2026, 12, 21)));
     }
 
-    // SCH-1: a series that has ended, whose only later occurrence is a move from a date its routine now leaves out (the
-    // week of 12 October given to a holiday), has nothing from today on, so it is checked from its own first date
-    // (scheduling review, Phase 6b: the hidden move counted as happening).
+    // SCH-1: a series that has ended, whose only later occurrence is a move that doesn't happen (its own date and the
+    // date it was moved to are both left out: its routine isn't in use from 12 October on), has nothing from today on,
+    // so it is checked from its own first date (scheduling review, Phase 6b: the hidden move counted as happening).
     [Fact]
     public void ASeriesWhoseOnlyFutureMoveIsLeftOut_IsCheckedFromItsFirstDate()
     {
-        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
-                RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(2026, 10, 12)))
-            .MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 11, 9, 7, 0), Duration.FromMinutes(50))
-            .OnlyOn(date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18));
+        var series = EndedMondaysWithTheLastMovedTo9November()
+            .OnlyOn(date => date < new LocalDate(2026, 10, 12));
 
         Assert.Equal(new LocalDate(2026, 10, 5), ActivityCheck.Check(AtHome(series), [], Context()).Checked.Start);
     }
+
+    // Q17: ... but a move from a date left out (the week of 12 October given to a holiday) to a date in use (Monday 9
+    // November) still happens, so it is checked there, clashes included, and what it can clash with is loaded.
+    [Fact]
+    public void Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs()
+    {
+        var series = EndedMondaysWithTheLastMovedTo9November()
+            .OnlyOn(date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18));
+        var call = OneOff("Call", new LocalDate(2026, 11, 9), new LocalTime(7, 15), minutes: 20, at: null);
+
+        var result = ActivityCheck.Check(AtHome(series), [call], Context());
+
+        Assert.Equal("Call", Assert.Single(result.Clashes).Other.Label);
+        Assert.True(ActivityCheck.OthersThatCanClash(AtHome(series), Today).Contains(new LocalDate(2026, 11, 9)));
+    }
+
+    // Mondays at 07:00 for 50 minutes, 5 and 12 October 2026 only; 12 October's moved to Monday 9 November at 07:00.
+    private static Series EndedMondaysWithTheLastMovedTo9November() =>
+        new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(2026, 10, 12)))
+            .MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 11, 9, 7, 0), Duration.FromMinutes(50));
 
     // ... while one that happens within the 8 weeks is checked from today, as ever.
     [Fact]
