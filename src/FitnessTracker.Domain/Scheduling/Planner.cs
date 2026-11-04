@@ -60,10 +60,20 @@ public sealed record PlanRequest(
 {
     /// <summary>SCH-4: days the user said no to for a goal, which get none of its sessions.</summary>
     public IReadOnlyCollection<RejectedDay> Rejected { get; init; } = [];
+
+    /// <summary>
+    /// Q38, FIT-5: sessions marked skipped. One doesn't count towards its goal (the number planned, one a day, the
+    /// spread), so the goal can be given another time that week; it is still busy time, so its own time isn't offered,
+    /// as the check on save still sees it.
+    /// </summary>
+    public IReadOnlyCollection<SkippedSession> Skipped { get; init; } = [];
 }
 
 /// <summary>SCH-4: a day the user said no to for one goal's session (another time that day: change the suggestion).</summary>
 public readonly record struct RejectedDay(Guid Goal, LocalDate Date);
+
+/// <summary>FIT-1, Q38: a session marked skipped: its activity, and the date its rule puts it on (CAL-4).</summary>
+public readonly record struct SkippedSession(Guid Activity, LocalDate Date);
 
 /// <summary>SCH-3: a time for one session of a goal, with what it takes up and why it was chosen (§7.3).</summary>
 public sealed record Suggestion(PlanGoal Goal, Interval Time, Footprint Footprint, IReadOnlyList<string> Reasons);
@@ -323,6 +333,7 @@ public static class Planner
             _zone = request.Zone;
             // Wide enough for clashes and for the rest between demanding sessions (H5, scheduling review H-1).
             var loaded = DatesToLoadFor(request.Week, request.Rest.BetweenDemanding);
+            var skipped = request.Skipped.ToHashSet();
             foreach (var activity in request.Activities)
             {
                 var unknownTravel = new HashSet<string>();
@@ -349,7 +360,8 @@ public static class Planner
                         _demanding.Add(occurrence.Time.Start);
                     }
 
-                    if (activity.GoalId is { } goal)
+                    // Q38: a session marked skipped doesn't count towards its goal, though its time stays busy above.
+                    if (activity.GoalId is { } goal && !skipped.Contains(new SkippedSession(activity.Id, occurrence.Date)))
                     {
                         SessionsOf(goal).Add(occurrence.Time.Start.InZone(_zone).Date);
                     }

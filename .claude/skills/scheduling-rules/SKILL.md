@@ -272,7 +272,10 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 
 - `Planner.Plan(PlanRequest)`: the sessions weekly goals (GOL-1, `PlanGoal`) still need in a week's dates, from
   `Now` on. A session counts towards a goal when its activity has that `PlannedActivity.GoalId`; `AlreadyPlanned`
-  says how many did. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
+  says how many did. A session marked skipped (`PlanRequest.Skipped`: activity and rule date) doesn't count (Q38,
+  FIT-5): not in the number planned, one a day or the spread, so a replacement is suggested that week; it is still busy
+  time and its demanding session still counts for H5-H7, as the check on save still sees it. Tests:
+  `PlannerTests.ASkippedSession_*`, `ASessionNotSkipped_StillCounts`. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
 - **Busy time** (§7.4): every occurrence's footprint over `Planner.DatesToLoadFor` (`Agenda.MarginDays` either side,
   or further when the rest between demanding sessions reaches further, so H5 sees a session 4 days before the week:
   scheduling review H-1; the Web loads the same dates), and each night's `SleepWindow`, from winding down before bed

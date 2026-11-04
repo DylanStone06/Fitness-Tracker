@@ -551,6 +551,37 @@ public class PlannerTests
         Assert.DoesNotContain(options.Options, option => option.Time.Start.InZone(London).Date == Week.Start.PlusDays(2));
     }
 
+    // Q38, FIT-5: a goal's session marked skipped (Tuesday 3 November's gym, 18:00 to 19:00) no longer counts towards it,
+    // so another time is suggested that week; the skipped session's own time is still busy, so it isn't offered.
+    [Fact]
+    public void ASkippedSession_DoesntCountTowardsItsGoal_AndItsTimeIsntOffered()
+    {
+        var goal = Goal("Gym", sessions: 1);
+        var tuesday = OneOff("Gym", new LocalDate(2026, 11, 3), new LocalTime(18, 0), 60) with { GoalId = goal.Id };
+        var request = Request([goal], [tuesday]) with { Skipped = [new SkippedSession(tuesday.Id, new LocalDate(2026, 11, 3))] };
+
+        var plan = Planner.Plan(request);
+
+        Assert.Equal(0, plan.AlreadyPlanned[goal.Id]);
+        var replacement = Assert.Single(plan.Suggestions);
+        var (busyFrom, busyTo) = (Instant.FromUtc(2026, 11, 3, 18, 0), Instant.FromUtc(2026, 11, 3, 19, 0)); // GMT
+        Assert.False(replacement.Time.Start < busyTo && busyFrom < replacement.Time.End);
+    }
+
+    // ... while one not skipped still counts: nothing more to suggest.
+    [Fact]
+    public void ASessionNotSkipped_StillCounts()
+    {
+        var goal = Goal("Gym", sessions: 1);
+        var tuesday = OneOff("Gym", new LocalDate(2026, 11, 3), new LocalTime(18, 0), 60) with { GoalId = goal.Id };
+        var request = Request([goal], [tuesday]) with { Skipped = [new SkippedSession(tuesday.Id, new LocalDate(2026, 11, 4))] };
+
+        var plan = Planner.Plan(request);
+
+        Assert.Equal(1, plan.AlreadyPlanned[goal.Id]);
+        Assert.Empty(plan.Suggestions);
+    }
+
     // Q17, SCH-6 (scheduling review of Q17, M1): Thursday 5 November's gym moved to Tuesday 3 November at 18:00, then 4-8
     // November given to a holiday, so it is kept on the Tuesday. Only days it still happens on are offered (Monday has its
     // own session): moved to 4-8 November it would disappear.
