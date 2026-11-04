@@ -4,6 +4,12 @@ Written 4 November 2026, before any code. FIT-2: "Strength log: exercises (a sta
 reps and weight, optional rest time, notes." Q4: the starter list is about 30 common lifts and bodyweight exercises.
 The owner chose Q30-Q33 below on 4 November 2026, each the recommended option.
 
+**Status: built and checked, 4 November 2026**, in the commits listed below. Two things went differently from the
+plan, both found by tests before a commit: the new tables needed a version like every per-user record (VersionTests),
+and new sets have to be added to the database explicitly (taken for stored ones when found through an existing log,
+the ownership check refused the save). Every save now gives the log a new version, so a page opened before a change
+to only its sets can't replace them. The browser check added a faint line between sets on a phone.
+
 ## What it adds, as the user sees it
 
 A gym session's page (Gym category), once it has started, lets you log the workout: a table of sets, one per row:

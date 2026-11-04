@@ -93,5 +93,10 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
   number. The run's form is folded under "Change the details" (a `<details>` whose heading is in the link colour) and
   opened again when something typed needs fixing. A custom type's name box appears only once "Custom" is chosen (CSS
   `:has()`, as the opening-hours days do). Short answers have narrower boxes (`ft-field`, `ft-field-short`).
+  A saved workout (FIT-2) is a card, "Your workout", with the same tiles (exercises, sets, weight lifted: the grid fits
+  as many as there's room for at 7rem or more, so three fill a row as four do), then each exercise with its sets
+  ("5 × 100 kg, rest 90 s"). Its set rows: on a phone the exercise on one line and reps, weight and rest on the next,
+  each labelled, with a faint line (the card-edge colour) between sets; from 576 px one line a set under one row of
+  headings, the labels then only read out. Every session has a notes box above its buttons.
 - **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
   elements (`<progress>`, not a styled `<div>`).
