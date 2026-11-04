@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Workouts;
@@ -6,6 +7,7 @@ using FitnessTracker.Web.Models;
 using FitnessTracker.Web.Models.Workouts;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.TimeZones;
@@ -42,15 +44,41 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return NotFound();
         }
 
+        // Q31: "Add more rows" shows six more, keeping what was typed (the boxes show what was posted), and saves nothing,
+        // so nothing typed is checked yet.
+        if (model.MoreRows)
+        {
+            foreach (var entry in ModelState.Values)
+            {
+                entry.Errors.Clear();
+                entry.ValidationState = ModelValidationState.Valid;
+            }
+
+            ModelState.Remove(nameof(SessionLogViewModel.Rows));
+            var page = await PageAsync(session, user);
+            page.ShowRows(model.Rows + SessionLogViewModel.RowsAtATime);
+            return View(page);
+        }
+
         // Q21: done once it has started, never before; skipped at any time.
         var tooEarly = model.Mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant());
 
-        // FIT-3: a run's boxes are only read when it is saved as done. Anything else ignores them, even what can't be
-        // read, as does a session still to come (its page has none) or one of another kind (Q20).
+        // FIT-3, FIT-2: a run's boxes, and a gym session's set rows, are only read when it is saved as done. Anything
+        // else ignores them, even what can't be read, as does a session still to come (its page has none) or one of
+        // another kind (Q20).
         var savesARun = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Run;
+        var savesAWorkout = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Gym;
         if (!savesARun)
         {
             foreach (var box in SessionLogViewModel.RunBoxes)
+            {
+                ModelState.Remove(box);
+            }
+        }
+
+        if (!savesAWorkout)
+        {
+            foreach (var box in ModelState.Keys.Where(key => key.StartsWith($"{nameof(SessionLogViewModel.Sets)}[", StringComparison.Ordinal)).ToList())
             {
                 ModelState.Remove(box);
             }
@@ -64,7 +92,8 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
 
         // Requirements §9: saved only from a page that showed the session as it is now. The database checks the version
         // again as it saves (a concurrency token), for another tab saving at the same moment.
-        var stored = await db.SessionLogs.SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
+        var stored = await db.SessionLogs.Include(log => log.Sets)
+            .SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
         if ((stored?.Version ?? Guid.Empty) != model.Version)
         {
             return await ChangedElsewhereAsync(session, user);
@@ -76,14 +105,14 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return View(await PageAsync(session, user));
         }
 
-        if (savesARun)
+        IEnumerable<ValidationResult> problems = savesARun ? model.RunProblems(user.Preferences.DistanceUnit)
+            : savesAWorkout ? model.WorkoutProblems(user.Preferences.WeightUnit)
+            : [];
+        foreach (var problem in problems)
         {
-            foreach (var problem in model.RunProblems(user.Preferences.DistanceUnit))
+            foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))
             {
-                foreach (var field in problem.MemberNames.DefaultIfEmpty(string.Empty))
-                {
-                    ModelState.AddModelError(field, problem.ErrorMessage ?? "");
-                }
+                ModelState.AddModelError(field, problem.ErrorMessage ?? "");
             }
         }
 
@@ -107,6 +136,12 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
                 stored = new SessionLog { ActivityId = id, OccurrenceDate = session.Occurrence.Date };
                 db.SessionLogs.Add(stored);
             }
+            else
+            {
+                // §9: every save gives the log a new version, even one that only changes its sets (rows of their own),
+                // so a page opened before it can't replace them.
+                db.Entry(stored).State = EntityState.Modified;
+            }
 
             stored.Mark = model.Mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
             stored.Notes = model.Notes;
@@ -118,6 +153,12 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             else if (savesARun)
             {
                 model.ApplyRunTo(stored, user.Preferences.DistanceUnit);
+            }
+            else if (savesAWorkout)
+            {
+                // Added as new rows here: found only through the log, sets with ids of their own would be taken for
+                // stored ones.
+                db.SessionSets.AddRange(model.ApplyWorkoutTo(stored, user.Preferences.WeightUnit, await ExercisesByNameAsync()));
             }
         }
 
@@ -171,10 +212,47 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
 
     private async Task<SessionLogViewModel> PageAsync(FoundSession session, UserPlanning user)
     {
-        var log = await db.SessionLogs.AsNoTracking()
+        var log = await db.SessionLogs.AsNoTracking().Include(log => log.Sets)
             .SingleOrDefaultAsync(log => log.ActivityId == session.Activity.Id && log.OccurrenceDate == session.Occurrence.Date);
-        return SessionLogViewModel.For(
+        var model = SessionLogViewModel.For(
             session.Activity, session.Category, session.Occurrence, log, user.Now.ToInstant(), user.Context.Clock, user.Preferences.DistanceUnit);
+        if (session.Category == ActivityCategory.Gym)
+        {
+            // FIT-2: the workout as saved (a done session's), and Q30's suggestions: the user's own exercises first, then
+            // the starter list's others. The per-user filter means another user's exercises are never among them (T19).
+            var exercises = await db.Exercises.AsNoTracking().OrderBy(exercise => exercise.Name).ToListAsync();
+            var names = exercises.ToDictionary(exercise => exercise.Id, exercise => exercise.Name);
+            var saved = log is { Mark: SessionMark.Done }
+                ? log.Sets.OrderBy(set => set.Position)
+                    .Select(set => new WorkoutSet(names.GetValueOrDefault(set.ExerciseId, "?"), set.Reps, set.WeightGrams, set.RestSeconds))
+                    .ToList()
+                : [];
+            var ownKeys = exercises.Select(exercise => exercise.NameKey).ToHashSet(StringComparer.Ordinal);
+            var suggestions = exercises.Select(exercise => exercise.Name)
+                .Concat(StarterExercises.Names.Where(name => !ownKeys.Contains(ExerciseNames.Key(name))))
+                .ToList();
+            model.FillWorkout(saved, user.Preferences.WeightUnit, suggestions);
+        }
+
+        return model;
+    }
+
+    // Q30: finds the user's exercise by name, ignoring capitals, or adds it the first time; one lookup per save.
+    private async Task<Func<string, Exercise>> ExercisesByNameAsync()
+    {
+        var known = await db.Exercises.ToDictionaryAsync(exercise => exercise.NameKey, StringComparer.Ordinal);
+        return name =>
+        {
+            var key = ExerciseNames.Key(name);
+            if (!known.TryGetValue(key, out var exercise))
+            {
+                exercise = new Exercise { Name = ExerciseNames.Tidy(name), NameKey = key };
+                db.Exercises.Add(exercise);
+                known[key] = exercise;
+            }
+
+            return exercise;
+        };
     }
 
     // One session: its activity (and that activity's category), and the occurrence.

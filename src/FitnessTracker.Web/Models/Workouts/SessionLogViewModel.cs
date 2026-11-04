@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
@@ -18,6 +19,27 @@ public enum SessionChoice
     Skipped,
 }
 
+/// <summary>FIT-2, Q31: one row of a gym session's sets, as typed; a row left blank is ignored.</summary>
+public class SetRow
+{
+    /// <summary>Tidied as it is bound (ExerciseNames.Tidy), so the checks see the name that will be kept.</summary>
+    [Display(Name = "Exercise")]
+    public string? Exercise { get; set => field = string.IsNullOrWhiteSpace(value) ? null : ExerciseNames.Tidy(value); }
+
+    [Display(Name = "Reps")]
+    public int? Reps { get; set; }
+
+    /// <summary>As typed, in the user's weight unit ("102.5").</summary>
+    [Display(Name = "Weight")]
+    public string? Weight { get; set; }
+
+    /// <summary>Rest after the set, in seconds.</summary>
+    [Display(Name = "Rest")]
+    public int? Rest { get; set; }
+
+    public bool IsBlank() => Exercise is null && Reps is null && string.IsNullOrWhiteSpace(Weight) && Rest is null;
+}
+
 /// <summary>
 /// FIT-1: one session's page: when it is, its status (Q22: where a rescheduled one was), "Not logged" once its time has
 /// passed unmarked (T20), and the choices for marking it. A run's page also logs what the run was like (FIT-3), and
@@ -35,9 +57,19 @@ public class SessionLogViewModel
     public static readonly IReadOnlyList<string> RunBoxes =
         [nameof(RunType), nameof(CustomRunType), nameof(TimeHours), nameof(TimeMinutes), nameof(TimeSeconds), nameof(Distance), nameof(Effort)];
 
+    /// <summary>Q31: the most sets one session can have.</summary>
+    public const int MaxSets = 60;
+
+    /// <summary>Q31: rows shown to start with, and added by "Add more rows".</summary>
+    public const int RowsAtATime = 6;
+
     private const decimal MinDistance = 0.01m;
 
     private const int MaxHours = 24;
+
+    private const int MaxReps = 1000;
+
+    private const int MaxRestSeconds = 3600;
 
     private static readonly LocalDatePattern DayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
 
@@ -77,6 +109,16 @@ public class SessionLogViewModel
     [Display(Name = "How hard it felt")]
     public int? Effort { get; set; }
 
+    // FIT-2, Q31: a gym session's sets, in the order the form asks for them.
+
+    public List<SetRow> Sets { get; set; } = [];
+
+    /// <summary>How many set rows the page shows, posted back so "Add more rows" adds to it.</summary>
+    public int Rows { get; set; } = RowsAtATime;
+
+    /// <summary>"Add more rows" was pressed: the page again with more rows, nothing saved.</summary>
+    public bool MoreRows { get; set; }
+
     /// <summary>FIT-2: notes on any session, saved with its mark (kept when skipped); trimmed, and blank is none.</summary>
     [Display(Name = "Notes")]
     [StringLength(SessionLog.NotesMaxLength, ErrorMessage = "Notes must be {1} characters or fewer.")]
@@ -112,6 +154,18 @@ public class SessionLogViewModel
     /// <summary>A run marked done, as saved, when it has details.</summary>
     public RunSummary? Run { get; private set; }
 
+    /// <summary>FIT-2: a gym session's, whose page logs its sets.</summary>
+    public bool IsGym { get; private set; }
+
+    /// <summary>Q33 with Q25: what weights are typed and shown in, as chosen in Preferences.</summary>
+    public WeightUnit WeightUnit { get; private set; }
+
+    /// <summary>A gym session marked done, as saved, when it has sets.</summary>
+    public StrengthSummary? Workout { get; private set; }
+
+    /// <summary>Q30: what the exercise boxes suggest: the user's own exercises, then the starter list's others.</summary>
+    public IReadOnlyList<string> ExerciseSuggestions { get; private set; } = [];
+
     /// <summary>
     /// The page for <paramref name="occurrence"/> of <paramref name="session"/> (an activity in
     /// <paramref name="category"/>), with its <paramref name="log"/> (null when it isn't marked), at
@@ -142,6 +196,7 @@ public class SessionLogViewModel
             NotLogged = state.NotLogged,
             CanMarkDone = Sessions.CanMarkDone(occurrence, now),
             IsRun = category == ActivityCategory.Run,
+            IsGym = category == ActivityCategory.Gym,
             DistanceUnit = unit,
             PlannedLength = ActivityDisplay.Length((int)occurrence.Time.Duration.TotalMinutes),
             Notes = log?.Notes,
@@ -218,6 +273,124 @@ public class SessionLogViewModel
             : ((TimeHours ?? 0) * 3600) + ((TimeMinutes ?? 0) * 60) + (TimeSeconds ?? 0);
         log.DistanceMetres = FormInput.ParseAmount(Distance) is { } amount ? Distances.Metres(amount, unit) : null;
         log.Effort = Effort;
+    }
+
+    /// <summary>
+    /// FIT-2: a gym session's page: the workout as saved (<paramref name="saved"/>, none unless it is done) in
+    /// <paramref name="unit"/>, its rows filled with it (weights as text that saves back to the same grams: Q33), at
+    /// least one empty row after them, and the exercise names to suggest (Q30).
+    /// </summary>
+    public void FillWorkout(IReadOnlyList<WorkoutSet> saved, WeightUnit unit, IReadOnlyList<string> suggestions)
+    {
+        WeightUnit = unit;
+        ExerciseSuggestions = suggestions;
+        Workout = StrengthDisplay.Summary(saved, unit);
+        Sets = saved.Select(set => new SetRow
+        {
+            Exercise = set.Exercise,
+            Reps = set.Reps,
+            Weight = set.Grams is { } grams ? Weights.InputText(grams, unit) : null,
+            Rest = set.RestSeconds,
+        }).ToList();
+        ShowRows((saved.Count / RowsAtATime * RowsAtATime) + RowsAtATime);
+    }
+
+    /// <summary>Q31: shows <paramref name="rows"/> set rows (at most <see cref="MaxSets"/>), the ones added empty.</summary>
+    public void ShowRows(int rows)
+    {
+        Rows = Math.Clamp(rows, RowsAtATime, MaxSets);
+        while (Sets.Count < Rows)
+        {
+            Sets.Add(new SetRow());
+        }
+    }
+
+    /// <summary>
+    /// FIT-2, Q31-Q33: problems with a workout's rows as typed, for saving it as done, each naming its row. A blank row is
+    /// ignored; a filled one needs an exercise and reps, and may have a weight (in <paramref name="unit"/>) and rest.
+    /// </summary>
+    public IEnumerable<ValidationResult> WorkoutProblems(WeightUnit unit)
+    {
+        if (Sets.Count(row => !row.IsBlank()) > MaxSets)
+        {
+            yield return new ValidationResult($"Up to {MaxSets} sets can be saved for one session.");
+            yield break;
+        }
+
+        var unitName = unit == WeightUnit.Kilograms ? "kg" : "lb";
+        var maxWeight = unit == WeightUnit.Kilograms ? 1000m : 2200m;
+        for (var i = 0; i < Sets.Count; i++)
+        {
+            var row = Sets[i];
+            if (row.IsBlank())
+            {
+                continue;
+            }
+
+            var number = i + 1;
+            var box = $"{nameof(Sets)}[{i}].";
+            if (row.Exercise is null)
+            {
+                yield return new ValidationResult($"Row {number}: enter the exercise, or clear the row.", [box + nameof(SetRow.Exercise)]);
+            }
+            else if (row.Exercise.Length > ExerciseNames.MaxLength)
+            {
+                yield return new ValidationResult($"Row {number}: the exercise's name must be {ExerciseNames.MaxLength} characters or fewer.", [box + nameof(SetRow.Exercise)]);
+            }
+
+            if (row.Reps is null && row.Exercise is not null)
+            {
+                yield return new ValidationResult($"Row {number}: enter the reps for {row.Exercise}.", [box + nameof(SetRow.Reps)]);
+            }
+            else if (row.Reps is < 1 or > MaxReps)
+            {
+                yield return new ValidationResult($"Row {number}: enter the reps as a whole number from 1 to 1,000.", [box + nameof(SetRow.Reps)]);
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.Weight))
+            {
+                var weight = FormInput.ParseAmount(row.Weight);
+                if (weight is null)
+                {
+                    yield return new ValidationResult($"Row {number}: enter the weight as a number, for example 100 or 102.5.", [box + nameof(SetRow.Weight)]);
+                }
+                else if (weight > maxWeight)
+                {
+                    yield return new ValidationResult(
+                        string.Create(CultureInfo.InvariantCulture, $"Row {number}: enter a weight of at most {maxWeight:#,0} {unitName}."), [box + nameof(SetRow.Weight)]);
+                }
+            }
+
+            if (row.Rest is < 0 or > MaxRestSeconds)
+            {
+                yield return new ValidationResult($"Row {number}: enter the rest in seconds, from 0 to 3,600 (an hour).", [box + nameof(SetRow.Rest)]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// FIT-2: replaces <paramref name="log"/>'s sets with the rows filled in, in order, weights in whole grams (Q33),
+    /// each with its exercise from <paramref name="exerciseFor"/> (found by name, or added: Q30), and returns the new
+    /// ones. Only call once <see cref="WorkoutProblems"/> finds none, with the log's sets loaded. The caller adds the new
+    /// sets to the database itself: they have their ids already, so found only through the log they would be taken for
+    /// sets already stored.
+    /// </summary>
+    public IReadOnlyList<SessionSet> ApplyWorkoutTo(SessionLog log, WeightUnit unit, Func<string, Exercise> exerciseFor)
+    {
+        log.Sets.Clear();
+        foreach (var row in Sets.Where(row => !row.IsBlank()))
+        {
+            log.Sets.Add(new SessionSet
+            {
+                Position = log.Sets.Count,
+                ExerciseId = exerciseFor(row.Exercise!).Id,
+                Reps = row.Reps!.Value,
+                WeightGrams = FormInput.ParseAmount(row.Weight) is { } amount ? Weights.Grams(amount, unit) : null,
+                RestSeconds = row.Rest,
+            });
+        }
+
+        return log.Sets;
     }
 
     // Each box from 0 to its most, then the whole: more than nothing and at most 24 hours.

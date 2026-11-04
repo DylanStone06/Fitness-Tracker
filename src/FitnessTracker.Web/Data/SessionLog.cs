@@ -61,7 +61,10 @@ public class SessionLog : IOwnedByUser, IVersioned
     /// <summary>FIT-2: a gym session's sets, in order (by Position). None for any other kind, or a skipped one.</summary>
     public List<SessionSet> Sets { get; set; } = [];
 
-    /// <summary>Q28: a session marked skipped has no details (a skipped run has no distance).</summary>
+    /// <summary>
+    /// Q28: a session marked skipped has no details (a skipped run has no distance, a skipped workout no sets); its notes
+    /// stay. Its <see cref="Sets"/> must have been loaded.
+    /// </summary>
     public void ForgetDetails()
     {
         ActualSeconds = null;
@@ -69,5 +72,6 @@ public class SessionLog : IOwnedByUser, IVersioned
         RunType = null;
         CustomRunType = null;
         Effort = null;
+        Sets.Clear();
     }
 }

@@ -1,16 +1,12 @@
 using System.Globalization;
 using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
-using Microsoft.AspNetCore.Html;
 using NodaTime;
 
 namespace FitnessTracker.Web.Models.Workouts;
 
-/// <summary>One of a run's figures as its page shows it: "Distance", "5.2" "km"; "Effort", "6" "of 10", "moderate".</summary>
-public sealed record RunFigure(string Label, string Value, string? Unit = null, string? Note = null);
-
 /// <summary>FIT-3: a saved run as its page shows it: a heading ("Easy run") and the figures that were given.</summary>
-public sealed record RunSummary(string Heading, IReadOnlyList<RunFigure> Figures);
+public sealed record RunSummary(string Heading, IReadOnlyList<SessionFigure> Figures);
 
 /// <summary>FIT-3, Q26-Q29: how a run's details are written, in the form's lists and on its page.</summary>
 public static class RunDisplay
@@ -60,56 +56,27 @@ public static class RunDisplay
     /// </summary>
     public static RunSummary? Summary(SessionLog log, DistanceUnit unit, string planned)
     {
-        var figures = new List<RunFigure>();
+        var figures = new List<SessionFigure>();
         if (log.DistanceMetres is { } metres)
         {
-            figures.Add(Split("Distance", Distances.Text(metres, unit)));
+            figures.Add(SessionFigure.WithUnit("Distance", Distances.Text(metres, unit)));
         }
 
         if (log.ActualSeconds is { } seconds)
         {
             var time = Duration.FromSeconds(seconds);
-            figures.Add(new RunFigure("Time", StopwatchText.Format(time), Note: $"planned {planned}"));
+            figures.Add(new SessionFigure("Time", StopwatchText.Format(time), Note: $"planned {planned}"));
             if (log.DistanceMetres is { } distance && Pace.Text(time, distance, unit) is { } pace)
             {
-                figures.Add(Split("Pace", pace));
+                figures.Add(SessionFigure.WithUnit("Pace", pace));
             }
         }
 
         if (log.Effort is { } effort)
         {
-            figures.Add(new RunFigure("Effort", effort.ToString(CultureInfo.InvariantCulture), "of 10", EffortWord(effort)));
+            figures.Add(new SessionFigure("Effort", effort.ToString(CultureInfo.InvariantCulture), "of 10", EffortWord(effort)));
         }
 
         return figures.Count == 0 && log.RunType is null ? null : new RunSummary(Heading(log.RunType, log.CustomRunType), figures);
-    }
-
-    /// <summary>
-    /// A figure as its tile shows it, free to break after a colon on a narrow screen ("2399:" then "58:20"), never
-    /// inside a number (break-ui, Phase 7). Each part is encoded; only the break hints are markup.
-    /// </summary>
-    public static IHtmlContent Breakable(string figure)
-    {
-        var html = new HtmlContentBuilder();
-        var parts = figure.Split(':');
-        for (var i = 0; i < parts.Length; i++)
-        {
-            if (i > 0)
-            {
-                html.AppendHtml(":<wbr>");
-            }
-
-            html.Append(parts[i]);
-        }
-
-        return html;
-    }
-
-    // "5.2 km" as the figure 5.2 and its unit, which is shown smaller. The domain writes a number, a space and the unit,
-    // and a number never has a space in it.
-    private static RunFigure Split(string label, string text)
-    {
-        var space = text.IndexOf(' ', StringComparison.Ordinal);
-        return new RunFigure(label, text[..space], text[(space + 1)..]);
     }
 }

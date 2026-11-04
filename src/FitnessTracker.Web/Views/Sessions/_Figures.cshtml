@@ -1,0 +1,23 @@
+@model IReadOnlyList<FitnessTracker.Web.Models.Workouts.SessionFigure>
+@using FitnessTracker.Web.Models.Workouts
+@* A session's figures as tiles (FIT-3's run, FIT-2's workout): the label, the figure in tabular numbers (a long one
+   breaking after a colon, never inside a number), its unit smaller, and a note under it. *@
+<dl class="ft-stats">
+    @foreach (var figure in Model)
+    {
+        <div class="ft-stat">
+            <dt>@figure.Label</dt>
+            <dd>
+                @SessionFigure.Breakable(figure.Value)
+                @if (figure.Unit is { } unit)
+                {
+                    <span class="ft-stat-unit">@unit</span>
+                }
+                @if (figure.Note is { } note)
+                {
+                    <span class="ft-stat-note">@note</span>
+                }
+            </dd>
+        </div>
+    }
+</dl>

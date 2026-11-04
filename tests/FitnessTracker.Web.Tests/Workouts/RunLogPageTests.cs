@@ -260,7 +260,7 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         var response = await LogRunAsync(browser, id, "2026-10-19", AnEasyRun);
 
         Assert.DoesNotContain("Log this run", page);
-        Assert.Contains("Mark as done", page);
+        Assert.Contains("Log this workout", page); // FIT-2: the gym's own form
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var log = await StoredData.SessionLogAsync(factory, id, Today);
         Assert.Equal((SessionMark.Done, (int?)null, (RunType?)null), (log!.Mark, log.DistanceMetres, log.RunType));

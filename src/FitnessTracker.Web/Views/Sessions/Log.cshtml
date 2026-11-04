@@ -25,25 +25,28 @@
                     <h2 class="h5 text-break @(run.Figures.Count > 0 ? "mb-3" : "mb-0")" id="run-heading" dir="auto">@run.Heading</h2>
                     @if (run.Figures.Count > 0)
                     {
-                        <dl class="ft-stats">
-                            @foreach (var figure in run.Figures)
+                        <partial name="_Figures" model="run.Figures" />
+                    }
+                </div>
+            </section>
+        }
+
+        @if (Model.Workout is { } workout)
+        {
+            @* FIT-2: the workout as saved: how much in all, then each exercise with its sets in order. *@
+            <section class="card mt-3" aria-labelledby="workout-heading">
+                <div class="card-body">
+                    <h2 class="h5 mb-3" id="workout-heading">Your workout</h2>
+                    <partial name="_Figures" model="workout.Figures" />
+                    @foreach (var exercise in workout.Exercises)
+                    {
+                        <h3 class="h6 mt-3 mb-1 text-break" dir="auto">@exercise.Name</h3>
+                        <ul class="ft-sets">
+                            @foreach (var set in exercise.Sets)
                             {
-                                <div class="ft-stat">
-                                    <dt>@figure.Label</dt>
-                                    <dd>
-                                        @RunDisplay.Breakable(figure.Value)
-                                        @if (figure.Unit is { } unit)
-                                        {
-                                            <span class="ft-stat-unit">@unit</span>
-                                        }
-                                        @if (figure.Note is { } note)
-                                        {
-                                            <span class="ft-stat-note">@note</span>
-                                        }
-                                    </dd>
-                                </div>
+                                <li>@set</li>
                             }
-                        </dl>
+                        </ul>
                     }
                 </div>
             </section>
@@ -82,6 +85,39 @@
                 }
             }
 
+            @if (Model.IsGym && Model.CanMarkDone)
+            {
+                @* FIT-2: the workout's sets (Q31). Once saved, folded away under "Change the workout" (P7), and opened
+                   again when what was typed needs fixing. Save comes before "Add more rows", so Enter in a box saves. *@
+                if (Model.Workout is not null)
+                {
+                    <details class="card mb-3 ft-fold" open="@(!ViewData.ModelState.IsValid)">
+                        <summary>Change the workout</summary>
+                        <div class="card-body pt-1">
+                            <partial name="_SetRows" />
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">Save changes</button>
+                                <button type="submit" name="MoreRows" value="true" class="btn btn-outline-secondary">Add more rows</button>
+                            </div>
+                        </div>
+                    </details>
+                }
+                else
+                {
+                    <section class="card mb-3" aria-labelledby="log-heading">
+                        <div class="card-body">
+                            <h2 class="h5 mb-1" id="log-heading">Log this workout</h2>
+                            <p class="form-text mt-0 mb-3">One row a set, in the order you did them; leave the rest blank. Weight is optional (bodyweight), and so is the rest after a set.</p>
+                            <partial name="_SetRows" />
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">@(Model.Marked == SessionMark.Done ? "Save" : "Save as done")</button>
+                                <button type="submit" name="MoreRows" value="true" class="btn btn-outline-secondary">Add more rows</button>
+                            </div>
+                        </div>
+                    </section>
+                }
+            }
+
             @* FIT-2: notes on any session, saved with its mark; once marked, "Save notes" keeps the mark. *@
             <div class="mb-3">
                 <label asp-for="Notes" class="form-label"></label>
@@ -95,7 +131,7 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2">
-                @if (!Model.IsRun && Model.Marked != SessionMark.Done && Model.CanMarkDone)
+                @if (!Model.IsRun && !Model.IsGym && Model.Marked != SessionMark.Done && Model.CanMarkDone)
                 {
                     <button type="submit" name="Mark" value="@SessionChoice.Done" class="btn btn-primary">Mark as done</button>
                 }
@@ -116,6 +152,10 @@
             {
                 @* Q28 *@
                 <p class="form-text">Marking it skipped or back to planned removes the run's details.</p>
+            }
+            @if (Model.Workout is not null)
+            {
+                <p class="form-text">Marking it skipped or back to planned removes the workout's sets.</p>
             }
             @if (!Model.CanMarkDone)
             {
