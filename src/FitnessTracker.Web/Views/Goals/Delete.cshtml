@@ -1,0 +1,21 @@
+@model FitnessTracker.Web.Data.WeeklyGoal
+@{
+    ViewData["Title"] = "Delete weekly goal";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Delete this weekly goal?</h1>
+        <partial name="_ErrorSummary" />
+        <p class="fs-5 text-break mb-1" dir="auto">@Model.Title</p>
+        <p>@GoalDisplay.HowOften(Model)</p>
+        <p>Activities already on your calendar for it stay there. This can't be undone.</p>
+
+        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+            @* The version this page shows, so a goal changed in another tab since isn't deleted unseen. *@
+            <input type="hidden" name="version" value="@Model.Version" />
+            <button type="submit" class="btn btn-danger">Delete goal</button>
+            <a class="btn btn-link" asp-action="Index">Cancel</a>
+        </form>
+    </div>
+</div>

@@ -29,6 +29,9 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.Property<int>("ChangingMinutes")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("GoalId")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsDemanding")
                         .HasColumnType("INTEGER");
 
@@ -86,6 +89,8 @@ namespace FitnessTracker.Web.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GoalId");
 
                     b.HasIndex("LocationId");
 
@@ -379,6 +384,65 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.ToTable("UserPreferences");
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.WeeklyGoal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ChangingMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDemanding")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PreferredDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PreferredTimeOfDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PreparationMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SessionMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SessionsPerWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("WeeklyGoals");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -509,6 +573,11 @@ namespace FitnessTracker.Web.Data.Migrations
 
             modelBuilder.Entity("FitnessTracker.Web.Data.Activity", b =>
                 {
+                    b.HasOne("FitnessTracker.Web.Data.WeeklyGoal", null)
+                        .WithMany()
+                        .HasForeignKey("GoalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FitnessTracker.Web.Data.Location", null)
                         .WithMany()
                         .HasForeignKey("LocationId")
@@ -577,6 +646,20 @@ namespace FitnessTracker.Web.Data.Migrations
 
             modelBuilder.Entity("FitnessTracker.Web.Data.UserPreferences", b =>
                 {
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.WeeklyGoal", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")

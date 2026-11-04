@@ -125,6 +125,19 @@ public sealed class PreferencesTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Null(await StoredData.PreferencesOfAsync(factory, email));
     }
 
+    // SLP-1: a bedtime the same as the wake time would mean 24 hours asleep, leaving the planner no free time at all
+    // (scheduling review, Phase 6); it's refused.
+    [Fact]
+    public async Task Save_ShowsAnError_WhenBedtimeIsTheWakeTime()
+    {
+        var (browser, email) = await SignedInAsync("alex");
+
+        var response = await SaveAsync(browser, new() { ["UsualBedtime"] = "07:00", ["UsualWakeTime"] = "07:00" });
+
+        Assert.Contains("Your usual bedtime and wake time can&#x27;t be the same", await response.Content.ReadAsStringAsync());
+        Assert.Null(await StoredData.PreferencesOfAsync(factory, email));
+    }
+
     // GOV.UK error pattern: every problem is listed at once, so fixing one never reveals another. Here a field's own
     // range check (wind-down) and the checks across the form (sleep minimum, timezone, a mistyped time) all fail.
     [Fact]

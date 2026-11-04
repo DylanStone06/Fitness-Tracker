@@ -1,5 +1,6 @@
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Models;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.TimeZones;
@@ -37,9 +38,18 @@ public class PlanningData(AppDbContext db, IClock clock)
             locations.FirstOrDefault(location => location.IsHome)?.Id,
             TravelLeg.ToTravelTimes(legs),
             locations.ToDictionary(location => location.Id, location => new Place(location.Name, location.ToOpeningHours())),
-            preferences.TimesShownAs());
+            preferences.TimesShownAs())
+        {
+            Rest = RestRulesOf(preferences),
+        };
         return new UserPlanning(preferences, saved is not null, locations, legs, context, now);
     }
+
+    /// <summary>ACC-7: H5-H7 from <paramref name="preferences"/>, for the check on save and the planner alike.</summary>
+    public static RestRules RestRulesOf(UserPreferences preferences) => new(
+        Duration.FromHours(preferences.MinimumHoursBetweenDemandingSessions),
+        preferences.MaximumDemandingSessionsPerDay,
+        Week.DaysIn(preferences.RecoveryDays).ToHashSet());
 
     /// <summary>ACC-6: each category's default getting-ready and changing minutes: the user's own, or the built-in ones.</summary>
     public async Task<IReadOnlyDictionary<ActivityCategory, (int Preparation, int Changing)>> DefaultBuffersAsync()

@@ -3,7 +3,8 @@
     @if (User.Identity?.IsAuthenticated == true)
     {
         <li class="nav-item">
-            <span class="navbar-text account-email me-sm-2"><span class="visually-hidden">Signed in as </span>@User.Identity.Name</span>
+            @* The title shows a long address in full where the header row shortens it. *@
+            <span class="navbar-text account-email me-xl-2" title="@User.Identity.Name"><span class="visually-hidden">Signed in as </span>@User.Identity.Name</span>
         </li>
         <li class="nav-item">
             @* A form, not a link: signing out changes state, so it needs a POST with the anti-forgery token. *@

@@ -11,12 +11,18 @@
         <form asp-action="Create" method="post" novalidate>
             <partial name="_ErrorSummary" />
             <input type="hidden" asp-for="ReturnToCalendar" />
+            <input type="hidden" asp-for="ReturnToPlan" />
+            <input type="hidden" asp-for="GoalId" />
             <partial name="_ActivityFields" />
 
             <button type="submit" class="btn btn-primary">Add activity</button>
             @if (Model.ReturnToCalendar)
             {
                 <a class="btn btn-link" asp-controller="Calendar" asp-action="Index" asp-route-date="@Model.SavedStartDate">Cancel</a>
+            }
+            else if (Model.ReturnToPlan)
+            {
+                <a class="btn btn-link" asp-controller="Plan" asp-action="Index" asp-route-date="@Model.SavedStartDate">Cancel</a>
             }
             else
             {

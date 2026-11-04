@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
 
     public DbSet<CategoryBuffers> CategoryBuffers => Set<CategoryBuffers>();
 
+    public DbSet<WeeklyGoal> WeeklyGoals => Set<WeeklyGoal>();
+
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
     private string? CurrentUserId => currentUser.UserId;
@@ -98,6 +100,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             activity.Property(a => a.TimeZoneId).HasMaxLength(64);
             // Deleting a location keeps its activities, with no location.
             activity.HasOne<Location>().WithMany().HasForeignKey(a => a.LocationId).OnDelete(DeleteBehavior.SetNull);
+            // Deleting a weekly goal keeps the activities added for it, as ordinary activities.
+            activity.HasOne<WeeklyGoal>().WithMany().HasForeignKey(a => a.GoalId).OnDelete(DeleteBehavior.SetNull);
             activity.HasOne<AppUser>().WithMany().HasForeignKey(a => a.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -106,6 +110,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // One set of defaults per category per person, even if two tabs save for the first time at once.
             buffers.HasIndex(b => new { b.OwnerId, b.Category }).IsUnique();
             buffers.HasOne<AppUser>().WithMany().HasForeignKey(b => b.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WeeklyGoal>(goal =>
+        {
+            goal.Property(g => g.Title).HasMaxLength(WeeklyGoal.TitleMaxLength);
+            // Deleting a location keeps its goals, with no location.
+            goal.HasOne<Location>().WithMany().HasForeignKey(g => g.LocationId).OnDelete(DeleteBehavior.SetNull);
+            goal.HasOne<AppUser>().WithMany().HasForeignKey(g => g.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every owned entity type gets the same protection, so a new one can't be forgotten.

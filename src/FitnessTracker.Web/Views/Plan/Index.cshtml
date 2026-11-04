@@ -1,0 +1,159 @@
+@model PlanPageViewModel
+@{
+    ViewData["Title"] = "Plan my week";
+    var here = Url.Action("Index")!;
+}
+
+<h1>Plan my week</h1>
+<p>Times for your <a asp-controller="Goals" asp-action="Index">weekly goals</a>, fitted around everything on your
+    calendar, your travel, your sleep and your rest rules. Add each one every week to build your routine, or just this
+    week. Nothing is added until you choose.</p>
+
+<nav class="d-flex flex-wrap align-items-center gap-2 mb-3" aria-label="Weeks">
+    <a class="btn btn-sm btn-outline-secondary" href="@here?date=@Model.PreviousWeek">Previous week</a>
+    <a class="btn btn-sm btn-outline-secondary" href="@here?date=@Model.NextWeek">Next week</a>
+    @if (!Model.IsThisWeek)
+    {
+        <a class="btn btn-sm btn-outline-secondary" href="@here">This week</a>
+    }
+    <h2 class="h5 mb-0 ms-sm-2">@Model.WeekFrom – @Model.WeekTo</h2>
+</nav>
+
+@* P1: an activity the app can't read isn't planned around without saying so. *@
+@if (Model.Unreadable.Count > 0)
+{
+    <div class="alert alert-warning" role="status">
+        <ul class="mb-0">
+            @foreach (var problem in Model.Unreadable)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+@if (!Model.HasGoals)
+{
+    <p>Add the things you want to do each week first, such as the gym 3 times or 2 runs:
+        <a asp-controller="Goals" asp-action="Create">add a weekly goal</a>.</p>
+}
+else
+{
+    @if (Model.Progress.Count > 0)
+    {
+        <ul class="list-unstyled small mb-3">
+            @foreach (var goal in Model.Progress)
+            {
+                <li><span class="fw-semibold" dir="auto">@goal.Title</span>: @goal.Planned</li>
+            }
+        </ul>
+    }
+
+    @if (Model.Suggestions.Count == 0 && Model.Shortfalls.Count == 0)
+    {
+        <p>Everything you want to do this week is already planned.</p>
+    }
+
+    @if (Model.Suggestions.Count > 0)
+    {
+        <h2 class="h4">Suggested times</h2>
+        <ul class="list-group mb-4">
+            @foreach (var suggestion in Model.Suggestions)
+            {
+                @* CAL-2: the category's colour as a stripe and a label, with its name in the label. *@
+                <li class="list-group-item ft-stripe @suggestion.CategoryStyle">
+                    <div class="d-flex flex-wrap align-items-baseline column-gap-2">
+                        <span class="ft-time">@suggestion.Day, @suggestion.Time</span>
+                        @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+                        <span class="fw-semibold text-break" dir="auto">@suggestion.Title</span>
+                        <span class="ft-chip small">@suggestion.CategoryName</span>
+                    </div>
+                    @if (suggestion.Place is { } place)
+                    {
+                        <span class="d-block small text-body-secondary text-break">at @place</span>
+                    }
+                    @if (suggestion.Trip is { } trip)
+                    {
+                        <span class="d-block small">@trip</span>
+                    }
+                    @if (suggestion.Reasons.Count > 0)
+                    {
+                        <span class="d-block small text-body-secondary">@string.Join(" · ", suggestion.Reasons)</span>
+                    }
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                        @* SCH-4, Q12: added through the activity form's own check on save (SCH-1). *@
+                        <form asp-controller="Activities" asp-action="Create" method="post">
+                            @foreach (var field in suggestion.EveryWeek)
+                            {
+                                <input type="hidden" name="@field.Key" value="@field.Value" />
+                            }
+                            <button type="submit" class="btn btn-sm btn-primary">Every week<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
+                        </form>
+                        <form asp-controller="Activities" asp-action="Create" method="post">
+                            @foreach (var field in suggestion.JustThisWeek)
+                            {
+                                <input type="hidden" name="@field.Key" value="@field.Value" />
+                            }
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Just this week<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
+                        </form>
+                        <a class="btn btn-sm btn-outline-secondary" href="@(Url.Action("Create", "Activities") + suggestion.ChangeQuery)">Change<span class="visually-hidden"> @suggestion.Title, @suggestion.Day</span></a>
+                        <a class="btn btn-sm btn-link" href="@(here + suggestion.NoQuery)">Not this day<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></a>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+    @* SCH-5: what doesn't fit, and why, with the numbers. *@
+    @if (Model.Shortfalls.Count > 0)
+    {
+        <h2 class="h4">Not enough time</h2>
+        @foreach (var shortfall in Model.Shortfalls)
+        {
+            <div class="alert alert-warning">
+                <h3 class="h6 text-break" dir="auto">@shortfall.Title</h3>
+                @if (shortfall.Blocked is { } blocked)
+                {
+                    <p class="mb-0">@blocked</p>
+                }
+                else
+                {
+                    <p class="mb-1">@shortfall.Summary</p>
+                    @if (shortfall.Days.Count > 0)
+                    {
+                        <ul class="mb-1">
+                            @foreach (var day in shortfall.Days)
+                            {
+                                <li>@day</li>
+                            }
+                        </ul>
+                    }
+                    @if (shortfall.Shorter is { } shorter)
+                    {
+                        <p class="mb-1">@shorter</p>
+                    }
+                    <p class="mb-0 small">You could also lower the goal, or free up time on your calendar.</p>
+                }
+            </div>
+        }
+    }
+
+    @* CAL-7: each day's free time as the calendar is now, not counting sleep or anything planned. *@
+    @if (Model.FreeTime.Count > 0)
+    {
+        <details class="mb-3">
+            <summary>Free time each day</summary>
+            <p class="small text-body-secondary mb-1">As your calendar is now, before any of these suggestions, not counting
+                sleep or the time around your activities.</p>
+            <ul class="small mb-0">
+                @foreach (var day in Model.FreeTime)
+                {
+                    <li>@day</li>
+                }
+            </ul>
+        </details>
+    }
+
+    <p class="small text-body-secondary">The planner fills the week one session at a time, best first, so it won't
+        always find the best possible week: if a session doesn't fit, try another time for one that did.</p>
+}

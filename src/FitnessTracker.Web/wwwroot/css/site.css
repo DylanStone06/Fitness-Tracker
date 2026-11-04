@@ -157,6 +157,18 @@ h2, .h2, h3, .h3, .h4, .h5 {
   --bs-btn-active-border-color: var(--bs-secondary-color);
 }
 
+/* Bootstrap's outline blue (#0d6efd) is 3.6:1 on a dark card; the link colour reaches 4.5:1 in both themes. */
+.btn-outline-primary {
+  --bs-btn-color: var(--bs-link-color);
+  --bs-btn-border-color: var(--bs-link-color);
+  --bs-btn-hover-color: var(--ft-surface);
+  --bs-btn-hover-bg: var(--bs-link-color);
+  --bs-btn-hover-border-color: var(--bs-link-color);
+  --bs-btn-active-color: var(--ft-surface);
+  --bs-btn-active-bg: var(--bs-link-color);
+  --bs-btn-active-border-color: var(--bs-link-color);
+}
+
 .btn-outline-danger {
   --bs-btn-color: var(--ft-danger-text);
   --bs-btn-border-color: var(--ft-danger-text);
@@ -436,4 +448,28 @@ html {
 /* Long email addresses wrap (at any character) rather than running off a 320 px phone screen. */
 .account-email {
   overflow-wrap: anywhere;
+}
+
+/* The header row (1200 px and wider): the name and links never break inside a word (at 800 px, with the menu laid out
+   in a row, the name stood one letter per line), and a long address is shortened with "…" rather than making the
+   header taller than the 5rem scroll-padding-top above allows for. The whole address is still read out, and shown
+   as a tooltip. */
+.navbar-brand,
+.navbar .nav-link {
+  white-space: nowrap;
+}
+
+.navbar-brand {
+  flex-shrink: 0;
+}
+
+@media (min-width: 1200px) {
+  .account-email {
+    display: inline-block;
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
 }

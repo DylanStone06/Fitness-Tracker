@@ -79,7 +79,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   counts as zero towards the limit.
 - Travel (`TravelTimes.JourneysFor`): **none** when the activity is at base or has no location; otherwise the leg
   base to activity and the leg back, which can differ. A missing leg gives no journeys and names the missing legs:
-  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6, TRV-4).
+  it is **never zero minutes** (P1). The caller decides what base is (home now; a template's base in Phase 6b, TRV-4).
 - To put a footprint on a day, use `CalendarDays.DayOf(footprint.Activity, zone)`, not `Whole.Start`: an activity at
   00:10 with 25 min travel belongs to the day it starts, not the day before.
 
@@ -128,7 +128,21 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   `PlanningContext` (today in the user's timezone, home, travel times, each location's name and opening hours).
 - **Problems** stop the save, each with a `CheckAspect` for the form field: a repeat that never happens (Repeat), no
   home or a missing travel leg for an activity away from home (Location; never guessed as zero), H8 (Length), and
-  H4 on **every** occurrence checked, naming the first and counting the rest (Time).
+  H4 on **every** occurrence checked, naming the first and counting the rest (Time). For a demanding activity, H5-H7
+  from `PlanningContext.Rest` (ACC-7; `RestRules.None` checks none) on every occurrence over the same year as H4 and
+  H8 (they depend on the weekday and the clocks changing too: a rule every 10 days first reaches Friday in January;
+  Saturday to Sunday 18:00 is 23 h across 27-28 March 2027), against the demanding sessions near it, other
+  activities' and its own (kept apart by whose they are, not by time: another activity's at the same moment isn't
+  its own, review H-1), start to start in elapsed time, as the planner does:
+  "It's 22 h from Hard ride, a demanding session on Mon 2 Nov 2026 at 20:00; your preferences keep demanding sessions
+  at least 24 hours apart.", "On Mon 2 Nov 2026 there's already a demanding session, Hard ride; your preferences allow
+  1 a day.", "Wed 4 Nov 2026 is one of your recovery days, and this is a demanding session." (Time). They are
+  validation errors, not clashes to accept (§7.2). `OthersThatCanClash` and `OthersThatCanClashWith` take the rest
+  between demanding sessions, to reach as far as it does (`RestReachDays`); `OthersThatCanClash(..., demanding: true)`
+  also reaches to the end of that year, for one-offs months ahead (a running series is loaded anyway). Tests:
+  `ActivityCheckTests.ADemanding*`, `TheRestRule_*`, `ARecoveryDay_IsFound_ForARuleEveryTenDays`,
+  `CheckOccurrence_KeepsTheRestRule`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*`,
+  `Add_ADemandingSeries_KeepsTheRestRule_MonthsAhead_AcrossTheClockChange`.
 - **Clashes** (H1) are only looked for when there are no problems (they depend on travel and length). The user can
   save them with "Save anyway" (Q2), asked on each save; acceptance isn't stored yet.
 - **Windows**, from the later of today and the first date (`FirstCheckedDate`), or from the first date when nothing
@@ -138,7 +152,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   loads only the other activities in `OthersThatCanClash`. Clashes: `WeeksAhead` (8) weeks, others' occurrences 3
   days either side (two footprints of up to a day each reach 49 h apart, a third date across a 23-hour day). Rules like every 98
   and every 99 weeks can't be proved clash-free in any practical window, so it is a window, said in the message.
-  H4 and H8: `WeeksAheadForHoursAndLength` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
+  H4, H5-H7 and H8: `WeeksAheadForFixedRules` (53) weeks, or 7 x N days for a daily rule every N days if longer, so
   every weekday and both clock changes are reached; H8 on every occurrence (a moved one can be longer), and a
   length of zero or less is reported before any occurrence is worked out.
 - **A moved occurrence (CAL-4) is checked wherever it lands from today on** (`MovedOutside`): before the windows
@@ -185,13 +199,72 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
   isn't "next". Tests: `AgendaTests` (`Next_*`, `AnActivity_IsUnderWay_FromLeavingUntilBack`,
   `OnTheNightTheClocksGo*`).
 
+## The planner (`Domain/Scheduling/Planner`, SCH-2, SCH-3, SCH-5, SCH-7, §7.3, §7.4)
+
+- `Planner.Plan(PlanRequest)`: the sessions weekly goals (GOL-1, `PlanGoal`) still need in a week's dates, from
+  `Now` on. A session counts towards a goal when its activity has that `PlannedActivity.GoalId`; `AlreadyPlanned`
+  says how many did. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
+- **Busy time** (§7.4): every occurrence's footprint over `Planner.DatesToLoadFor` (`Agenda.MarginDays` either side,
+  or further when the rest between demanding sessions reaches further, so H5 sees a session 4 days before the week:
+  scheduling review H-1; the Web loads the same dates), and each night's `SleepWindow`, from winding down before bed
+  to getting going after waking. A bedtime before midday is after midnight. Sleep is never cut into (T12's planner
+  half). Travel that can't be worked out is left out, as on the home page, and said in `WeekPlan.Notes` (P1).
+- **Start times**: every quarter hour (Q1) that happens exactly once; on clock-change nights the skipped and repeated
+  quarter hours aren't tried rather than guessed.
+- **Hard rules, in this order** (a time that breaks one is never suggested): not over (the footprint starts at or
+  after `Now`); one session of a goal a day (two for 8-14 a week); not on a day the user said no to for the goal
+  (`PlanRequest.Rejected`, SCH-4; saying no to one time gave the next quarter hour); H7, no demanding session on a
+  recovery day; H6, no more than `MostDemandingPerDay` demanding sessions starting that day, those already planned
+  included; H1, the footprint overlaps no busy time (half-open); H4, the activity part inside its place's opening
+  hours; H5, demanding sessions at least `BetweenDemanding` apart, **start to start** in elapsed time (the
+  requirements don't say from what). So "24 hours" is the same clock time each day, except across a clock change: on
+  28 March 2027, Saturday 18:00 GMT to Sunday 18:00 BST is 23 hours (review L-4). H8 is checked once per goal: a
+  footprint longer than a day is `Blocked`, as is travel that can't be worked out (P1).
+- **Scores** (`Planner.Scores`, one place, higher is better; ties go to the earliest start): preferred day +30;
+  preferred time of day +20 (by start time: morning 05:00-12:00, midday 11:00-14:00, afternoon 12:00-17:00, evening
+  17:00-22:00, `Planner.HoursOf`); +10 for each day from the nearest other session of the goal, up to 3 (none: 3);
+  -1 for each whole half hour already taken up that day (daily load, `CalendarDays.Split`, so after midnight counts
+  towards the next day); +1 for each quarter hour free before and after the footprint, up to an hour each side
+  (slack); +1 for each day before the week's last. The reasons shown with a suggestion name what scored: "Your
+  preferred day", "In the evening, as you prefer", "3 days from your nearest other Gym", "Nothing else planned that
+  day" or "A light day" (under 2 hours).
+- **Greedy**: each session takes the best time left, so the week isn't guaranteed to be the best possible one
+  (§7.4): with 48 hours between demanding sessions it picks Monday, Thursday, Sunday, where Monday, Wednesday, Friday,
+  Sunday would fit four (`PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`).
+- **Shortfalls** (SCH-5): the sessions that didn't fit, and a reason for each day that isn't over and doesn't already
+  have as many of the goal's sessions as a day allows (a day with one of two allowed is listed, review L-3), from the
+  first rule its times break: "You said no to this day"; "A recovery day, and Intervals is demanding"; "It already
+  has 1 demanding session, the most for a day"; when every time is busy, "The longest free time is 1 h 25 min; Gym
+  needs 2 h 10 min with getting ready, travel and changing" (T14), or, when that time is long enough but no
+  quarter-hour start fits in it, "The longest free time, 17:40 to 19:55, is 2 h 15 min, but with sessions starting on
+  the quarter hour, Gym (2 h 10 min …) doesn't fit in it" (review M-1); when every free time is outside opening hours,
+  that day's own hours: "Town gym is closed that day" or "… is open 06:00 to 09:00, and your free time then is too
+  short" (not the day before's late opening, review L-1); otherwise the nearest demanding session and the rest rule
+  (T13). When no day gives a reason, `Shortfall.Note` says why ("Every day left this week already has a Gym session
+  (one a day)", review M-2). `Shorter`, worked out once every goal has its times so it is never a time given to
+  another (review M-4): the longest session, in 5-minute steps down to 15, that would fit, with its time, its length
+  written as other lengths are ("A session of 1 h would fit: Mon 2 Nov 2026 at 17:30").
+- **Free time** (CAL-7, `WeekPlan.FreeTime`): each day not over, from `Now`, midnight to midnight, the stretches not
+  busy (sleep windows and footprints): in all and the longest, before any suggestion. The longest-free-time reasons
+  use the same stretches.
+- **Other times for one session** (SCH-6, T16, `Planner.Options`): the same rules and scores, for one session (a
+  missed or skipped occurrence, or one to move) in its week from `Now` on: the best time on each day that has one,
+  best first, at most `most`. The caller passes the activities with that occurrence cancelled, so it isn't in its own
+  way, and nothing else moves. For a stored activity's occurrence, `Planner.OptionsFor` does all of that: it cancels
+  the occurrence, plans it as its goal (`GoalId`, or the activity's own id when it has none) with the activity's
+  other occurrences counted as that goal's, so one session a day and the spread apply to them (review M-2: a daily
+  series was offered days that already had one), prefers the part of the day it was in and leaves out the time it
+  has now. Tests: `PlannerTests.OptionsFor_*`, `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`. None
+  fitting gives the same day reasons as a shortfall.
+- Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
+  T16, T22.
+
 ## Not built yet: read the requirements, don't guess
 
 | Area | Requirements | Phase |
 |---|---|---|
-| Drawing footprints on the calendar | CAL-5 | 5 |
-| The rest of the one validator: sleep minimum (H3), rest gaps and demanding sessions (H5-H7), and checking moves, suggestions and imports | SCH-1, §7.2 | 5-8 (H1, H4, H8 built in 4) |
-| Scoring, "Plan my week", explanations | §7.3, §7.4, SCH-2 to SCH-7 | 6 |
+| The rest of the one validator on save: sleep minimum (H3); the planner keeps the sleep window free already | SCH-1, §7.2, SLP-4 | 8 (H1, H4, H8 built in 4; H5-H7 in 6) |
+| Templates and their base location | CAL-9, TRV-4, T15 | 6 (if the owner still wants them) |
 | Sleep opportunity and sleep log | SLP-1 to SLP-5 | 8 |
 
 ## Writing tests for this code
@@ -219,7 +292,7 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | # | Scenario | Status | Test |
 |---|---|---|---|
 | T1 | Gym footprint 120 / 130 min | **Covered** | `FootprintTests.AGymSession_WithTravelBothWays_*`, `AGymSession_WithTenMinutesChanging_*` |
-| T2 | Targets can't fit; shortfall explained | Not built (Phase 6) | |
+| T2 | Targets can't fit; shortfall explained | **Covered** (domain) | `PlannerTests.TargetsThatDontFitAroundWork_AreExplainedPerDay_WithNoOverlaps` |
 | T3 | 22:30-00:30: start day; 90/30 split | **Covered** | `CalendarDaysTests.AnActivityCrossingMidnight_*` |
 | T4 | Clocks back: sleep 9 h; 01:30 series once, first 01:30 | **Covered** | `ClockTimesTests.SleepFrom2300To0700_*`, `SeriesTests.ADailySeriesAt0130_OccursOnce_*` |
 | T5 | Clocks forward: 01:30 series at 02:30; sleep 7 h | **Covered** | `ClockTimesTests.SleepFrom2300To0700_*`, `SeriesTests.ADailySeriesAt0130_OccursAt0230_*` |
@@ -229,15 +302,15 @@ applied); the cycle runs forwards and backwards (`%` is wrapped, because C# keep
 | T9 | Commute and gym travel counted once each | **Covered** (domain) | `DailyLoadTests.AnOfficeDayAndAnEveningGymSession_*` |
 | T10 | Buffer overlapping another activity is a conflict | **Covered** (domain and on save) | `ConflictsTests.ChangingTimeRunningInto*`, `PreparationTimeOverlapping*`, `ActivityCheckTests.AClash_IsFoundOnFootprints_*`, web `ActivityChecksTests.Add_WhoseTravelRunsIntoAnotherActivity_Clashes` |
 | T11 | Back-to-back: no conflict; 1 min overlap: conflict | **Covered** (domain and on save) | `ConflictsTests.BackToBackActivities_*`, `OverlappingByOneMinute_*`, web `ActivityChecksTests.Add_BackToBackWithAnotherActivity_IsSaved` |
-| T12 | Late event below sleep minimum | Not built (Phases 6, 8) | |
-| T13 | Demanding sessions too close | Not built (Phase 6) | |
-| T14 | Busy day: largest gap and footprint explained | Not built (Phase 6) | |
-| T15 | "Brighton weekend" template | Not built (Phase 6) | |
-| T16 | Reschedule a missed workout | Not built (Phase 6) | |
+| T12 | Late event below sleep minimum | **Planner half covered**: never suggested into the sleep window; the manual edit's confirmation is Phase 8 | `PlannerTests.NoSuggestion_CutsIntoSleep` |
+| T13 | Demanding sessions too close | **Covered** (planner and on save) | `PlannerTests.DemandingSessions_AreKeptApart_AndTheRuleIsNamed`, `ActivityCheckTests.ADemandingSessionTooCloseToAnother_IsAProblem`, web `ActivityChecksTests.Add_ADemandingSessionTooSoonAfterAnother_*` |
+| T14 | Busy day: largest gap and footprint explained | **Covered** (domain) | `PlannerTests.ABusyDay_SaysItsLongestFreeTime_AndWhatTheSessionNeeds` |
+| T15 | "Brighton weekend" template | Not built (Phase 6b, after A/B weeks) | |
+| T16 | Reschedule a missed workout | **Covered** (domain and page) | `PlannerTests.AMissedSession_*`, web `ReschedulePageTests` |
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA` |
 | T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, preferences) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests` |
 | T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
-| T21 | Calendar at 320 px | Not built (Phase 5) | |
-| T22 | Same week planned twice: identical | Not built (Phase 6) | |
+| T21 | Calendar at 320 px | **Checked by hand** (a browser check, Phase 5) | |
+| T22 | Same week planned twice: identical | **Covered** (domain) | `PlannerTests.TheSameWeekPlannedTwice_GivesTheSameSuggestions` |
 | T23, T24 | Meal prep; AI output | After the MVP | |

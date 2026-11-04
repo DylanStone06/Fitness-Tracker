@@ -26,6 +26,39 @@ public sealed class ActivityChecksTests(TestAppFactory factory) : IClassFixture<
         Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
     }
 
+    // H5, SCH-1 (§7.2: a validation error, not a clash to accept): a demanding session 22 hours after another breaks the
+    // 24 hours a new user's preferences keep between them, and isn't saved.
+    [Fact]
+    public async Task Add_ADemandingSessionTooSoonAfterAnother_IsNotSaved_AndSaysWhy()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Hard ride", new() { ["StartTime"] = "20:00", ["IsDemanding"] = "true" });
+        var title = TestBrowser.NewName("Intervals");
+
+        var response = await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-03", ["StartTime"] = "18:00", ["IsDemanding"] = "true" });
+
+        var html = await AssertShowsAnErrorAsync(response);
+        Assert.Contains("It&#x27;s 22 h from Hard ride, a demanding session on Mon 2 Nov 2026 at 20:00; your preferences keep demanding sessions at least 24 hours apart.", html);
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+    }
+
+    // H5, T5: a long run on Saturday 27 March 2027 at 18:00 GMT, five months ahead, and weekly Sunday 18:00 intervals:
+    // the next day's is 23 hours later, the clocks having gone forward. Other activities are loaded as far ahead as
+    // the rest rules are checked (scheduling review, Phase 6: one-offs only 8 weeks ahead were).
+    [Fact]
+    public async Task Add_ADemandingSeries_KeepsTheRestRule_MonthsAhead_AcrossTheClockChange()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        await browser.AddActivityAsync("Long run", new() { ["StartDate"] = "2027-03-27", ["StartTime"] = "18:00", ["IsDemanding"] = "true" });
+        var title = TestBrowser.NewName("Intervals");
+
+        var response = await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-10-25", ["StartTime"] = "18:00", ["IsDemanding"] = "true", ["Repeats"] = "Weekly", ["RepeatDays[6]"] = "true" });
+
+        var html = await AssertShowsAnErrorAsync(response);
+        Assert.Contains("It&#x27;s 23 h from Long run, a demanding session on Sat 27 Mar 2027 at 18:00", html);
+        Assert.Null(await StoredData.ActivityTitledAsync(factory, title));
+    }
+
     // Q2: the user can choose to keep a clash once it has been shown, and it is saved.
     [Fact]
     public async Task Add_ClashingWithAnotherActivity_IsSaved_WithSaveAnyway()

@@ -70,8 +70,10 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
             : await db.Activities.Where(activity => activity.TimeZoneId == oldTimeZoneId).ToListAsync();
 
         // Q8, CLAUDE.md rule 3: the move goes through the check on save too. What the activities already had before
-        // (clashes kept with "Save anyway") is noted first, so only what the move itself breaks is reported.
-        var before = await FindingsAsync(moved, saved.TimesShownAs());
+        // (clashes kept with "Save anyway") is noted first, so only what the move itself breaks is reported. Both checks
+        // keep the rest rules just chosen: stricter ones saved at the same time aren't the move's doing.
+        var rest = PlanningData.RestRulesOf(saved);
+        var before = await FindingsAsync(moved, saved.TimesShownAs(), rest);
         foreach (var activity in moved)
         {
             activity.TimeZoneId = saved.TimeZoneId;
@@ -96,19 +98,20 @@ public class PreferencesController(AppDbContext db, ActivityChecker checker) : C
         }
 
         TempData[Saved] = true;
-        var after = await FindingsAsync(moved, saved.TimesShownAs());
+        var after = await FindingsAsync(moved, saved.TimesShownAs(), rest);
         TempData[MoveFindings] = after.Except(before).ToArray();
         return RedirectToAction(nameof(Index));
     }
 
     // Each activity's problems and clashes as the check on save sees them now, in plain English, by title.
-    // Both runs write times the way just chosen, so a change of clock alone doesn't make every finding look new.
-    private async Task<List<string>> FindingsAsync(IReadOnlyList<Activity> activities, ClockFormat clock)
+    // Both runs write times the way just chosen and keep the rest rules just chosen, so a change of clock or rules
+    // alone doesn't make a finding look new.
+    private async Task<List<string>> FindingsAsync(IReadOnlyList<Activity> activities, ClockFormat clock, RestRules rest)
     {
         var findings = new List<string>();
         foreach (var activity in activities)
         {
-            var result = await checker.CheckAsync(activity, clock);
+            var result = await checker.CheckAsync(activity, clock, rest);
             var zone = DateTimeZoneProviders.Tzdb[activity.TimeZoneId];
             findings.AddRange(result.Problems.Select(problem => $"{activity.Title}: {problem.Message}"));
             findings.AddRange(result.Clashes.Select(clash => $"{activity.Title}: {ActivityCheck.Describe(clash, zone, clock)}"));

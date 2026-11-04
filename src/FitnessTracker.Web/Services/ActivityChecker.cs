@@ -13,19 +13,22 @@ namespace FitnessTracker.Web.Services;
 public class ActivityChecker(PlanningData planning)
 {
     /// <summary>
-    /// The check's explanations write times as the user chose (ACC-3), or as <paramref name="clock"/> says: two checks
-    /// whose findings are compared (before and after a change) must write them the same way.
+    /// The check's explanations write times as the user chose (ACC-3), or as <paramref name="clock"/> says, and the rest
+    /// rules are the saved ones, or <paramref name="rest"/>: two checks whose findings are compared (before and after a
+    /// change) must write times the same way and keep the same rules.
     /// </summary>
-    public async Task<ActivityCheckResult> CheckAsync(Activity candidate, ClockFormat? clock = null)
+    public async Task<ActivityCheckResult> CheckAsync(Activity candidate, ClockFormat? clock = null, RestRules? rest = null)
     {
         var loaded = await planning.LoadAsync();
-        var user = clock is { } chosen ? loaded with { Context = loaded.Context with { Clock = chosen } } : loaded;
+        var user = loaded with { Context = loaded.Context with { Clock = clock ?? loaded.Context.Clock, Rest = rest ?? loaded.Context.Rest } };
 
-        // Only activities that can fall near the dates checked, not every one the user ever had; one that can't be read
-        // is left out with a note, not allowed to stop every save.
+        // Only activities that can fall near the dates checked (for a demanding one, as far ahead as its rest rules are
+        // checked and as far either side as the rest between demanding sessions reaches, H5-H7), not every one the user
+        // ever had; one that can't be read is left out with a note, not allowed to stop every save.
         var plannedCandidate = candidate.ToPlannedActivity();
         var unreadable = new List<string>();
-        var others = await planning.ActivitiesOnAsync(ActivityCheck.OthersThatCanClash(plannedCandidate.Series, user.Context.Today), unreadable, except: candidate.Id);
+        var nearby = ActivityCheck.OthersThatCanClash(plannedCandidate, user.Context.Today, user.Context.Rest.BetweenDemanding);
+        var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.Check(plannedCandidate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };
@@ -41,7 +44,8 @@ public class ActivityChecker(PlanningData planning)
         var user = await planning.LoadAsync();
         var plannedCandidate = candidate.ToPlannedActivity();
         var unreadable = new List<string>();
-        var others = await planning.ActivitiesOnAsync(ActivityCheck.OthersThatCanClashWith(plannedCandidate.Series, occurrenceDate), unreadable, except: candidate.Id);
+        var nearby = ActivityCheck.OthersThatCanClashWith(plannedCandidate.Series, occurrenceDate, user.Context.Rest.BetweenDemanding);
+        var others = await planning.ActivitiesOnAsync(nearby, unreadable, except: candidate.Id);
 
         var result = ActivityCheck.CheckOccurrence(plannedCandidate, occurrenceDate, others, user.Context);
         return unreadable.Count == 0 ? result : result with { Notes = [.. unreadable, .. result.Notes] };

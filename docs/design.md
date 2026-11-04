@@ -42,11 +42,13 @@ Measured contrast (WCAG formula, 20 October 2026):
 | Secondary text on page / on card | 5.83 / 6.35 | 8.13 / 7.30 |
 | Links on page / on card | 5.69 / 6.20 | 8.29 / 7.45 |
 | White on primary button | 6.06 | 6.06 |
+| Outline primary button on card, and hovered (link colour) | 6.20 | 7.45 |
 | Error text on page / on card | 6.03 / 6.57 | 7.06 (card) |
 | Form-box border on page / on card | 3.11 / 3.38 | 4.19 / 3.77 |
 
 Bootstrap's own red (`#dc3545`) and outline grey (`#6c757d`) are replaced: they only just reach 4.5:1 on white, and
-fall below it on the off-white page and in dark mode.
+fall below it on the off-white page and in dark mode. Its outline blue (`#0d6efd`, 3.58:1 on a dark card, found in
+the Phase 6 accessibility pass) takes the link colour.
 
 ### Categories (CAL-2)
 
@@ -65,7 +67,10 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
 ## Parts
 
 - **Header**: sticks to the top of the screen; `scroll-padding-top` keeps a field the error summary links to from
-  hiding under it (WCAG 2.4.11).
+  hiding under it (WCAG 2.4.11). One row from 1200 px, a menu button below that: eight links don't fit a row any
+  narrower (with the Phase 6 links, at 800 px the name stood one letter per line). Always one row high (56 px,
+  checked at 320, 800, 1199, 1200 and 1440 px): no word breaks in the name or a link, and a long email address is
+  shortened with "…" in the row, still read out in full and shown as a tooltip.
 - **Cards and lists**: white (dark: raised) surfaces with rounded corners and a faint shadow (none in dark mode).
 - **Home page**: a greeting by the time of day where the user is, then one main thing: the **Next up** card (a wider
   category stripe, larger time and title, when to leave). Times use tabular figures so they line up. "Getting

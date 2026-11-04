@@ -115,7 +115,7 @@ public class ActivityCheckTests
         var clash = Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes);
 
         Assert.Equal("Call", clash.Other.Label);
-        Assert.True(ActivityCheck.OthersThatCanClash(run.Series, Today).Contains(new LocalDate(2026, 10, 20)));
+        Assert.True(ActivityCheck.OthersThatCanClash(run, Today).Contains(new LocalDate(2026, 10, 20)));
     }
 
     // ... and beyond the 8 weeks (to Thursday 4 March 2027, 19 weeks on).
@@ -126,7 +126,7 @@ public class ActivityCheckTests
         var call = OneOff("Call", new LocalDate(2027, 3, 4), new LocalTime(18, 30), minutes: 20, at: null);
 
         Assert.Single(ActivityCheck.Check(run, [call], Context()).Clashes);
-        Assert.True(ActivityCheck.OthersThatCanClash(run.Series, Today).Contains(new LocalDate(2027, 3, 4)));
+        Assert.True(ActivityCheck.OthersThatCanClash(run, Today).Contains(new LocalDate(2027, 3, 4)));
     }
 
     // H8 too: moved two years on with a length of 25 hours, on an ordinary day.
@@ -157,7 +157,7 @@ public class ActivityCheckTests
 
         Assert.Empty(result.Problems);
         Assert.Empty(result.Clashes);
-        Assert.False(ActivityCheck.OthersThatCanClash(moved.Series, Today).Contains(new LocalDate(2026, 10, 13)));
+        Assert.False(ActivityCheck.OthersThatCanClash(moved, Today).Contains(new LocalDate(2026, 10, 13)));
     }
 
     // A series entirely in the past is checked on its own dates (above), so its moved ones are too.
@@ -173,7 +173,7 @@ public class ActivityCheckTests
         var call = OneOff("Call", new LocalDate(2026, 9, 1), new LocalTime(18, 30), minutes: 20, at: null);
 
         Assert.Equal("Call", Assert.Single(ActivityCheck.Check(ended, [call], Context()).Clashes).Other.Label);
-        Assert.True(ActivityCheck.OthersThatCanClash(ended.Series, Today).Contains(new LocalDate(2026, 9, 1)));
+        Assert.True(ActivityCheck.OthersThatCanClash(ended, Today).Contains(new LocalDate(2026, 9, 1)));
     }
 
     // A series that next happens more than a year away isn't over: Mondays every 60 weeks from Monday 5 October next
@@ -754,6 +754,226 @@ public class ActivityCheckTests
     }
 
     // Gym 18:00-18:50 at Town gym: 25 minutes there, 10 minutes changing, 45 minutes back (T1).
+    // H5, T13, SCH-1: a demanding session closer than the preferences allow to another is refused (§7.2: a validation
+    // error), naming the other one and the gap. Hard ride Monday 20:00; intervals Tuesday 18:00, 22 hours later.
+    [Fact]
+    public void ADemandingSessionTooCloseToAnother_IsAProblem()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(20, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 3), new LocalTime(18, 0), minutes: 45, at: null) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(intervals, [ride], WithRest(hours: 24)).Problems);
+
+        Assert.Equal(CheckAspect.Time, problem.Aspect);
+        Assert.Equal(
+            "It's 22 h from Hard ride, a demanding session on Mon 2 Nov 2026 at 20:00; your preferences keep demanding sessions at least 24 hours apart.",
+            problem.Message);
+    }
+
+    // Exactly the time apart is fine (start to start), and a session that isn't demanding isn't held to it.
+    [Theory]
+    [InlineData(20, true, 0)]
+    [InlineData(18, false, 0)]
+    [InlineData(18, true, 1)]
+    public void TheRestRule_AppliesToDemandingSessionsOnly_FromStartToStart(int tuesdayHour, bool demanding, int problems)
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(20, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var session = OneOff("Session", new LocalDate(2026, 11, 3), new LocalTime(tuesdayHour, 0), minutes: 45, at: null) with { IsDemanding = demanding };
+
+        Assert.Equal(problems, ActivityCheck.Check(session, [ride], WithRest(hours: 24)).Problems.Count);
+    }
+
+    // H6: no more demanding sessions starting in a day than the preferences allow (here 1).
+    [Fact]
+    public void ADemandingSessionOnADayWithItsMostAlready_IsAProblem()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(7, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 45, at: null) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(intervals, [ride], WithRest(hours: 0)).Problems);
+
+        Assert.Equal("On Mon 2 Nov 2026 there's already a demanding session, Hard ride; your preferences allow 1 a day.", problem.Message);
+    }
+
+    // H7: no demanding session on a recovery day; every occurrence checked, the first named and the rest counted.
+    // Wednesdays from 4 November, checked for 53 weeks (as H4 and H8 are) to Tuesday 9 November 2027: 53 Wednesdays.
+    [Fact]
+    public void ADemandingSessionOnARecoveryDay_IsAProblem()
+    {
+        var wednesdays = Weekly(new LocalDate(2026, 11, 4), [IsoDayOfWeek.Wednesday], new LocalTime(18, 0)) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(wednesdays, [], WithRest(hours: 0, recovery: [IsoDayOfWeek.Wednesday])).Problems);
+
+        Assert.Equal(
+            "Wed 4 Nov 2026 is one of your recovery days, and this is a demanding session. The same happens on 52 more dates up to Tue 9 Nov 2027.",
+            problem.Message);
+    }
+
+    // H6: two of its own sessions on one day (Wednesday's moved to Monday evening) are one date, not "1 more date"
+    // (scheduling review, Phase 6: occurrences were counted).
+    [Fact]
+    public void TwoOfItsOwnOnOneDay_AreOneDate()
+    {
+        var gym = AtHome(GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 2, 18, 0), Duration.FromHours(1))) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(gym, [], WithRest(hours: 0)).Problems);
+
+        Assert.Equal("On Mon 2 Nov 2026 there's already a demanding session, Gym; your preferences allow 1 a day.", problem.Message);
+    }
+
+    // H5, SCH-7: of two demanding sessions equally near, the one named is the same whatever order they are loaded in.
+    [Fact]
+    public void TheNearestDemandingSession_IsNamedTheSame_WhateverTheOrder()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(20, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var swim = OneOff("Swim", new LocalDate(2026, 11, 2), new LocalTime(20, 0), minutes: 45, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 3), new LocalTime(18, 0), minutes: 45, at: null) with { IsDemanding = true };
+
+        var oneWay = Assert.Single(ActivityCheck.Check(intervals, [ride, swim], WithRest(hours: 24)).Problems).Message;
+        var otherWay = Assert.Single(ActivityCheck.Check(intervals, [swim, ride], WithRest(hours: 24)).Problems).Message;
+
+        Assert.StartsWith("It's 22 h from Hard ride", oneWay);
+        Assert.Equal(oneWay, otherWay);
+    }
+
+    // H7: a rule every 10 days reaches Friday first on 1 January 2027, past the 8-week clash window (scheduling review,
+    // Phase 6: the rest rules were only checked that far, unlike H4 and H8, which depend on the weekday too).
+    [Fact]
+    public void ARecoveryDay_IsFound_ForARuleEveryTenDays()
+    {
+        var everyTenDays = new PlannedActivity(Guid.NewGuid(), "Intervals",
+            new Series(new LocalDate(2026, 11, 2), new LocalTime(18, 0), Duration.FromMinutes(45), London, RecurrenceRule.Daily(10)), Buffers.None, null)
+        {
+            IsDemanding = true,
+        };
+
+        var problem = Assert.Single(ActivityCheck.Check(everyTenDays, [], WithRest(hours: 0, recovery: [IsoDayOfWeek.Friday])).Problems);
+
+        Assert.StartsWith("Fri 1 Jan 2027 is one of your recovery days, and this is a demanding session.", problem.Message);
+    }
+
+    // H5, T5, §8: Saturday 18:00 GMT to Sunday 18:00 BST on 27-28 March 2027 is 23 hours, though every other weekend
+    // is 24 or 25 (the planner refuses that slot too: TheRestGap_IsElapsedTime_OnTheNightTheClocksGoForward).
+    [Fact]
+    public void TheRestRule_IsKeptOnTheNightTheClocksGoForward()
+    {
+        var saturdays = Weekly(new LocalDate(2026, 10, 24), [IsoDayOfWeek.Saturday], new LocalTime(18, 0)) with { Title = "Long run", IsDemanding = true };
+        var sundays = Weekly(new LocalDate(2026, 10, 25), [IsoDayOfWeek.Sunday], new LocalTime(18, 0)) with { Title = "Intervals", IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(sundays, [saturdays], WithRest(hours: 24)).Problems);
+
+        Assert.StartsWith("It's 23 h from Long run, a demanding session on Sat 27 Mar 2027 at 18:00", problem.Message);
+    }
+
+    // H5, T5, §8: elapsed time, not clock time, across the night the clocks go back: Saturday 24 October 2026 18:00 BST
+    // (17:00 UTC) to Sunday 17:30 GMT (17:30 UTC) is 24 h 30 min, though the clocks say 23 h 30 min.
+    [Fact]
+    public void TheRestRule_IsElapsedTime_OnTheNightTheClocksGoBack()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 10, 24), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 10, 25), new LocalTime(17, 30), minutes: 45, at: null) with { IsDemanding = true };
+
+        Assert.Empty(ActivityCheck.Check(intervals, [ride], WithRest(hours: 24)).Problems);
+    }
+
+    // H5 further than two days: each occurrence looks at the sessions within the rest rule's reach (code review,
+    // Phase 6: the check now looks only near each one). A ride on Monday 18:00 and intervals on Thursday 17:00 are
+    // 71 hours apart, under 72.
+    [Fact]
+    public void TheRestRule_LongerThanTwoDays_StillFindsTheOtherSession()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 5), new LocalTime(17, 0), minutes: 45, at: null) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(intervals, [ride], WithRest(hours: 72)).Problems);
+
+        Assert.Contains("from Hard ride, a demanding session on Mon 2 Nov 2026 at 18:00", problem.Message);
+    }
+
+    // H6 on the 25-hour day the clocks go back: 00:30 BST and 23:30 GMT on Sunday 25 October 2026 are 24 hours apart,
+    // and the same date.
+    [Fact]
+    public void TwoDemandingSessions_AtEitherEndOfThe25HourDay_AreTheSameDay()
+    {
+        var early = OneOff("Night ride", new LocalDate(2026, 10, 25), new LocalTime(0, 30), minutes: 30, at: null) with { IsDemanding = true };
+        var late = OneOff("Late intervals", new LocalDate(2026, 10, 25), new LocalTime(23, 30), minutes: 20, at: null) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.Check(late, [early], WithRest(hours: 0)).Problems);
+
+        Assert.Equal("On Sun 25 Oct 2026 there's already a demanding session, Night ride; your preferences allow 1 a day.", problem.Message);
+    }
+
+    // The other activities to load for a demanding one reach as far as its rest rules are checked: 53 weeks. Taken
+    // from the activity itself, so a caller can't leave it out (code review, Phase 6).
+    [Fact]
+    public void OthersThatCanClash_ForADemandingActivity_ReachAsFarAsTheRestRulesAreChecked()
+    {
+        var sundays = Weekly(new LocalDate(2026, 10, 25), [IsoDayOfWeek.Sunday], new LocalTime(18, 0));
+
+        Assert.True(ActivityCheck.OthersThatCanClash(sundays with { IsDemanding = true }, Today, Duration.FromHours(24)).Contains(new LocalDate(2027, 3, 27)));
+        Assert.False(ActivityCheck.OthersThatCanClash(sundays, Today, Duration.FromHours(24)).Contains(new LocalDate(2027, 3, 27)));
+    }
+
+    // H5 within the activity itself: demanding every day, with 48 hours between demanding sessions.
+    [Fact]
+    public void ADailyDemandingSession_WithTwoDaysRest_BreaksTheRuleWithItself()
+    {
+        var daily = new PlannedActivity(Guid.NewGuid(), "Intervals",
+            new Series(new LocalDate(2026, 11, 2), new LocalTime(18, 0), Duration.FromMinutes(45), London, RecurrenceRule.Daily()), Buffers.None, null)
+        {
+            IsDemanding = true,
+        };
+
+        var problem = Assert.Single(ActivityCheck.Check(daily, [], WithRest(hours: 48)).Problems);
+
+        Assert.StartsWith("It's 24 h from Intervals, a demanding session on Tue 3 Nov 2026 at 18:00", problem.Message);
+    }
+
+    // CAL-4, SCH-1: moving one occurrence of a demanding activity next to another demanding session is refused too.
+    [Fact]
+    public void CheckOccurrence_KeepsTheRestRule()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 5), new LocalTime(7, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var gym = AtHome(GymMondaysAndWednesdays().MoveOccurrence(new LocalDate(2026, 11, 4), new LocalDateTime(2026, 11, 4, 18, 0), Duration.FromHours(1))) with { IsDemanding = true };
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(gym, new LocalDate(2026, 11, 4), [ride], WithRest(hours: 24)).Problems);
+
+        Assert.StartsWith("It's 13 h from Hard ride", problem.Message);
+    }
+
+    // H5, H6, §7.2: another activity's demanding session at the very same time and length isn't the candidate's own
+    // occurrence (scheduling review, Phase 6: it was taken for it, leaving only a clash that could be saved anyway).
+    [Fact]
+    public void ADemandingSessionAtTheSameTimeAsAnother_BreaksTheRestRules()
+    {
+        var ride = OneOff("Hard ride", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+        var intervals = OneOff("Intervals", new LocalDate(2026, 11, 2), new LocalTime(18, 0), minutes: 60, at: null) with { IsDemanding = true };
+
+        var result = ActivityCheck.Check(intervals, [ride], WithRest(hours: 24));
+
+        Assert.Equal(
+            [
+                "It's 0 min from Hard ride, a demanding session on Mon 2 Nov 2026 at 18:00; your preferences keep demanding sessions at least 24 hours apart.",
+                "On Mon 2 Nov 2026 there's already a demanding session, Hard ride; your preferences allow 1 a day.",
+            ],
+            result.Problems.Select(problem => problem.Message));
+        Assert.Empty(result.Clashes);
+    }
+
+    // The other activities to load reach as far as the rest rule: 96 hours needs those from 5 days before.
+    [Fact]
+    public void OthersThatCanClash_ReachAsFarAsTheRestRule()
+    {
+        var gym = GymSession(new LocalDate(2026, 11, 2));
+
+        var dates = ActivityCheck.OthersThatCanClash(gym, Today, Duration.FromHours(96));
+
+        Assert.Equal(new LocalDate(2026, 10, 28), dates.Start);
+    }
+
+    private static PlanningContext WithRest(int hours, IsoDayOfWeek[]? recovery = null) =>
+        Context() with { Rest = new RestRules(Duration.FromHours(hours), 1, new HashSet<IsoDayOfWeek>(recovery ?? [])) };
+
     private static PlannedActivity GymSession(LocalDate date, LocalTime? start = null) =>
         OneOff("Gym", date, start ?? new LocalTime(18, 0), minutes: 50, at: Gym, buffers: new Buffers(Duration.Zero, Duration.FromMinutes(10)));
 
