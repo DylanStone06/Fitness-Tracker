@@ -920,19 +920,85 @@ public class ActivityCheckTests
         Assert.True(ActivityCheck.OthersThatCanClash(holidayOnly, Today).Contains(new LocalDate(2026, 12, 21)));
     }
 
-    // SCH-1: a series that has ended, whose only later occurrence is a move from a date its routine now leaves out (the
-    // week of 12 October given to a holiday), has nothing from today on, so it is checked from its own first date
-    // (scheduling review, Phase 6b: the hidden move counted as happening).
+    // SCH-1: a series that has ended, whose only later occurrence is a move that doesn't happen (its own date and the
+    // date it was moved to are both left out: its routine isn't in use from 12 October on), has nothing from today on,
+    // so it is checked from its own first date (scheduling review, Phase 6b: the hidden move counted as happening).
     [Fact]
     public void ASeriesWhoseOnlyFutureMoveIsLeftOut_IsCheckedFromItsFirstDate()
     {
-        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
-                RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(2026, 10, 12)))
-            .MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 11, 9, 7, 0), Duration.FromMinutes(50))
-            .OnlyOn(date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18));
+        var series = EndedMondaysWithTheLastMovedTo9November()
+            .OnlyOn(date => date < new LocalDate(2026, 10, 12));
 
         Assert.Equal(new LocalDate(2026, 10, 5), ActivityCheck.Check(AtHome(series), [], Context()).Checked.Start);
     }
+
+    // Q17: ... but a move from a date left out (the week of 12 October given to a holiday) to a date in use (Monday 9
+    // November) still happens, so it is checked there, clashes included, and what it can clash with is loaded.
+    [Fact]
+    public void Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs()
+    {
+        var series = EndedMondaysWithTheLastMovedTo9November()
+            .OnlyOn(date => date < new LocalDate(2026, 10, 12) || date > new LocalDate(2026, 10, 18));
+        var call = OneOff("Call", new LocalDate(2026, 11, 9), new LocalTime(7, 15), minutes: 20, at: null);
+
+        var result = ActivityCheck.Check(AtHome(series), [call], Context());
+
+        Assert.Equal("Call", Assert.Single(result.Clashes).Other.Label);
+        Assert.True(ActivityCheck.OthersThatCanClash(AtHome(series), Today).Contains(new LocalDate(2026, 11, 9)));
+    }
+
+    // Q17, P1, SCH-1: a kept move (Monday 2 November's moved to Friday 30 October, then 2-8 November given to a holiday)
+    // moved on to a date where neither end is in use would disappear without a word. The check on save says so, whatever
+    // made the change (scheduling review of Q17, L1: only the occurrence page refused it).
+    [Fact]
+    public void CheckOccurrence_AKeptMoveMovedWhereNeitherEndIsInUse_IsAProblem()
+    {
+        var series = KeptMove().MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 11, 4, 7, 0), Duration.FromMinutes(50));
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(AtHome(series), new LocalDate(2026, 11, 2), [], Context()).Problems);
+
+        Assert.Equal(CheckAspect.Date, problem.Aspect);
+        Assert.Equal(
+            "It would disappear: neither Wed 4 Nov 2026 nor its usual date, Mon 2 Nov 2026, is a date this activity happens on now. Choose another date, or cancel it.",
+            problem.Message);
+    }
+
+    // ... moved to another time on its own date, it names the date once (review L2: "neither Mon 2 Nov 2026 nor its usual
+    // date, Mon 2 Nov 2026").
+    [Fact]
+    public void CheckOccurrence_AKeptMoveMovedToAnotherTimeOnItsOwnDate_NamesTheDateOnce()
+    {
+        var series = KeptMove().MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 11, 2, 19, 0), Duration.FromMinutes(50));
+
+        var problem = Assert.Single(ActivityCheck.CheckOccurrence(AtHome(series), new LocalDate(2026, 11, 2), [], Context()).Problems);
+
+        Assert.Equal("It would disappear: Mon 2 Nov 2026 is a date this activity doesn't happen on now. Choose another date, or cancel it.", problem.Message);
+    }
+
+    // ... while putting it back (or moving it to its usual time, which is the same) is the user's choice, said on the page
+    // beforehand, and cancelling it takes no time: neither is a problem.
+    [Fact]
+    public void CheckOccurrence_AKeptMovePutBackOrCancelled_IsNoProblem()
+    {
+        var putBack = KeptMove().RestoreOccurrence(new LocalDate(2026, 11, 2));
+        var cancelled = KeptMove().CancelOccurrence(new LocalDate(2026, 11, 2));
+
+        Assert.Empty(ActivityCheck.CheckOccurrence(AtHome(putBack), new LocalDate(2026, 11, 2), [], Context()).Problems);
+        Assert.Empty(ActivityCheck.CheckOccurrence(AtHome(cancelled), new LocalDate(2026, 11, 2), [], Context()).Problems);
+    }
+
+    // Mondays at 07:00 for 50 minutes from 19 October 2026; 2 November's moved to Friday 30 October at 07:00, then 2-8
+    // November left out (given to a holiday).
+    private static Series KeptMove() =>
+        new Series(new LocalDate(2026, 10, 19), new LocalTime(7, 0), Duration.FromMinutes(50), London, RecurrenceRule.Weekly([IsoDayOfWeek.Monday]))
+            .MoveOccurrence(new LocalDate(2026, 11, 2), new LocalDateTime(2026, 10, 30, 7, 0), Duration.FromMinutes(50))
+            .OnlyOn(date => date < new LocalDate(2026, 11, 2) || date > new LocalDate(2026, 11, 8));
+
+    // Mondays at 07:00 for 50 minutes, 5 and 12 October 2026 only; 12 October's moved to Monday 9 November at 07:00.
+    private static Series EndedMondaysWithTheLastMovedTo9November() =>
+        new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London,
+                RecurrenceRule.Weekly([IsoDayOfWeek.Monday]).EndingOn(new LocalDate(2026, 10, 12)))
+            .MoveOccurrence(new LocalDate(2026, 10, 12), new LocalDateTime(2026, 11, 9, 7, 0), Duration.FromMinutes(50));
 
     // ... while one that happens within the 8 weeks is checked from today, as ever.
     [Fact]

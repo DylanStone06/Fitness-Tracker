@@ -75,13 +75,16 @@ public class CalendarController(AppDbContext db, PlanningData planning) : Contro
             .Select(activity => new { activity.Id, activity.Category, Repeats = activity.RepeatRule != null })
             .ToDictionaryAsync(activity => activity.Id);
         var places = user.Locations.ToDictionary(location => location.Id, location => location.Name);
+        // FIT-1: each exercise session's status, as the home page has it.
+        var sessions = await planning.SessionStatesAsync(items, user.Now.ToInstant());
         return Json(items.Select(item => CalendarEvent.From(
             item,
             zone,
             kinds.TryGetValue(item.Activity.Id, out var kind) ? kind.Category : null,
             item.Activity.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null,
             kind?.Repeats ?? false,
-            user.Context.Clock)));
+            user.Context.Clock,
+            sessions.TryGetValue((item.Activity.Id, item.Occurrence.Date), out var session) ? session : null)));
     }
 
     /// <summary>

@@ -64,9 +64,20 @@
                     <button type="submit" name="Change" value="@OccurrenceChangeChoice.Restore" class="btn btn-outline-secondary">Put it back to the usual time</button>
                 }
             </div>
+            @if (Model.KeptMoveNote is { } keptMoveNote)
+            {
+                @* Q17: said before either button is pressed. *@
+                <p class="form-text mt-n2 mb-3">@keptMoveNote</p>
+            }
         </form>
 
         <p>
+            @if (FitnessTracker.Web.Data.ActivityCategories.IsExercise(Model.Activity.Category))
+            {
+                @* FIT-1: an exercise session's own page, to mark it done or skipped (Q20). *@
+                <a asp-controller="Sessions" asp-action="Log" asp-route-id="@Model.Activity.Id" asp-route-date="@Model.Date">Mark done or skipped</a>
+                <text>·</text>
+            }
             @* SCH-6: missed it, or can't make it? Other times later that week. *@
             <a asp-action="Reschedule" asp-route-id="@Model.Activity.Id" asp-route-date="@Model.Date" asp-route-returnToCalendar="@(Model.ReturnToCalendar ? "true" : null)">Find another time this week</a>
             ·

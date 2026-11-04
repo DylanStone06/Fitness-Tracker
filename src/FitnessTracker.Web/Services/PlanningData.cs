@@ -1,5 +1,6 @@
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Templates;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models;
 using Microsoft.EntityFrameworkCore;
@@ -135,6 +136,41 @@ public class PlanningData(AppDbContext db, IClock clock)
                     || (activity.StartDate <= dates.End && (activity.RepeatRule != null || activity.StartDate >= dates.Start))))
             .ToListAsync();
         return Planned(stored, routines, unreadable);
+    }
+
+    /// <summary>
+    /// FIT-1: the state at <paramref name="now"/> of each exercise session (Q20) among <paramref name="items"/>, from what
+    /// each was marked as, by its activity and the date its rule puts it on (so a moved one keeps its mark). The same
+    /// for every page that lists sessions. Others have none.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState>> SessionStatesAsync(IReadOnlyList<AgendaItem> items, Instant now)
+    {
+        var ids = items.Select(item => item.Activity.Id).Distinct().ToList();
+        var exercise = (await db.Activities.Where(activity => ids.Contains(activity.Id)).Select(activity => new { activity.Id, activity.Category }).ToListAsync())
+            .Where(activity => activity.Category.IsExercise())
+            .Select(activity => activity.Id)
+            .ToList();
+        var sessions = items.Where(item => exercise.Contains(item.Activity.Id)).ToList();
+        var states = new Dictionary<(Guid Activity, LocalDate Date), SessionState>();
+        if (sessions.Count == 0)
+        {
+            return states;
+        }
+
+        var (first, last) = (sessions.Min(item => item.Occurrence.Date), sessions.Max(item => item.Occurrence.Date));
+        var marks = await db.SessionLogs
+            .Where(log => exercise.Contains(log.ActivityId) && log.OccurrenceDate >= first && log.OccurrenceDate <= last)
+            .ToDictionaryAsync(log => (log.ActivityId, log.OccurrenceDate), log => log.Mark);
+        foreach (var item in sessions)
+        {
+            var key = (item.Activity.Id, item.Occurrence.Date);
+            if (Sessions.StateOf(item.Activity.Series, item.Occurrence.Date, marks.TryGetValue(key, out var mark) ? mark : null, now) is { } state)
+            {
+                states[key] = state;
+            }
+        }
+
+        return states;
     }
 
     /// <summary>

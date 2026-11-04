@@ -1,6 +1,8 @@
 @model FitnessTracker.Web.Models.Home.HomeViewModel
 @using FitnessTracker.Domain.Scheduling
+@using FitnessTracker.Domain.Workouts
 @using FitnessTracker.Web.Data
+@using FitnessTracker.Web.Models.Workouts
 @using NodaTime
 @using NodaTime.Text
 @{
@@ -41,6 +43,13 @@
         @if (Agenda.Trip(item, Model.Clock) is { } trip)
         {
             <span class="d-block small">@trip</span>
+        }
+        @if (Model.SessionOf(item) is { } session)
+        {
+            @* FIT-1: its status, in words (T20: "Not logged" is only shown, never a completion), and its page to mark it. *@
+            <span class="d-block small">Status: @SessionDisplay.Status(session) ·
+                <a asp-controller="Sessions" asp-action="Log" asp-route-id="@activity.Id"
+                   asp-route-date="@item.Occurrence.Date.ToString("uuuu-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">@(session.Status is SessionStatus.Completed or SessionStatus.Skipped ? "Change" : "Mark done or skipped")<span class="visually-hidden">: @activity.Title, @HomeViewModel.DayPattern.Format(item.Occurrence.Time.Start.InZone(activity.Series.Zone).Date)</span></a></span>
         }
         @if (item.Note is { } note)
         {

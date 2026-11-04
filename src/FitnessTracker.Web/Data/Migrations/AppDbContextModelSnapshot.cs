@@ -358,6 +358,57 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.ToTable("RoutineDateRanges");
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ActivityId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ActualSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomRunType")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DistanceMetres")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Effort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Mark")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OccurrenceDate")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RunType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("ActivityId", "OccurrenceDate")
+                        .IsUnique();
+
+                    b.ToTable("SessionLogs");
+                });
+
             modelBuilder.Entity("FitnessTracker.Web.Data.TravelLeg", b =>
                 {
                     b.Property<Guid>("Id")
@@ -744,6 +795,21 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasOne("FitnessTracker.Web.Data.Routine", null)
                         .WithMany()
                         .HasForeignKey("RoutineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionLog", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Activity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -551,6 +551,44 @@ public class PlannerTests
         Assert.DoesNotContain(options.Options, option => option.Time.Start.InZone(London).Date == Week.Start.PlusDays(2));
     }
 
+    // Q17, SCH-6 (scheduling review of Q17, M1): Thursday 5 November's gym moved to Tuesday 3 November at 18:00, then 4-8
+    // November given to a holiday, so it is kept on the Tuesday. Only days it still happens on are offered (Monday has its
+    // own session): moved to 4-8 November it would disappear.
+    [Fact]
+    public void OptionsFor_AKeptMove_AreOnlyOnDaysItStillHappens()
+    {
+        var gym = KeptMove(RecurrenceRule.Weekly([IsoDayOfWeek.Monday, IsoDayOfWeek.Thursday]), new LocalDateTime(2026, 11, 3, 18, 0), holidayFrom: new LocalDate(2026, 11, 4));
+
+        var options = Planner.OptionsFor(Request([], [gym]), gym, new LocalDate(2026, 11, 5), priority: 1, most: 7)!;
+
+        Assert.NotEmpty(options.Options);
+        Assert.All(options.Options, option => Assert.True(option.Time.Start < Instant.FromUtc(2026, 11, 4, 0, 0)));
+    }
+
+    // ... and when no day of the week is one it happens on (moved to Sunday 1 November, then the whole week of 2-8 November
+    // given to the holiday), each day says why.
+    [Fact]
+    public void OptionsFor_AKeptMove_WithNoDayItHappensOn_SaysWhy()
+    {
+        var gym = KeptMove(RecurrenceRule.Weekly([IsoDayOfWeek.Thursday]), new LocalDateTime(2026, 11, 1, 18, 0), holidayFrom: new LocalDate(2026, 11, 2));
+
+        var options = Planner.OptionsFor(Request([], [gym]), gym, new LocalDate(2026, 11, 5), priority: 1, most: 7)!;
+
+        Assert.Empty(options.Options);
+        Assert.Equal(7, options.None!.Days.Count);
+        Assert.All(options.None.Days, day => Assert.Equal("Moved here, Gym would disappear: it doesn't happen on this day now", day.Reason));
+    }
+
+    // A gym series at 07:00 for 50 minutes from 5 October 2026 with Thursday 5 November's moved to movedTo, then
+    // holidayFrom to 8 November given to a holiday.
+    private static PlannedActivity KeptMove(RecurrenceRule rule, LocalDateTime movedTo, LocalDate holidayFrom)
+    {
+        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London, rule)
+            .MoveOccurrence(new LocalDate(2026, 11, 5), movedTo, Duration.FromMinutes(50))
+            .OnlyOn(date => date < holidayFrom || date > new LocalDate(2026, 11, 8));
+        return new PlannedActivity(Guid.NewGuid(), "Gym", series, Buffers.None, null);
+    }
+
     // A date it doesn't happen on has no other times.
     [Fact]
     public void OptionsFor_ADateItDoesntHappenOn_IsNull()

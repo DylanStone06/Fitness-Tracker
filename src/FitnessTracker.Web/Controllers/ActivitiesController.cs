@@ -366,6 +366,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
 
     private static string OccurrenceFieldFor(CheckAspect aspect) => aspect switch
     {
+        CheckAspect.Date => nameof(OccurrenceFormViewModel.NewDate),
         CheckAspect.Time => nameof(OccurrenceFormViewModel.NewStartTime),
         CheckAspect.Length => nameof(OccurrenceFormViewModel.DurationHours),
         _ => string.Empty,
@@ -526,6 +527,7 @@ public class ActivitiesController(AppDbContext db, ActivityChecker checker, Plan
     private static string FieldFor(CheckAspect aspect) => aspect switch
     {
         CheckAspect.Location => nameof(ActivityFormViewModel.LocationId),
+        CheckAspect.Date => nameof(ActivityFormViewModel.StartDate),
         CheckAspect.Time => nameof(ActivityFormViewModel.StartTime),
         CheckAspect.Length => nameof(ActivityFormViewModel.DurationHours),
         _ => nameof(ActivityFormViewModel.EndDate),

@@ -7,12 +7,14 @@
     return;
   }
 
-  const { eventsUrl, weeksUrl, createUrl, editUrl, occurrenceUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
+  const { eventsUrl, weeksUrl, createUrl, editUrl, occurrenceUrl, sessionUrl, timeZone, firstDay, hour12, initialDate } = element.dataset;
 
   // CAL-4: an occurrence of a repeating activity opens its own page, to change just that one; a one-off, its form.
   const pageFor = (props) => (props.repeats
     ? `${occurrenceUrl}/${props.activityId}?date=${props.occurrenceDate}&returnToCalendar=true`
     : `${editUrl}/${props.activityId}?returnToCalendar=true`);
+  // FIT-1: an exercise session's own page, to mark it done or skipped.
+  const sessionPageFor = (props) => `${sessionUrl}/${props.activityId}?date=${props.occurrenceDate}`;
   const twelveHour = hour12 === 'true';
   const status = document.getElementById('calendar-status');
   const say = (text) => {
@@ -145,6 +147,22 @@
     }
     if (props.moved) {
       nodes.push(line('Moved, this time only', 'ft-event-details'));
+    }
+    // FIT-1: an exercise session's status in words (T20: "Not logged" is only shown). The list links to its page to mark
+    // it; in the grid the block opens the occurrence, whose page links there too.
+    if (props.status) {
+      const status = line(`Status: ${props.status}`, 'ft-event-details');
+      if (inList) {
+        const link = document.createElement('a');
+        link.href = sessionPageFor(props);
+        link.textContent = props.status === 'Done' || props.status === 'Skipped' ? 'Change' : 'Mark done or skipped';
+        const whose = document.createElement('span');
+        whose.className = 'visually-hidden';
+        whose.textContent = `: ${info.event.title}`;
+        link.append(whose);
+        status.append(' · ', link);
+      }
+      nodes.push(status);
     }
     if (inList) {
       const details = [props.category, props.place ? `at ${props.place}` : null, props.trip].filter(Boolean).join(' · ');

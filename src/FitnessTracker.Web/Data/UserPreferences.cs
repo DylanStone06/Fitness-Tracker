@@ -1,13 +1,8 @@
 using FitnessTracker.Domain.Time;
+using FitnessTracker.Domain.Workouts;
 using NodaTime;
 
 namespace FitnessTracker.Web.Data;
-
-public enum DistanceUnit
-{
-    Kilometres,
-    Miles,
-}
 
 public enum WeightUnit
 {
@@ -71,7 +66,8 @@ public class UserPreferences : IOwnedByUser, IVersioned
     /// <summary>How pages and explanations write times ("18:30" or "6:30pm").</summary>
     public ClockFormat TimesShownAs() => Use24HourClock ? ClockFormat.TwentyFourHour : ClockFormat.TwelveHour;
 
-    public DistanceUnit DistanceUnit { get; set; } = DistanceUnit.Kilometres;
+    // Q25: UK units until chosen otherwise (the owner, 4 November 2026). Stored values are metric whatever is chosen.
+    public DistanceUnit DistanceUnit { get; set; } = DistanceUnit.Miles;
 
     public WeightUnit WeightUnit { get; set; } = WeightUnit.Kilograms;
 

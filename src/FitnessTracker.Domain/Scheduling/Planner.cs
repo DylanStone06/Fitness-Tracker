@@ -191,9 +191,9 @@ public static class Planner
     /// offered instead. When none fits, <see cref="SessionAlternatives.None"/> says why. For a stored activity's
     /// occurrence use <see cref="OptionsFor"/>, which does all that.
     /// </summary>
-    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null)
+    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null, IReadOnlySet<LocalDate>? notOn = null)
     {
-        var week = new WeekState(request) { NotAt = notAt };
+        var week = new WeekState(request) { NotAt = notAt, NotOn = notOn ?? new HashSet<LocalDate>() };
         if (week.Blocked(session, tooLong: $"Counting getting ready, travel and changing, {session.Title} would take up more than a day") is { } blocked)
         {
             return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: blocked));
@@ -229,6 +229,10 @@ public static class Planner
             .Append(activity with { Series = activity.Series.CancelOccurrence(date), GoalId = goalId })
             .ToList();
         var start = occurrence.Time.Start.InZone(request.Zone).TimeOfDay;
+
+        // Q17: kept though its own date isn't in use (moved out of a week later given to a holiday), it can only go to a day
+        // it happens on; anywhere else it would disappear (scheduling review of Q17, M1). None for any other occurrence.
+        var notOn = activity.Series.Allows(date) ? [] : request.Week.Where(day => !activity.Series.Allows(day)).ToHashSet();
         var session = new PlanGoal(
             goalId,
             activity.Title,
@@ -241,7 +245,7 @@ public static class Planner
             new HashSet<IsoDayOfWeek>(),
             new[] { TimeOfDay.Morning, TimeOfDay.Midday, TimeOfDay.Afternoon, TimeOfDay.Evening }
                 .FirstOrDefault(part => HoursOf(part) is { } hours && start >= hours.From && start < hours.To));
-        return Options(request with { Activities = activities, Goals = [session] }, session, most, notAt: occurrence.Time.Start);
+        return Options(request with { Activities = activities, Goals = [session] }, session, most, notAt: occurrence.Time.Start, notOn);
     }
 
     /// <summary>
@@ -290,6 +294,7 @@ public static class Planner
         None,
         Past,
         GoalAlreadyThatDay,
+        WouldDisappear,
         SaidNo,
         RecoveryDay,
         MostDemanding,
@@ -364,6 +369,9 @@ public static class Planner
 
         /// <summary>SCH-6: a start not to offer, the time the session has now.</summary>
         public Instant? NotAt { get; init; }
+
+        /// <summary>SCH-6, Q17: days the session would disappear on, moved there (its activity doesn't happen then).</summary>
+        public IReadOnlySet<LocalDate> NotOn { get; init; } = new HashSet<LocalDate>();
 
         /// <summary>What couldn't be counted, in a fixed order (SCH-7).</summary>
         public IReadOnlyList<string> Notes => _notes.ToList();
@@ -588,6 +596,11 @@ public static class Planner
                 return new Verdict(Broken.GoalAlreadyThatDay, footprint);
             }
 
+            if (NotOn.Contains(date))
+            {
+                return new Verdict(Broken.WouldDisappear, footprint);
+            }
+
             if (_request.Rejected.Contains(new RejectedDay(goal.Id, date)))
             {
                 return new Verdict(Broken.SaidNo, footprint);
@@ -688,6 +701,8 @@ public static class Planner
             var first = verdicts[0];
             switch (first.Broken)
             {
+                case Broken.WouldDisappear:
+                    return $"Moved here, {goal.Title} would disappear: it doesn't happen on this day now";
                 case Broken.SaidNo:
                     return "You said no to this day";
                 case Broken.RecoveryDay:

@@ -33,7 +33,8 @@ public class HomeController(AppDbContext db, PlanningData planning) : Controller
             agenda,
             kinds.ToDictionary(kind => kind.Id, kind => kind.Category),
             kinds.Where(kind => kind.Repeats).Select(kind => kind.Id).ToHashSet(),
-            unreadable));
+            unreadable,
+            await planning.SessionStatesAsync(agenda, user.Now.ToInstant())));
     }
 
     // Error and Status are re-run for whichever request failed, which may be a signed-out POST whose
