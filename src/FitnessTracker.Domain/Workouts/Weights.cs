@@ -26,10 +26,13 @@ public static class Weights
         decimal.ToInt32(Math.Round(amount * GramsIn(unit), MidpointRounding.AwayFromZero));
 
     /// <summary><paramref name="grams"/> in <paramref name="unit"/>, not rounded: 454 g is 1.0009… lb.</summary>
-    public static decimal InUnit(int grams, WeightUnit unit) => grams / GramsIn(unit);
+    public static decimal InUnit(long grams, WeightUnit unit) => grams / GramsIn(unit);
 
-    /// <summary>As pages show it: up to two decimals and the unit ("102.5 kg", "1,000 kg", "225 lb").</summary>
-    public static string Text(int grams, WeightUnit unit)
+    /// <summary>
+    /// As pages show it: up to two decimals and the unit ("102.5 kg", "1,000 kg", "225 lb"). A long, for a workout's
+    /// total weight lifted.
+    /// </summary>
+    public static string Text(long grams, WeightUnit unit)
     {
         var amount = Math.Round(InUnit(grams, unit), 2, MidpointRounding.AwayFromZero);
         return $"{amount.ToString("#,0.##", CultureInfo.InvariantCulture)} {(unit == WeightUnit.Kilograms ? "kg" : "lb")}";
