@@ -1,0 +1,42 @@
+@model RegisterViewModel
+@{
+    ViewData["Title"] = "Create an account";
+}
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <h1>Create an account</h1>
+
+        <form asp-action="Register" method="post" novalidate>
+            <partial name="_ErrorSummary" />
+
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label"></label>
+                <span asp-validation-for="Email" class="d-block text-danger" id="email-error"></span>
+                <input asp-for="Email" class="form-control" autocomplete="email" spellcheck="false"
+                       aria-describedby="email-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Email")" />
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label"></label>
+                <div class="form-text mt-0 mb-1" id="password-hint">At least 12 characters. A few ordinary words together work well.</div>
+                <span asp-validation-for="Password" class="d-block text-danger" id="password-error"></span>
+                <input asp-for="Password" class="form-control" autocomplete="new-password"
+                       aria-describedby="password-hint password-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Password")" />
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ConfirmPassword" class="form-label"></label>
+                <span asp-validation-for="ConfirmPassword" class="d-block text-danger" id="confirm-password-error"></span>
+                <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password"
+                       aria-describedby="confirm-password-error" aria-invalid="@ViewData.ModelState.AriaInvalid("ConfirmPassword")" />
+            </div>
+
+            <p class="form-text">This app doesn't send email yet, so a forgotten password can't be reset by email.</p>
+
+            <button type="submit" class="btn btn-primary">Create account</button>
+        </form>
+
+        <p class="mt-4">Already have an account? <a asp-action="Login">Sign in</a></p>
+    </div>
+</div>

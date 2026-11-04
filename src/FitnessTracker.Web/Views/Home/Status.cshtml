@@ -1,0 +1,8 @@
+@model StatusPageViewModel
+@{
+    ViewData["Title"] = Model.Heading;
+}
+
+<h1>@Model.Heading</h1>
+<p>@Model.Advice</p>
+<p><a asp-controller="Home" asp-action="Index">Go to the home page</a></p>

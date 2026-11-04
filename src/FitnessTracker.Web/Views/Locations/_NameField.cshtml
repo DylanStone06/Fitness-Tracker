@@ -1,0 +1,9 @@
+@model LocationFormViewModel
+@* The name field shared by the add and edit forms. autocomplete is off so browsers don't offer the user's own name. *@
+<div class="mb-3">
+    <label asp-for="Name" class="form-label"></label>
+    <div class="form-text mt-0 mb-1" id="name-hint">For example, Home, Office or Town gym.</div>
+    <span asp-validation-for="Name" class="d-block text-danger" id="name-error"></span>
+    <input asp-for="Name" class="form-control" autocomplete="off"
+           aria-describedby="name-hint name-error" aria-invalid="@ViewData.ModelState.AriaInvalid("Name")" />
+</div>

@@ -8,6 +8,8 @@ plainly when a week's goals won't fit. Personal project (github.com/DylanStone06
 | Requirements, IDs (ACC-, CAL-, SCH-…) and test scenarios (T1–T24) | `docs/requirements.md` |
 | Stack and the reasons for it | `docs/decisions/0001-stack.md` |
 | Phases, current status, definition of done | `docs/roadmap.md` |
+| How the parts fit, and the data-isolation rules for new code | `docs/architecture.md` |
+| What's missing or imperfect, and when it's planned | `docs/known-limitations.md` |
 | Skills, agents and the review loop | `docs/skills-and-agents.md` |
 
 The person asking wants plain English. Explain what you're doing and why, say what was and wasn't checked, and never

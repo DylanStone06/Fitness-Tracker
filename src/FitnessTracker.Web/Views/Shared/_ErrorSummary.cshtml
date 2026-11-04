@@ -1,0 +1,8 @@
+@* Lists every problem at the top of a form after an unsuccessful submit. Shown only when there are errors. *@
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger" role="alert">
+        <h2 class="h5">There is a problem</h2>
+        <div asp-validation-summary="All" class="mb-0"></div>
+    </div>
+}

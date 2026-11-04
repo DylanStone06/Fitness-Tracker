@@ -6,7 +6,7 @@ Each phase gets its own branch (`phase-N-short-name`). The owner merges and push
 | # | Phase | Status | Objective | Main files | Key tests | Done when |
 |---|---|---|---|---|---|---|
 | 1 | Discovery & requirements | **Done** | Agree stack, MVP and workflow | `docs/`, `CLAUDE.md`, `.claude/skills/` | — | Owner approves the requirements |
-| 2 | Foundation | **In progress** | A runnable, tested skeleton | `.slnx`, `global.json`, `Directory.Build.props`, `.editorconfig`, `.gitattributes`, .NET `.gitignore`, `dev/ft-dev.ps1`, Identity + SQLite + first migration | Register/sign in; user B gets "not found" for user A's data (T19, first version) | `ft-dev check` passes; app runs on localhost |
+| 2 | Foundation | **Done** | A runnable, tested skeleton | `.slnx`, `global.json`, `Directory.Build.props`, `.editorconfig`, `.gitattributes`, .NET `.gitignore`, `dev/ft-dev.ps1`, Identity + SQLite + first migration | Register/sign in; user B gets "not found" for user A's data (T19, first version) | `ft-dev check` passes; app runs on localhost |
 | 3 | Time & recurrence (domain only) | Not started | Occurrences that are correct across midnight, DST and timezones | `Domain/Time`, `Domain/Recurrence`, `scheduling-rules` skill, `scheduling-reviewer` agent | T3–T8, T18 | All pass; first `scheduling-reviewer` review done |
 | 4 | Preferences, locations, commitments | Not started | Users can enter their real week | Preference, location and activity controllers and views; footprint calculation; migrations | T1, T9, T10, T11, T17, T19 | Conflicting saves are flagged with reasons |
 | 5 | Weekly calendar | Not started | The central screen | `Views/Calendar`, `wwwroot/js/calendar.js`, FullCalendar (pinned), calendar data endpoint | Data endpoint scoped to user, date range and timezone; `break-ui`; accessibility; T21 | Day, week and agenda views; create, edit, drag; "this one" vs "whole series" |
@@ -15,6 +15,19 @@ Each phase gets its own branch (`phase-N-short-name`). The owner merges and push
 | 8 | Sleep & recovery | Not started | Protect sleep | `Domain/Sleep`, sleep views | T4, T5, T12, weekly summary | Sleep log; sleep conflicts flagged before confirming |
 | 9 | Dashboard, data rights, hardening | Not started | **MVP release** | Dashboard, export and delete, setup and deployment docs | Full suite; `/security-review`; `claude-security` scan; accessibility; mobile | Release checklist complete |
 | 10+ | After the MVP | — | Meal prep → analytics → notifications → AI | — | T23, T24 | One milestone at a time |
+
+## Requirement status
+
+Only requirements with work done are listed. What's missing is in [known limitations](known-limitations.md); how
+the parts fit is in [architecture notes](architecture.md).
+
+| ID | Status | Phase | Notes |
+|---|---|---|---|
+| ACC-1 | Done | 2 | Register, sign in, sign out. No email (documented limitation). |
+| ACC-2 | Done | 2 | Sign-in required everywhere; per-user isolation in the data layer; another user's data is "not found". |
+| TRV-1 | Started | 2 | Locations by name only; opening hours in Phase 4. |
+| §9 privacy and security | Partly done | 2 | Isolation enforced and tested, anti-forgery on every form, Identity password hashing, no secrets committed. Hosting hardening in Phase 9. |
+| T19 | First version | 2 | Locations: list, view, edit, delete. Extended as each kind of record is added. |
 
 ## Definition of done (every phase)
 
