@@ -397,3 +397,14 @@ Decided by the owner on 4 November 2026 for planned against completed (FIT-5), b
 | Q37 | Where does a goal's progress for the week show? | On the Goals page (this week), on Plan my week (the week it plans, in place of "1 of 3 already planned") and on the home page (a "This week" card). |
 | Q38 | Does a skipped session still count towards its goal? | No: Plan my week then suggests another time that week. The skipped session stays on the calendar, marked skipped, and its own time stays busy, so it isn't offered. |
 | Q39 | Which goals does an activity's "Counts towards" offer? | All of the user's weekly goals, each with its category beside its name, and "No goal". |
+
+Built with Q38 (Claude's choice, found by the scheduling review on 4 November 2026, as the only one that agrees with the
+check on save, SCH-1): a skipped demanding session still counts for the rest rules (H5-H7), as its time stays busy. So
+with 48 hours between demanding sessions, a skipped Wednesday interval session still keeps its replacement away from
+Monday evening to Friday evening. The owner can revisit it.
+
+Open, found by the scheduling review on 4 November 2026:
+
+| # | Question | Recommendation |
+|---|---|---|
+| Q40 | A session marked skipped, then given another time (Find another time, or moved on the calendar): is it still skipped? | Today it is: the mark stays with the session, so it says "Skipped" at its new time, doesn't count towards its goal, and Plan my week suggests a second replacement. **Recommended:** giving a skipped session another time puts it back to planned ("Rescheduled from …", Q22), keeping its notes, and the move page says so before saving. A one-off given another date already counts again (its mark stays with the old date: see the Workouts rows in [known-limitations.md](known-limitations.md)), so both would then agree. |
