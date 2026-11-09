@@ -98,5 +98,13 @@ only signal. A new category fails `ActivityDisplayTests` until its colour is cho
   ("5 × 100 kg, rest 90 s"). Its set rows: on a phone the exercise on one line and reps, weight and rest on the next,
   each labelled, with a faint line (the card-edge colour) between sets; from 576 px one line a set under one row of
   headings, the labels then only read out. Every session has a notes box above its buttons.
+- **A goal's week** (FIT-5, the `_GoalWeek` partial): the goal's name (or "This week") with its count beside it ("1 of
+  3 done"), a bar in the primary colour (`<progress>`, `ft-progress`, as Getting started's), then the rest in words
+  ("1 skipped · 1 to come · 1 not planned yet"). The words say everything the bar does (rule 1), and nothing is red
+  (rule 6). It is no wider than 36rem (`ft-goal-week`), so on a wide page the count stays near the name. The Goals
+  page shows it under each goal; the goal's text fills the row (`ft-row-main`), and Edit and Delete stay together,
+  beside it or, when there isn't room, under it on every goal alike. Plan my week puts the goals in a grid (one
+  column on phones, two from 768 px, three from 1200 px); the home page in a "This week" card under Today, with the
+  week's dates and "Plan my week". Checked at 320 and 1280 px in both themes, with a very long goal name.
 - **No inline styles**: the Content-Security-Policy doesn't allow them, so widths come from classes or native
   elements (`<progress>`, not a styled `<div>`).

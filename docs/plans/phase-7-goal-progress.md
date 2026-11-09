@@ -4,6 +4,14 @@ Written 4 November 2026, before any code. FIT-5: "Planned versus completed for t
 a goal counts the sessions of the activities linked to it, from Plan my week or by choosing the goal on the activity's
 own form ("Counts towards"). The owner chose Q37-Q39 the same day, each the recommended option.
 
+**Status, 9 November 2026: built.** All five commits below are done, with two scheduling reviews (4 and 9 November) and
+a browser check (320 and 1280 px, both themes). Beyond the plan, from the reviews and the check: a cancelled session
+isn't counted; Plan my week makes "Just this week" the main button (and "Change" opens the form for just this week)
+for a time in place of a skipped session; Next up passes over a session marked skipped; and two layout fixes. Open for
+the owner: requirements Q40 (a marked session given another time, now covering done ones) and Q41 (cancelled and
+moved-out sessions on Plan my week). Still to do in Phase 7: the code review, break-ui and accessibility of the new
+pages, and the milestone report.
+
 ## What it adds, as the user sees it
 
 - **An activity's form** has "Counts towards": every weekly goal (with its category beside its name) or "No goal".
