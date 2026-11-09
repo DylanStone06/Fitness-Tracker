@@ -80,6 +80,10 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Contains("In place of a skipped session", text);
         Assert.Matches("""class="btn btn-sm btn-primary">Just this week""", html);
         Assert.Matches("""class="btn btn-sm btn-outline-primary">Every week""", html);
+        // "Change" opens the form for just this week too (scheduling review of FIT-5, L2).
+        var change = Assert.Single(ChangeLinks(html));
+        Assert.DoesNotContain("everyWeek", change);
+        Assert.Contains("returnToPlan=true", change);
     }
 
     // Q38: only when every session still needed is in place of a skipped one. Here the goal asks for 2, one is planned
@@ -100,6 +104,7 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
 
         Assert.Equal(2, Regex.Matches(html, """class="btn btn-sm btn-primary">Every week""").Count);
         Assert.DoesNotContain("In place of a skipped session", html);
+        Assert.All(ChangeLinks(html), change => Assert.Contains("everyWeek=true", change));
     }
 
     // SCH-4, Q12: "Every week" adds the session every week on that day, for the goal, through the check on save, and
@@ -223,6 +228,10 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
     }
+
+    // Each suggestion's "Change" link, decoded.
+    private static List<string> ChangeLinks(string html) =>
+        Regex.Matches(html, """href="(/Activities/Create\?goal=[^"]+)" """.TrimEnd()).Select(match => WebUtility.HtmlDecode(match.Groups[1].Value)).ToList();
 
     // Every form on the page that adds a session through the activity form.
     private static List<string> AddForms(string html) =>

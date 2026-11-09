@@ -131,10 +131,15 @@ public sealed class PlanPageViewModel
                 { "goal", goal.Id.ToString() },
                 { "date", FormInput.Date.Format(start.Date) },
                 { "time", FormInput.Time.Format(start.TimeOfDay) },
-                { "everyWeek", "true" },
-                { "returnToPlan", "true" },
             };
-            if (weeks.Length > 0)
+            // Q38: "Change" opens the form as the main button adds it: just this week in place of a skipped session.
+            if (!inPlaceOfSkipped)
+            {
+                change.Add("everyWeek", "true");
+            }
+
+            change.Add("returnToPlan", "true");
+            if (!inPlaceOfSkipped && weeks.Length > 0)
             {
                 change.Add("weeks", weeks);
             }
