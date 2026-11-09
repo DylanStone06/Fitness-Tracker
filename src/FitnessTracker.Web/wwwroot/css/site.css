@@ -282,6 +282,19 @@ h2, .h2, h3, .h3, .h4, .h5 {
   accent-color: var(--bs-primary);
 }
 
+/* A goal's week (FIT-5): no wider than a comfortable line, so on a wide Goals page the count stays near the name and
+   the bar isn't a screen across. */
+.ft-goal-week {
+  max-width: 36rem;
+}
+
+/* The main part of a list row with buttons beside it (the Goals page): it fills the row, and the buttons go under it,
+   on every row alike, when there isn't room for both side by side. */
+.ft-row-main {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
 /* The calendar (CAL-1, FullCalendar): its colours come from the theme, through FullCalendar's own variables.
    Activities use their category's label colours (each at least 6.34:1, docs/design.md) with the stripe colour as a
    thicker left edge; getting ready, travel and changing are lighter, dashed bands in the same colour (CAL-5). */
