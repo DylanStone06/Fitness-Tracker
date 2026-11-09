@@ -43,6 +43,24 @@ public sealed partial class ReschedulePageTests(TestAppFactory factory) : IClass
         Assert.All(moves, move => Assert.Contains("start=2026-11-02T", move, StringComparison.Ordinal));
     }
 
+    // Q38 (scheduling review of Q38, L2): a session marked skipped doesn't count, so the day it was on can be offered,
+    // though not at its time (still busy). Here every other day has one of the daily series' sessions.
+    [Fact]
+    public async Task OtherTimes_CanBeOnADayWhoseSessionWasSkipped()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-11-02", ["StartTime"] = "18:00", ["Repeats"] = "Daily" });
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.MarkSessionAsync(id, "2026-11-04", "Skipped")).StatusCode);
+
+        var html = await PageAsync(browser, $"/Activities/Reschedule/{id}?date=2026-11-02");
+
+        var moves = MoveLinks().Matches(html).Select(match => Uri.UnescapeDataString(WebUtility.HtmlDecode(match.Groups[1].Value))).ToList();
+        Assert.Contains(moves, move => move.Contains("start=2026-11-04T", StringComparison.Ordinal));
+        Assert.DoesNotContain(moves, move => move.Contains("start=2026-11-04T18:00", StringComparison.Ordinal));
+    }
+
     // A one-off is moved on its own form.
     [Fact]
     public async Task AOneOff_GetsOtherTimes_ThatOpenItsFormFilledIn()

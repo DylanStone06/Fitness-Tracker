@@ -44,15 +44,14 @@
 }
 else
 {
-    @if (Model.Progress.Count > 0)
-    {
-        <ul class="list-unstyled small mb-3">
-            @foreach (var goal in Model.Progress)
-            {
-                <li><span class="fw-semibold" dir="auto">@goal.Title</span>: @goal.Planned</li>
-            }
-        </ul>
-    }
+    @* FIT-5, Q37: each goal's week: what's done, skipped and still to come, and what isn't planned yet. *@
+    <h2 class="h4">Weekly goals</h2>
+    <ul class="list-unstyled row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mb-4">
+        @foreach (var goal in Model.Progress)
+        {
+            <li class="col"><partial name="_GoalWeek" model="goal" /></li>
+        }
+    </ul>
 
     @if (Model.Suggestions.Count == 0 && Model.Shortfalls.Count == 0)
     {
@@ -86,20 +85,21 @@ else
                         <span class="d-block small text-body-secondary">@string.Join(" · ", suggestion.Reasons)</span>
                     }
                     <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
-                        @* SCH-4, Q12: added through the activity form's own check on save (SCH-1). *@
+                        @* SCH-4, Q12: added through the activity form's own check on save (SCH-1). Q38: in place of a
+                           skipped session, "Just this week" is the main button; the order stays the same. *@
                         <form asp-controller="Activities" asp-action="Create" method="post">
                             @foreach (var field in suggestion.EveryWeek)
                             {
                                 <input type="hidden" name="@field.Key" value="@field.Value" />
                             }
-                            <button type="submit" class="btn btn-sm btn-primary">@suggestion.EveryWeekLabel<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
+                            <button type="submit" class="btn btn-sm @(suggestion.JustThisWeekFirst ? "btn-outline-primary" : "btn-primary")">@suggestion.EveryWeekLabel<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
                         </form>
                         <form asp-controller="Activities" asp-action="Create" method="post">
                             @foreach (var field in suggestion.JustThisWeek)
                             {
                                 <input type="hidden" name="@field.Key" value="@field.Value" />
                             }
-                            <button type="submit" class="btn btn-sm btn-outline-primary">Just this week<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
+                            <button type="submit" class="btn btn-sm @(suggestion.JustThisWeekFirst ? "btn-primary" : "btn-outline-primary")">Just this week<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></button>
                         </form>
                         <a class="btn btn-sm btn-outline-secondary" href="@(Url.Action("Create", "Activities") + suggestion.ChangeQuery)">Change<span class="visually-hidden"> @suggestion.Title, @suggestion.Day</span></a>
                         <a class="btn btn-sm btn-link" href="@(here + suggestion.NoQuery)">Not this day<span class="visually-hidden">: @suggestion.Title, @suggestion.Day</span></a>

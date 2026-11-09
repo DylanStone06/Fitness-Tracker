@@ -190,6 +190,24 @@ public class PlanningData(AppDbContext db, IClock clock)
             .ToList();
     }
 
+    /// <summary>
+    /// Q38: the occurrences of <paramref name="activities"/> on <paramref name="dates"/> that are marked skipped, for
+    /// <see cref="PlanRequest.Skipped"/>. Pass the dates the planner loads (<see cref="Planner.DatesToLoadFor"/>): these
+    /// are the occurrences it reads, each known by the date its rule puts it on (CAL-4). Every activity's, not only a
+    /// goal's, as finding another time for one counts its other sessions (SCH-6).
+    /// </summary>
+    public async Task<IReadOnlyCollection<SkippedSession>> SkippedAsync(IEnumerable<PlannedActivity> activities, DateInterval dates, Instant now)
+    {
+        var occurrences = activities
+            .SelectMany(activity => activity.Series.OccurrencesBetween(dates.Start, dates.End).Select(occurrence => (activity, occurrence)))
+            .ToList();
+        var states = await StatesAsync(occurrences, await ExerciseAmongAsync(occurrences), now);
+        return states
+            .Where(state => state.Value.Status == SessionStatus.Skipped)
+            .Select(state => new SkippedSession(state.Key.Activity, state.Key.Date))
+            .ToList();
+    }
+
     /// <summary>FIT-5, Q24, Q37: each of the user's weekly goals and its progress in <paramref name="week"/>.</summary>
     public async Task<GoalWeeks> GoalWeeksAsync(UserPlanning user, DateInterval week)
     {
@@ -198,13 +216,15 @@ public class PlanningData(AppDbContext db, IClock clock)
         var activities = await ActivitiesOnAsync(new DateInterval(week.Start.PlusDays(-2), week.End.PlusDays(2)), user.Routines.Calendar, unreadable);
         var goals = await db.WeeklyGoals.AsNoTracking().ToListAsync();
         var sessions = await GoalSessionsAsync(activities, week, user.Now);
-        // Sorted here rather than by SQLite, which puts every capital letter before every lower-case one.
-        return new GoalWeeks(
-            week,
-            goals.OrderByDescending(goal => goal.Priority).ThenBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase).ToList(),
-            ProgressOf(goals, sessions),
-            unreadable);
+        return new GoalWeeks(week, InOrder(goals), ProgressOf(goals, sessions), unreadable);
     }
+
+    /// <summary>
+    /// Goals as the pages list them: highest priority first, then by name, as the planner fits them in (§7.4). Sorted
+    /// here rather than by SQLite, which puts every capital letter before every lower-case one.
+    /// </summary>
+    public static IReadOnlyList<WeeklyGoal> InOrder(IEnumerable<WeeklyGoal> goals) =>
+        goals.OrderByDescending(goal => goal.Priority).ThenBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase).ToList();
 
     /// <summary>
     /// FIT-5: each goal's progress from its sessions (<see cref="GoalProgress.Of"/>): the states of those with statuses,

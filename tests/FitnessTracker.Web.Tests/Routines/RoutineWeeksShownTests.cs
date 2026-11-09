@@ -115,7 +115,8 @@ public sealed class RoutineWeeksShownTests(TestAppFactory factory) : IClassFixtu
         Assert.Contains($"<option selected=\"selected\" value=\"{routine}/B\">Week B only</option>", html);
     }
 
-    // A goal's session in week A only counts towards the goal in week A: week B still needs all of them.
+    // A goal's session in week A only counts towards the goal in week A: week B still needs all of them. (Monday 19
+    // October's at 07:00 is over and not marked by the tests' 13:00, so not logged.)
     [Fact]
     public async Task AGoalsSessionInWeekA_CountsOnlyInWeekA()
     {
@@ -133,11 +134,12 @@ public sealed class RoutineWeeksShownTests(TestAppFactory factory) : IClassFixtu
         });
         Assert.Equal(HttpStatusCode.Redirect, added.StatusCode);
 
-        var weekA = await (await browser.GetAsync("/Plan?date=2026-10-19")).Content.ReadAsStringAsync();
-        var weekB = await (await browser.GetAsync("/Plan?date=2026-10-26")).Content.ReadAsStringAsync();
+        var weekA = WebUtility.HtmlDecode(await (await browser.GetAsync("/Plan?date=2026-10-19")).Content.ReadAsStringAsync());
+        var weekB = WebUtility.HtmlDecode(await (await browser.GetAsync("/Plan?date=2026-10-26")).Content.ReadAsStringAsync());
 
-        Assert.Contains("1 of 3 already planned", weekA);
-        Assert.DoesNotContain("already planned", weekB);
+        Assert.Contains("1 not logged · 2 not planned yet", weekA);
+        Assert.Contains("3 not planned yet", weekB);
+        Assert.DoesNotContain("not logged", weekB);
     }
 
     // A two-week usual routine with week A this week (19 October 2026).
