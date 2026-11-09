@@ -279,6 +279,12 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   another time takes them too: a day whose only session is skipped can be offered. Tests: `PlannerTests.ASkipped*`
   (its time busy where it would be best, the rest rules kept, a session moved into the week),
   `ASessionNotSkipped_StillCounts`, `OptionsFor_ADayWhoseOnlySessionIsSkipped_CanBeOffered`. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
+- **A goal's week** (FIT-5, Q24): `GoalSessions.On(activities, dates, zone)` lists each goal's sessions the way the
+  planner counts them: occurrences of activities with a `GoalId` that start on those dates in the user's timezone (§8),
+  a moved one where it now is, never a cancelled one. `GoalProgress.Of` turns their states (`Sessions.StateOf`) into
+  done, skipped, not logged, to come and not planned yet; no state means not planned at all, and sessions without
+  statuses (Q20) are a count of their own. Change one rule and the planner's together:
+  `GoalSessionsTests.EachGoalsNumber_IsThePlannersAlreadyPlanned` compares them.
 - **Busy time** (§7.4): every occurrence's footprint over `Planner.DatesToLoadFor` (`Agenda.MarginDays` either side,
   or further when the rest between demanding sessions reaches further, so H5 sees a session 4 days before the week:
   scheduling review H-1; the Web loads the same dates), and each night's `SleepWindow`, from winding down before bed
