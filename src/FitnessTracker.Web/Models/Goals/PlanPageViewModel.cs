@@ -39,22 +39,17 @@ public sealed record SuggestionView(
 public sealed record ShortfallView(string Title, string Summary, IReadOnlyList<string> Days, string? Shorter, string? Blocked);
 
 /// <summary>How far a goal is planned already this week: "1 of 3 already planned".</summary>
-public sealed record GoalProgress(string Title, string Planned);
+public sealed record GoalPlannedSoFar(string Title, string Planned);
 
 /// <summary>The "Plan my week" page (SCH-3 to SCH-5).</summary>
 public sealed class PlanPageViewModel
 {
     private static readonly LocalDatePattern DayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
 
-    private static readonly LocalDatePattern FullDate = LocalDatePattern.CreateWithInvariantCulture("d MMM uuuu");
-
-    private static readonly LocalDatePattern DayAndMonth = LocalDatePattern.CreateWithInvariantCulture("d MMM");
-
     private static readonly LocalDatePattern SkipDate = LocalDatePattern.CreateWithInvariantCulture("uuuuMMdd");
 
-    public required string WeekFrom { get; init; }
-
-    public required string WeekTo { get; init; }
+    /// <summary>"2 – 8 Nov 2026".</summary>
+    public required string WeekDates { get; init; }
 
     /// <summary>The week's first day ("2026-11-02"), and those of the weeks either side, for links.</summary>
     public required string Date { get; init; }
@@ -67,7 +62,7 @@ public sealed class PlanPageViewModel
 
     public required bool HasGoals { get; init; }
 
-    public required IReadOnlyList<GoalProgress> Progress { get; init; }
+    public required IReadOnlyList<GoalPlannedSoFar> Progress { get; init; }
 
     public required IReadOnlyList<SuggestionView> Suggestions { get; init; }
 
@@ -156,14 +151,9 @@ public sealed class PlanPageViewModel
             };
         }
 
-        var sameMonth = week.Start.Month == week.End.Month && week.Start.Year == week.End.Year;
-        var sameYear = week.Start.Year == week.End.Year;
         return new PlanPageViewModel
         {
-            WeekFrom = sameMonth ? week.Start.Day.ToString(CultureInfo.InvariantCulture)
-                : sameYear ? DayAndMonth.Format(week.Start)
-                : FullDate.Format(week.Start),
-            WeekTo = FullDate.Format(week.End),
+            WeekDates = Week.Range(week),
             Date = date,
             PreviousWeek = FormInput.Date.Format(week.Start.PlusWeeks(-1)),
             NextWeek = FormInput.Date.Format(week.Start.PlusWeeks(1)),
@@ -173,7 +163,7 @@ public sealed class PlanPageViewModel
                 .Where(goal => planned.Plan.AlreadyPlanned.GetValueOrDefault(goal.Id) > 0)
                 .OrderByDescending(goal => goal.Priority)
                 .ThenBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase)
-                .Select(goal => new GoalProgress(goal.Title, $"{Math.Min(planned.Plan.AlreadyPlanned[goal.Id], goal.SessionsPerWeek)} of {goal.SessionsPerWeek} already planned"))
+                .Select(goal => new GoalPlannedSoFar(goal.Title, $"{Math.Min(planned.Plan.AlreadyPlanned[goal.Id], goal.SessionsPerWeek)} of {goal.SessionsPerWeek} already planned"))
                 .ToList(),
             Suggestions = planned.Plan.Suggestions.Select(View).ToList(),
             Shortfalls = planned.Plan.Shortfalls.Select(shortfall => new ShortfallView(

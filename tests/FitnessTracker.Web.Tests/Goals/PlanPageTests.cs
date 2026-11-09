@@ -32,7 +32,7 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
 
         var html = await PageAsync(browser, Week);
 
-        Assert.Contains("2 – 8 Nov 2026", html);
+        Assert.Contains("2 – 8 Nov 2026", WebUtility.HtmlDecode(html));
         Assert.Equal(3, AddForms(html).Count(form => form.Contains("value=\"Weekly\"")));
         Assert.Equal(3, AddForms(html).Count(form => form.Contains("name=\"Repeats\" value=\"Never\"")));
         Assert.All(AddForms(html), form => Assert.Contains("name=\"ReturnToPlan\" value=\"true\"", form));

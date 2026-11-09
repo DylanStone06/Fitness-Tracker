@@ -1,0 +1,15 @@
+@model FitnessTracker.Web.Models.Goals.GoalWeekView
+@* FIT-5, Q37: a goal's week: its name (or "This week") and how far it has got, a bar of the same, then the rest in words.
+   The words say everything the bar does, so it is never the only signal (design rule 1). *@
+<div class="ft-goal-week">
+    <div class="d-flex flex-wrap justify-content-between align-items-baseline column-gap-3">
+        @* dir="auto": a name in Arabic or Hebrew reads right to left (break-ui, Phase 6). *@
+        <span class="fw-semibold text-break" dir="auto">@Model.Label</span>
+        <span class="small">@Model.Headline</span>
+    </div>
+    <progress class="ft-progress my-1" max="@Model.Max" value="@Model.Value" aria-label="@Model.BarName"></progress>
+    @if (Model.Details is { } details)
+    {
+        <span class="d-block small text-body-secondary">@details</span>
+    }
+</div>

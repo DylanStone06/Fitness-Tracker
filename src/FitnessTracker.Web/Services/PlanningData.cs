@@ -1,5 +1,7 @@
+using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Templates;
+using FitnessTracker.Domain.Time;
 using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models;
@@ -21,7 +23,27 @@ public sealed record UserPlanning(
     IReadOnlyList<TravelLeg> Legs,
     PlanningContext Context,
     ZonedDateTime Now,
-    UserRoutines Routines);
+    UserRoutines Routines)
+{
+    /// <summary>The week <paramref name="date"/> is in, by the week start in Preferences (ACC-3).</summary>
+    public DateInterval WeekOf(LocalDate date)
+    {
+        var first = CalendarWeeks.StartOf(date, Preferences.WeekStart);
+        return new DateInterval(first, first.PlusDays(6));
+    }
+}
+
+/// <summary>
+/// FIT-5: one of a goal's sessions (<see cref="GoalSessions"/>) with its state: <see cref="HasStatuses"/> when it is an
+/// exercise session (Q20), and then its <see cref="State"/> (FIT-1), which only a session not planned at all lacks.
+/// </summary>
+public sealed record GoalSessionState(GoalSession Session, bool HasStatuses, SessionState? State);
+
+/// <summary>
+/// FIT-5, Q37: the user's weekly goals, highest priority first then by name (as the planner fits them in, §7.4), and
+/// each one's progress in <see cref="Week"/>, by goal; <see cref="Unreadable"/> names any activity left out (P1).
+/// </summary>
+public sealed record GoalWeeks(DateInterval Week, IReadOnlyList<WeeklyGoal> Goals, IReadOnlyDictionary<Guid, GoalProgress> Progress, IReadOnlyList<string> Unreadable);
 
 /// <summary>
 /// CAL-9: the signed-in user's routines, which one is in use on each date, and the dates chosen for them (Q14),
@@ -145,26 +167,90 @@ public class PlanningData(AppDbContext db, IClock clock)
     /// </summary>
     public async Task<IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState>> SessionStatesAsync(IReadOnlyList<AgendaItem> items, Instant now)
     {
-        var ids = items.Select(item => item.Activity.Id).Distinct().ToList();
-        var exercise = (await db.Activities.Where(activity => ids.Contains(activity.Id)).Select(activity => new { activity.Id, activity.Category }).ToListAsync())
+        var sessions = items.Select(item => (item.Activity, item.Occurrence)).ToList();
+        return await StatesAsync(sessions, await ExerciseAmongAsync(sessions), now);
+    }
+
+    /// <summary>
+    /// FIT-5, Q38: the sessions of the user's goals that start on <paramref name="dates"/> in their timezone, as the
+    /// planner counts them (<see cref="GoalSessions.On"/>), each with its state at <paramref name="now"/>. Marks are read
+    /// by each session's rule date, so a moved one keeps its own (CAL-4).
+    /// </summary>
+    public async Task<IReadOnlyList<GoalSessionState>> GoalSessionsAsync(IEnumerable<PlannedActivity> activities, DateInterval dates, ZonedDateTime now)
+    {
+        var sessions = GoalSessions.On(activities, dates, now.Zone);
+        var occurrences = sessions.Select(session => (session.Activity, session.Occurrence)).ToList();
+        var exercise = await ExerciseAmongAsync(occurrences);
+        var states = await StatesAsync(occurrences, exercise, now.ToInstant());
+        return sessions
+            .Select(session => new GoalSessionState(
+                session,
+                exercise.Contains(session.Activity.Id),
+                states.TryGetValue((session.Activity.Id, session.Occurrence.Date), out var state) ? state : null))
+            .ToList();
+    }
+
+    /// <summary>FIT-5, Q24, Q37: each of the user's weekly goals and its progress in <paramref name="week"/>.</summary>
+    public async Task<GoalWeeks> GoalWeeksAsync(UserPlanning user, DateInterval week)
+    {
+        var unreadable = new List<string>();
+        // GoalSessions.On looks two days either side, for activities in another timezone.
+        var activities = await ActivitiesOnAsync(new DateInterval(week.Start.PlusDays(-2), week.End.PlusDays(2)), user.Routines.Calendar, unreadable);
+        var goals = await db.WeeklyGoals.AsNoTracking().ToListAsync();
+        var sessions = await GoalSessionsAsync(activities, week, user.Now);
+        // Sorted here rather than by SQLite, which puts every capital letter before every lower-case one.
+        return new GoalWeeks(
+            week,
+            goals.OrderByDescending(goal => goal.Priority).ThenBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase).ToList(),
+            ProgressOf(goals, sessions),
+            unreadable);
+    }
+
+    /// <summary>
+    /// FIT-5: each goal's progress from its sessions (<see cref="GoalProgress.Of"/>): the states of those with statuses,
+    /// and how many without (Q20).
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, GoalProgress> ProgressOf(IEnumerable<WeeklyGoal> goals, IEnumerable<GoalSessionState> sessions)
+    {
+        var byGoal = sessions.ToLookup(session => session.Session.Goal);
+        return goals.ToDictionary(
+            goal => goal.Id,
+            goal => GoalProgress.Of(
+                goal.SessionsPerWeek,
+                byGoal[goal.Id].Where(session => session.HasStatuses).Select(session => session.State),
+                withoutStatuses: byGoal[goal.Id].Count(session => !session.HasStatuses)));
+    }
+
+    // Q20: which of these sessions' activities are in an exercise category, so have statuses.
+    private async Task<HashSet<Guid>> ExerciseAmongAsync(IReadOnlyList<(PlannedActivity Activity, Occurrence Occurrence)> sessions)
+    {
+        var ids = sessions.Select(session => session.Activity.Id).Distinct().ToList();
+        return (await db.Activities.Where(activity => ids.Contains(activity.Id)).Select(activity => new { activity.Id, activity.Category }).ToListAsync())
             .Where(activity => activity.Category.IsExercise())
             .Select(activity => activity.Id)
-            .ToList();
-        var sessions = items.Where(item => exercise.Contains(item.Activity.Id)).ToList();
+            .ToHashSet();
+    }
+
+    // FIT-1: the state of each session of an exercise activity among these, from its mark, read by the date its rule
+    // puts it on.
+    private async Task<Dictionary<(Guid Activity, LocalDate Date), SessionState>> StatesAsync(
+        IReadOnlyList<(PlannedActivity Activity, Occurrence Occurrence)> occurrences, HashSet<Guid> exercise, Instant now)
+    {
+        var sessions = occurrences.Where(session => exercise.Contains(session.Activity.Id)).ToList();
         var states = new Dictionary<(Guid Activity, LocalDate Date), SessionState>();
         if (sessions.Count == 0)
         {
             return states;
         }
 
-        var (first, last) = (sessions.Min(item => item.Occurrence.Date), sessions.Max(item => item.Occurrence.Date));
+        var (first, last) = (sessions.Min(session => session.Occurrence.Date), sessions.Max(session => session.Occurrence.Date));
         var marks = await db.SessionLogs
             .Where(log => exercise.Contains(log.ActivityId) && log.OccurrenceDate >= first && log.OccurrenceDate <= last)
             .ToDictionaryAsync(log => (log.ActivityId, log.OccurrenceDate), log => log.Mark);
-        foreach (var item in sessions)
+        foreach (var (activity, occurrence) in sessions)
         {
-            var key = (item.Activity.Id, item.Occurrence.Date);
-            if (Sessions.StateOf(item.Activity.Series, item.Occurrence.Date, marks.TryGetValue(key, out var mark) ? mark : null, now) is { } state)
+            var key = (activity.Id, occurrence.Date);
+            if (Sessions.StateOf(activity.Series, occurrence.Date, marks.TryGetValue(key, out var mark) ? mark : null, now) is { } state)
             {
                 states[key] = state;
             }

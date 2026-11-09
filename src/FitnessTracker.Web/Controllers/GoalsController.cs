@@ -10,17 +10,16 @@ namespace FitnessTracker.Web.Controllers;
 // signed-in user's rows, so another user's goal is simply not found (T19, ACC-2).
 public class GoalsController(AppDbContext db, PlanningData planning) : Controller
 {
+    // Highest priority first, as the planner fits them in (§7.4), then by name, each with its progress this week (FIT-5,
+    // Q37), in the user's timezone and week.
     [HttpGet]
     public async Task<IActionResult> Index()
     {
-        var goals = await db.WeeklyGoals.AsNoTracking().ToListAsync();
-        ViewData["Names"] = (await MyLocationsAsync()).ToDictionary(location => location.Id, location => location.Name);
-        // Highest priority first, as the planner fits them in (§7.4), then by name. Sorted here rather than by SQLite,
-        // which puts every capital letter before every lower-case one.
-        return View(goals
-            .OrderByDescending(goal => goal.Priority)
-            .ThenBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase)
-            .ToList());
+        var user = await planning.LoadAsync();
+        var weeks = await planning.GoalWeeksAsync(user, user.WeekOf(user.Now.Date));
+        ViewData["Names"] = user.Locations.ToDictionary(location => location.Id, location => location.Name);
+        ViewData["Weeks"] = weeks;
+        return View(weeks.Goals);
     }
 
     [HttpGet]
