@@ -409,6 +409,9 @@ for every session the goal still needs that week. Added every week, it would be 
 weeks after. When the goal is short of others as well, "Every week" leads, as adding them builds the routine. Next up
 on the home page passes over a session marked skipped.
 
+Built with Q39 (Claude's choice, from the browser check, 9 November 2026): a goal whose name is its category's ("Gym")
+is listed by its name alone, not "Gym (Gym)".
+
 Open, found by the scheduling reviews of 4 November 2026 (Q40) and 9 November 2026 (Q40's done sessions, Q41):
 
 | # | Question | Recommendation |

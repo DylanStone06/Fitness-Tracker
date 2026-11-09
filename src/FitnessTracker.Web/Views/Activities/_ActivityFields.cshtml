@@ -31,7 +31,7 @@
     }
     else
     {
-        var goals = Model.Goals.Select(goal => new SelectListItem($"{goal.Title} ({ActivityDisplay.CategoryName(goal.Category)})", goal.Id.ToString())).ToList();
+        var goals = Model.Goals.Select(goal => new SelectListItem(GoalDisplay.Choice(goal), goal.Id.ToString())).ToList();
         <label asp-for="GoalId" class="form-label"></label>
         <div class="form-text mt-0 mb-1" id="goal-hint">Each of its sessions counts towards that goal's week.</div>
         <span asp-validation-for="GoalId" class="d-block text-danger" id="goal-error"></span>

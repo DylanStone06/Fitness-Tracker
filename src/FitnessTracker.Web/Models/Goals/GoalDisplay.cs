@@ -51,6 +51,16 @@ public static class GoalDisplay
         }
     }
 
+    /// <summary>
+    /// Q39: the goal as "Counts towards" lists it: "Upper body (Gym)", or just "Gym" when its name already is its
+    /// category's, ignoring capitals, rather than "Gym (Gym)".
+    /// </summary>
+    public static string Choice(WeeklyGoal goal)
+    {
+        var category = ActivityDisplay.CategoryName(goal.Category);
+        return string.Equals(goal.Title, category, StringComparison.InvariantCultureIgnoreCase) ? goal.Title : $"{goal.Title} ({category})";
+    }
+
     /// <summary>"Once a week, 50 min each", "Twice a week, 1 h each" or "3 times a week, 1 h 30 min each".</summary>
     public static string HowOften(WeeklyGoal goal)
     {

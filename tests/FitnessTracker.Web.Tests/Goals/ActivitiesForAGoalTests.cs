@@ -40,6 +40,20 @@ public sealed class ActivitiesForAGoalTests(TestAppFactory factory) : IClassFixt
         Assert.Matches("""<label[^>]*for="GoalId"[^>]*>Counts towards</label>""", html);
     }
 
+    // Q39: a goal named as its category is listed by its name alone ("gym", not "gym (Gym)"); any other goal still has its
+    // category beside it, even one named after another category.
+    [Fact]
+    public async Task AGoalNamedAsItsCategory_IsListedByItsNameAlone()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddGoalAsync("gym")).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddGoalAsync("Run")).StatusCode);
+
+        var html = await (await browser.GetAsync("/Activities/Create")).Content.ReadAsStringAsync();
+
+        Assert.Equal(["No goal", "gym", "Run (Gym)"], Options(html, "GoalId").Select(option => option.Text));
+    }
+
     // Architecture rule 5, T19: another user's goal is "not found", so it is said like any choice that isn't on the list,
     // and nothing is saved.
     [Fact]

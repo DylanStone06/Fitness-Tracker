@@ -59,6 +59,17 @@ public class GoalDisplayTests
         Assert.Equal((1, 2), (week.Value, week.Max));
     }
 
+    // Q39: "Counts towards" names each goal with its category beside it, unless its name already is the category's
+    // ("Gym", not "Gym (Gym)"), ignoring capitals. Found by the browser check of FIT-5.
+    [Theory]
+    [InlineData("Gym", ActivityCategory.Gym, "Gym")]
+    [InlineData("gym", ActivityCategory.Gym, "gym")]
+    [InlineData("Meal prep", ActivityCategory.MealPrep, "Meal prep")]
+    [InlineData("Gym three times", ActivityCategory.Gym, "Gym three times (Gym)")]
+    [InlineData("Run", ActivityCategory.Gym, "Run (Gym)")]
+    public void AChoice_HasItsCategoryBeside_UnlessItsNameIsTheCategorys(string title, ActivityCategory category, string expected) =>
+        Assert.Equal(expected, GoalDisplay.Choice(new WeeklyGoal { Title = title, Category = category, SessionsPerWeek = 1 }));
+
     // Where the goal's name is already shown (the Goals page), the words say "This week" instead; the bar is still named
     // after the goal for a screen reader.
     [Fact]
