@@ -100,12 +100,14 @@ public static class Agenda
     /// <summary>
     /// GOL-2's "the next activity": of the items not over at <paramref name="now"/>, the one you start getting ready or
     /// set off for first; ties go in the agenda's own order, whatever order the items come in (SCH-7). An item is over
-    /// once you're back, at its footprint's end, or at its own end when it has no footprint. Null when everything
-    /// listed is over.
+    /// once you're back, at its footprint's end, or at its own end when it has no footprint. A session marked
+    /// <paramref name="skipped"/> (FIT-1, Q38: by its activity and rule date, CAL-4) is never next, as you've said you
+    /// won't do it. Null when nothing listed is left.
     /// </summary>
-    public static NextUp? Next(IReadOnlyList<AgendaItem> items, Instant now)
+    public static NextUp? Next(IReadOnlyList<AgendaItem> items, Instant now, IReadOnlySet<SkippedSession>? skipped = null)
     {
         var next = items
+            .Where(item => skipped?.Contains(new SkippedSession(item.Activity.Id, item.Occurrence.Date)) != true)
             .Select(item => (Item: item, Time: item.Footprint?.Whole ?? item.Occurrence.Time))
             .Where(entry => entry.Time.End > now)
             .OrderBy(entry => entry.Time.Start)

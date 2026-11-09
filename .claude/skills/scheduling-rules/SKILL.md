@@ -260,9 +260,10 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 - `Agenda.Trip`: "Leave home 17:35, back 19:45": leaving is when the journey out starts, after getting ready at home
   (§7.1). Times on another day say "the day before" or "the next day", or the date when further away; a time the
   clocks repeat says which one ("01:15 GMT"). `Agenda.Starts` does the same for the start.
-- `Agenda.Next(items, now)`: the home page's "next activity". Of the items not over, the one whose footprint starts
-  first (you set off for the 18:00 gym at 17:35 before a 17:40 call), ties in the agenda's order whatever order the
-  items come in (SCH-7). Over = back home, the footprint's end (the occurrence's own end with no footprint); under
+- `Agenda.Next(items, now, skipped)`: the home page's "next activity". Of the items not over, the one whose footprint
+  starts first (you set off for the 18:00 gym at 17:35 before a 17:40 call), ties in the agenda's order whatever order
+  the items come in (SCH-7). A session marked skipped (Q38, by activity and rule date) is never next, even once its
+  time has come; it stays in the agenda. Over = back home, the footprint's end (the occurrence's own end with no footprint); under
   way from the footprint's start, getting ready included. Half-open, and moments only: on 25 October 2026 a first-
   01:30 session is under way at the second 01:15. Only what `Between` listed counts, so yesterday's night shift
   isn't "next". Tests: `AgendaTests` (`Next_*`, `AnActivity_IsUnderWay_FromLeavingUntilBack`,

@@ -109,7 +109,12 @@ public sealed class HomeViewModel
         IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState> sessionStates,
         GoalWeeks goals)
     {
-        var next = Agenda.Next(agenda, user.Now.ToInstant());
+        // FIT-1, Q38: a session marked skipped isn't next up, though it is still listed.
+        var skipped = sessionStates
+            .Where(session => session.Value.Status == SessionStatus.Skipped)
+            .Select(session => new SkippedSession(session.Key.Activity, session.Key.Date))
+            .ToHashSet();
+        var next = Agenda.Next(agenda, user.Now.ToInstant(), skipped);
         var home = user.Context.Home;
 
         // Both journeys to and from every place away from home (§7.1): a missing one is never taken as zero.
