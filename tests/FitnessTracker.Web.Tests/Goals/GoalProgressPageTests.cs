@@ -93,6 +93,28 @@ public sealed class GoalProgressPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Single(Regex.Matches(html, Regex.Escape($"{title} couldn't be read")));
     }
 
+    // ACC-3 (scheduling review of FIT-5, G3): the week is the one in Preferences. With weeks starting on Sunday, on Monday
+    // 19 October this week is 18-24 October on every page: Sunday 18 October's session counts (over, not logged), and
+    // Sunday 25 October's is next week's.
+    [Fact]
+    public async Task TheWeek_StartsOnTheDayInPreferences()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["WeekStart"] = "Sunday" })).StatusCode);
+        var goal = await AddGoalAsync(browser, TestBrowser.NewName("Gym three times"));
+        await AddSessionAsync(browser, goal, "2026-10-18", "10:00");
+        await AddSessionAsync(browser, goal, "2026-10-25", "10:00");
+
+        var goals = await PageAsync(browser, "/Goals");
+        var home = await PageAsync(browser, "/");
+        var plan = await PageAsync(browser, "/Plan");
+
+        Assert.Contains("This week, 18 – 24 Oct 2026", goals);
+        Assert.Contains("18 – 24 Oct 2026", home);
+        Assert.Contains("18 – 24 Oct 2026", plan);
+        Assert.All([goals, home, plan], html => Assert.Contains("1 not logged · 2 not planned yet", html));
+    }
+
     // GOL-2, Q37: the home page's "This week" card: each goal's week, and the way to plan it.
     [Fact]
     public async Task TheHomePage_ShowsEachGoalsWeek()

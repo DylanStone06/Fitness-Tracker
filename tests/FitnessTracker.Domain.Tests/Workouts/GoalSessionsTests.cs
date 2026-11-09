@@ -107,6 +107,38 @@ public class GoalSessionsTests
         Assert.Equal((planned[Gym], planned[Runs]), (sessions.Count(session => session.Goal == Gym), sessions.Count(session => session.Goal == Runs)));
     }
 
+    // §8, T4, CAL-4, Q21 (scheduling review of FIT-5, G2): the week of 19-25 October 2026, when London's clocks go back
+    // on the Sunday. A daily 01:30 gym session, Wednesday's cancelled, gives 6: Sunday's at the first 01:30 (00:30 UTC).
+    // Thursday runs: 15 October's moved to Sunday 25 October at 23:30 GMT counts; 22 October's moved to Monday 26 October
+    // at 00:30 doesn't. Every number is still the planner's.
+    [Fact]
+    public void AcrossTheClocksGoingBack_WithMovesAndACancellation_EachGoalsNumber_IsStillThePlanners()
+    {
+        var week = new DateInterval(new LocalDate(2026, 10, 19), new LocalDate(2026, 10, 25));
+        var gymSeries = new Series(new LocalDate(2026, 10, 12), new LocalTime(1, 30), Duration.FromMinutes(60), London, RecurrenceRule.Daily())
+            .CancelOccurrence(new LocalDate(2026, 10, 21));
+        var runSeries = new Series(new LocalDate(2026, 10, 1), new LocalTime(18, 0), Duration.FromMinutes(60), London, RecurrenceRule.Weekly([IsoDayOfWeek.Thursday]))
+            .MoveOccurrence(new LocalDate(2026, 10, 15), new LocalDateTime(2026, 10, 25, 23, 30), Duration.FromMinutes(60))
+            .MoveOccurrence(new LocalDate(2026, 10, 22), new LocalDateTime(2026, 10, 26, 0, 30), Duration.FromMinutes(60));
+        var activities = new[]
+        {
+            new PlannedActivity(Guid.NewGuid(), "Gym", gymSeries, Buffers.None, null) { GoalId = Gym },
+            new PlannedActivity(Guid.NewGuid(), "Run", runSeries, Buffers.None, null) { GoalId = Runs },
+        };
+        var request = new PlanRequest(week, Instant.FromUtc(2026, 10, 12, 12, 0), London, activities, [Goal(Gym), Goal(Runs)],
+            new SleepWindow(new LocalTime(23, 0), new LocalTime(7, 0), Duration.Zero, Duration.Zero), RestRules.None,
+            new PlanningContext(new LocalDate(2026, 10, 12), null, TravelTimes.None, new Dictionary<Guid, Place>()));
+
+        var planned = Planner.Plan(request).AlreadyPlanned;
+        var sessions = GoalSessions.On(activities, week, London);
+
+        Assert.Equal((6, 1), (planned[Gym], planned[Runs]));
+        Assert.Equal((planned[Gym], planned[Runs]), (sessions.Count(session => session.Goal == Gym), sessions.Count(session => session.Goal == Runs)));
+        Assert.Equal(
+            [Instant.FromUtc(2026, 10, 25, 0, 30), Instant.FromUtc(2026, 10, 25, 23, 30)],
+            sessions.Where(session => session.Day == new LocalDate(2026, 10, 25)).Select(session => session.Occurrence.Time.Start));
+    }
+
     private static PlannedActivity Weekly(string title, IsoDayOfWeek[] days) =>
         new(Guid.NewGuid(), title, new Series(new LocalDate(2026, 10, 5), new LocalTime(18, 0), Duration.FromMinutes(60), London, RecurrenceRule.Weekly(days)), Buffers.None, null);
 

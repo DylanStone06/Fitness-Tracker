@@ -86,6 +86,44 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Contains("returnToPlan=true", change);
     }
 
+    // Q38, CAL-4 (scheduling review of FIT-5, G1): a moved session's mark is kept by the date its rule puts it on.
+    // Thursday 29 October's gym, moved to Tuesday 3 November at 18:00, is marked skipped: in the week of 2 November it
+    // doesn't count (its time still busy), and Thursday 5 November's does.
+    [Fact]
+    public async Task AMovedSessionMarkedSkipped_IsKnownByItsRuleDate()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddGoalAsync(title, new() { ["SessionsPerWeek"] = "2" });
+        var goal = (await StoredData.GoalTitledAsync(factory, title))!.Id;
+        var session = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(session, new()
+        {
+            ["StartDate"] = "2026-10-29",
+            ["StartTime"] = "18:00",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[3]"] = "true",
+            ["GoalId"] = goal.ToString(),
+        });
+        var id = (await StoredData.ActivityTitledAsync(factory, session))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date=2026-10-29", $"/Activities/Occurrence/{id}", new()
+        {
+            ["Date"] = "2026-10-29",
+            ["Change"] = "Move",
+            ["NewDate"] = "2026-11-03",
+            ["NewStartTime"] = "18:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.MarkSessionAsync(id, "2026-10-29", "Skipped")).StatusCode);
+
+        var html = await PageAsync(browser, Week);
+
+        Assert.Contains("1 skipped · 1 to come · 1 not planned yet", WebUtility.HtmlDecode(html));
+        var form = Assert.Single(AddForms(html), form => form.Contains("name=\"Repeats\" value=\"Never\""));
+        Assert.NotEqual(("2026-11-03", "18:00"), (InputValue(form, "StartDate"), InputValue(form, "StartTime")));
+    }
+
     // Q38: only when every session still needed is in place of a skipped one. Here the goal asks for 2, one is planned
     // and skipped, and one was never planned: adding them every week is what builds the routine.
     [Fact]
