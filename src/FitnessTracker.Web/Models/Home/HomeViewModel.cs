@@ -2,6 +2,7 @@ using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
 using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
+using FitnessTracker.Web.Models.Goals;
 using FitnessTracker.Web.Services;
 using NodaTime;
 using NodaTime.Text;
@@ -12,9 +13,9 @@ namespace FitnessTracker.Web.Models.Home;
 public sealed record SetupStep(string Text, bool Done, string Controller, string Action = "Index", string? Progress = null);
 
 /// <summary>
-/// The home page (GOL-2, first part): a greeting, what is still to set up, the next activity, and the agenda for today
-/// and the next 7 days. The rest of GOL-2 (free time, tonight's sleep, weekly targets) comes with the phases that
-/// build those.
+/// The home page (GOL-2, first part): a greeting, what is still to set up, the next activity, the agenda for today and
+/// the next 7 days, and each weekly goal's week (FIT-5). The rest of GOL-2 (free time, tonight's sleep) comes with the
+/// phases that build those.
 /// </summary>
 public sealed class HomeViewModel
 {
@@ -60,6 +61,12 @@ public sealed class HomeViewModel
     /// </summary>
     public required IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState> SessionStates { get; init; }
 
+    /// <summary>GOL-2, FIT-5, Q37: each weekly goal's week so far, in the order the planner fits them in; none, no card.</summary>
+    public required IReadOnlyList<GoalWeekView> Goals { get; init; }
+
+    /// <summary>This week's dates, "19 – 25 Oct 2026", by the week start in Preferences.</summary>
+    public required string WeekDates { get; init; }
+
     public bool StillToSetUp => Steps.Any(step => !step.Done);
 
     /// <summary>FIT-1: the item's session state, or null when it isn't exercise.</summary>
@@ -99,7 +106,8 @@ public sealed class HomeViewModel
         IReadOnlyDictionary<Guid, ActivityCategory> categories,
         IReadOnlySet<Guid> repeating,
         IReadOnlyList<string> unreadable,
-        IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState> sessionStates)
+        IReadOnlyDictionary<(Guid Activity, LocalDate Date), SessionState> sessionStates,
+        GoalWeeks goals)
     {
         var next = Agenda.Next(agenda, user.Now.ToInstant());
         var home = user.Context.Home;
@@ -131,8 +139,11 @@ public sealed class HomeViewModel
             Repeating = repeating,
             Home = home,
             PlaceNames = user.Locations.ToDictionary(location => location.Id, location => location.Name),
-            Unreadable = unreadable,
+            // The week's goals read the activities again, for their own dates: one that can't be read is said once.
+            Unreadable = [.. unreadable.Concat(goals.Unreadable).Distinct()],
             SessionStates = sessionStates,
+            Goals = goals.Goals.Select(goal => GoalDisplay.WeekOf(goal, goals.Progress[goal.Id])).ToList(),
+            WeekDates = Week.Range(goals.Week),
         };
     }
 }

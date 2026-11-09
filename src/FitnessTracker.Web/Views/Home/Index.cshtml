@@ -151,6 +151,26 @@
             <h2 class="h4" id="day-@Model.Today.ToString("uuuu-MM-dd", null)">Today, @HomeViewModel.DayPattern.Format(Model.Today)</h2>
             @{ await Day(Model.Today, "Nothing planned today."); }
         </section>
+
+        @if (Model.Goals.Count > 0)
+        {
+            @* GOL-2, FIT-5, Q37: each weekly goal's week so far, a bar and the same in words. *@
+            <section class="card mt-4" aria-labelledby="this-week-heading">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-baseline column-gap-3 mb-2">
+                        <h2 class="h5 mb-0" id="this-week-heading">This week</h2>
+                        <span class="small text-body-secondary">@Model.WeekDates</span>
+                    </div>
+                    <ul class="list-unstyled d-grid gap-3 mb-3">
+                        @foreach (var goal in Model.Goals)
+                        {
+                            <li><partial name="_GoalWeek" model="goal" /></li>
+                        }
+                    </ul>
+                    <a asp-controller="Plan" asp-action="Index">Plan my week</a>
+                </div>
+            </section>
+        }
     </div>
 
     <div class="col-lg-7">
