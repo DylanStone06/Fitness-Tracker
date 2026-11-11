@@ -158,6 +158,33 @@ public sealed class RoutinesTests(TestAppFactory factory) : IClassFixture<TestAp
         Assert.Equal(id, (await StoredData.RoutineNamedAsync(factory, newName))!.Id);
     }
 
+    // Making a routine the usual one, a save that fails for any other reason isn't blamed on another routine made usual
+    // at the same moment (found in the Phase 7 review). It is a fault, for the error page, and nothing is saved: adding
+    // a routine, or changing one, while another is usual. (The name is just how the test makes the database refuse it.)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MakingOneUsual_WhenTheDatabaseFailsForAnotherReason_IsAFault(bool editing)
+    {
+        const string Refused = "A fault made by a test";
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var usual = TestBrowser.NewName("Usual week");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddRoutineAsync(usual, new() { ["IsUsual"] = "true" })).StatusCode);
+        var other = TestBrowser.NewName("Holiday");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddRoutineAsync(other)).StatusCode);
+        var otherId = (await StoredData.RoutineNamedAsync(factory, other))!.Id;
+        await StoredData.RefuseSavesWhereAsync(factory, "Routines", "Name", Refused);
+
+        var response = editing
+            ? await browser.SubmitFormAsync($"/Routines/Edit/{otherId}", $"/Routines/Edit/{otherId}", TestBrowser.RoutineForm(Refused, new() { ["IsUsual"] = "true" }))
+            : await browser.AddRoutineAsync(Refused, new() { ["IsUsual"] = "true" });
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.DoesNotContain("at the same moment", await response.Content.ReadAsStringAsync());
+        Assert.Null(await StoredData.RoutineNamedAsync(factory, Refused));
+        Assert.True((await StoredData.RoutineNamedAsync(factory, usual))!.IsUsual);
+    }
+
     [Fact]
     public async Task Delete_DeletesIt()
     {

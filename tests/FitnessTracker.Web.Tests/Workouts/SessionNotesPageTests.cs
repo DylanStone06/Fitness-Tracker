@@ -1,9 +1,6 @@
 using System.Net;
 using FitnessTracker.Domain.Workouts;
-using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 
 namespace FitnessTracker.Web.Tests.Workouts;
@@ -159,27 +156,13 @@ public sealed class SessionNotesPageTests(TestAppFactory factory) : IClassFixtur
             await MarkAsync(browser, id, "Done", "Felt fine");
         }
 
-        await RefuseFaultNotesAsync();
+        await StoredData.RefuseSavesWhereAsync(factory, "SessionLogs", "Notes", "A fault made by a test");
 
         var response = await MarkAsync(browser, id, "Done", "A fault made by a test");
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.DoesNotContain("another tab", WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync()));
         Assert.Equal(alreadyMarked ? "Felt fine" : null, (await StoredData.SessionLogAsync(factory, id, Today))?.Notes);
-    }
-
-    // Makes the database refuse to add or change a log with the notes "A fault made by a test", as it would refuse any
-    // save after a fault (a full disk, say).
-    private async Task RefuseFaultNotesAsync()
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync(
-            "CREATE TRIGGER IF NOT EXISTS RefuseFaultNotesAdded BEFORE INSERT ON SessionLogs " +
-            "WHEN NEW.Notes = 'A fault made by a test' BEGIN SELECT RAISE(ABORT, 'A fault made by a test'); END;");
-        await db.Database.ExecuteSqlRawAsync(
-            "CREATE TRIGGER IF NOT EXISTS RefuseFaultNotesChanged BEFORE UPDATE ON SessionLogs " +
-            "WHEN NEW.Notes = 'A fault made by a test' BEGIN SELECT RAISE(ABORT, 'A fault made by a test'); END;");
     }
 
     private async Task<(TestBrowser Browser, Guid Id)> SignedInWithASessionAsync(string category)

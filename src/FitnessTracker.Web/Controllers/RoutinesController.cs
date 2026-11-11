@@ -5,6 +5,7 @@ using FitnessTracker.Web.Models.Routines;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace FitnessTracker.Web.Controllers;
 
@@ -76,6 +77,11 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
         catch (DbUpdateException) when (model.IsUsual)
         {
+            if (!await AnotherWasMadeUsualAsync(transaction, stopped, exceptId: null))
+            {
+                throw;
+            }
+
             ModelState.AddModelError(nameof(model.IsUsual), UsualAtTheSameTime);
             return await FormViewAsync(model);
         }
@@ -143,6 +149,11 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
         }
         catch (DbUpdateException error) when (error is not DbUpdateConcurrencyException && model.IsUsual)
         {
+            if (!await AnotherWasMadeUsualAsync(transaction, stopped, exceptId: id))
+            {
+                throw;
+            }
+
             ModelState.AddModelError(nameof(model.IsUsual), UsualAtTheSameTime);
             return await FormViewAsync(model);
         }
@@ -407,6 +418,21 @@ public class RoutinesController(AppDbContext db, PlanningData planning, Activity
 
         await db.SaveChangesAsync();
         return others;
+    }
+
+    // After a save making a routine usual was refused: whether another routine was made usual meanwhile, in another tab
+    // (refused by the database's one-usual rule: AppDbContext), rather than a real fault. The save is rolled back first,
+    // so what is read is what is stored: a usual routine, other than this one, that the save didn't find and stop can
+    // only have been made usual since. With none, the caller rethrows, for the error page.
+    private async Task<bool> AnotherWasMadeUsualAsync(IDbContextTransaction transaction, List<Routine> stopped, Guid? exceptId)
+    {
+        await transaction.RollbackAsync();
+        db.ChangeTracker.Clear();
+        var usualNow = await db.Routines.AsNoTracking()
+            .Where(routine => routine.IsUsual && routine.Id != exceptId)
+            .Select(routine => routine.Id)
+            .ToListAsync();
+        return usualNow.Except(stopped.Select(routine => routine.Id)).Any();
     }
 
     // P1: a routine that stopped being usual is no longer in use on any date, so its activities stop happening. Said on

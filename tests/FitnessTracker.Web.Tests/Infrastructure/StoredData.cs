@@ -10,6 +10,28 @@ namespace FitnessTracker.Web.Tests.Infrastructure;
 /// </summary>
 public static class StoredData
 {
+    /// <summary>
+    /// Makes the database refuse to add or change a row of <paramref name="table"/> whose <paramref name="column"/> is
+    /// <paramref name="value"/> (a SQLite trigger), as it would refuse a save after a real fault (a full disk, say): for
+    /// testing that a page doesn't blame that on another tab. Only that value is refused, so a test class's other
+    /// tests, which share its database, are untouched.
+    /// </summary>
+    public static async Task RefuseSavesWhereAsync(TestAppFactory factory, string table, string column, object value)
+    {
+        var literal = value is string text
+            ? "'" + text.Replace("'", "''", StringComparison.Ordinal) + "'"
+            : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        foreach (var change in (string[])["INSERT", "UPDATE"])
+        {
+            var trigger = "CREATE TRIGGER \"RefuseForATest_" + Guid.NewGuid().ToString("N") + "\" BEFORE " + change +
+                " ON \"" + table + "\" WHEN NEW.\"" + column + "\" = " + literal +
+                " BEGIN SELECT RAISE(ABORT, 'A fault made by a test'); END;";
+            await db.Database.ExecuteSqlRawAsync(trigger);
+        }
+    }
+
     public static Task<Location?> LocationNamedAsync(TestAppFactory factory, string name) =>
         ReadAsync(factory, db => db.Locations.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(location => location.Name == name));
 
