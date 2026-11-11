@@ -162,6 +162,25 @@ public sealed partial class StrengthLogPageTests(TestAppFactory factory) : IClas
         Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
     }
 
+    // Q31 (silent-failure review of Phase 7): after a problem in one row, the page shows every row that was posted, as
+    // many as "Add more rows" had shown, so fixing it and saving keeps rows 7 onwards. They used to be left off the page,
+    // and the next save dropped them without a word.
+    [Fact]
+    public async Task AProblem_KeepsEveryRowThatWasPosted()
+    {
+        var (browser, id) = await SignedInWithASessionAsync();
+        var form = WorkoutForm(Enumerable.Range(1, 8).Select(row => ("Plank", row == 2 ? "" : "1", "", "")).ToArray());
+        form["Rows"] = "12";
+
+        var response = await browser.SubmitFormAsync($"/Sessions/Log/{id}?date=2026-10-19", $"/Sessions/Log/{id}", form);
+        var page = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("Row 2: enter the reps for Plank.", page);
+        Assert.Equal(12, ExerciseBoxes().Matches(page).Count);
+        Assert.Equal(("Plank", "1"), (BoxValue(page, "Sets[7].Exercise"), BoxValue(page, "Sets[7].Reps")));
+        Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
+    }
+
     // Q28 and the plan: marking it skipped removes the sets; the notes stay.
     [Fact]
     public async Task Skipping_RemovesTheSets()

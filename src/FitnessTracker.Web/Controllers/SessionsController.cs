@@ -97,13 +97,13 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             .SingleOrDefaultAsync(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date);
         if ((stored?.Version ?? Guid.Empty) != model.Version)
         {
-            return await ChangedElsewhereAsync(session, user);
+            return await ChangedElsewhereAsync(session, user, model);
         }
 
         if (tooEarly)
         {
             ModelState.AddModelError(string.Empty, "It hasn't started yet, so it can't be marked done. You can mark it skipped.");
-            return View(await PageAsync(session, user));
+            return View(await PageAgainAsync(session, user, model));
         }
 
         IEnumerable<ValidationResult> problems = savesARun ? model.RunProblems(user.Preferences.DistanceUnit)
@@ -118,10 +118,9 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             }
         }
 
-        // The page again, with what was typed still in its boxes (they show what was posted).
         if (!ModelState.IsValid)
         {
-            return View(await PageAsync(session, user));
+            return View(await PageAgainAsync(session, user, model));
         }
 
         if (model.Mark == SessionChoice.Planned)
@@ -177,7 +176,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             // Another tab saved it at the same moment: its version changed (DbUpdateConcurrencyException), or it marked a
             // session that had no mark, which can have only one (AppDbContext).
             db.ChangeTracker.Clear();
-            return await ChangedElsewhereAsync(session, user);
+            return await ChangedElsewhereAsync(session, user, model);
         }
 
         return RedirectToAction(nameof(Log), new { id, date = FormInput.Date.Format(session.Occurrence.Date) });
@@ -185,11 +184,26 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
 
     // The page as the session is now, saying why nothing was saved. Its hidden version is the current one (not the one
     // posted), so saving from it again works.
-    private async Task<IActionResult> ChangedElsewhereAsync(FoundSession session, UserPlanning user)
+    private async Task<IActionResult> ChangedElsewhereAsync(FoundSession session, UserPlanning user, SessionLogViewModel posted)
     {
         ModelState.AddModelError(string.Empty, ChangedElsewhere);
         ModelState.Remove(nameof(SessionLogViewModel.Version));
-        return View(nameof(Log), await PageAsync(session, user));
+        return View(nameof(Log), await PageAgainAsync(session, user, posted));
+    }
+
+    // The page again after a problem, with what was typed still in its boxes (they show what was posted), and for a gym
+    // session every set row that was posted, however many "Add more rows" had shown (Q31): a row left off the page would
+    // be dropped by the next save without a word.
+    private async Task<SessionLogViewModel> PageAgainAsync(FoundSession session, UserPlanning user, SessionLogViewModel posted)
+    {
+        var page = await PageAsync(session, user);
+        if (session.Category == ActivityCategory.Gym)
+        {
+            ModelState.Remove(nameof(SessionLogViewModel.Rows));
+            page.ShowRows(Math.Max(posted.Rows, posted.Sets.Count));
+        }
+
+        return page;
     }
 
     // The session the activity's rule puts on date, where it is now: null when the activity isn't the user's, isn't
