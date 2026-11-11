@@ -44,7 +44,7 @@ constraints, scoring, sleep) and says to read the requirements rather than guess
 | Milestone review | `pr-review-toolkit`: `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `type-design-analyzer` | End of each phase |
 | Security | `/security-review` per sensitive change; `claude-security` full scan (uses a lot of tokens, so ask first) | Auth and data changes; Phase 9 |
 | Simplify | `/simplify` | After a large change |
-| Run and see the app | `/run`, built-in browser | UI phases |
+| Run and see the app | `/run`, built-in browser (`.claude/launch.json` starts `dev\ft-dev.ps1 run` on port 5137 for it) | UI phases |
 | Charts | `dataviz` skill | After the MVP (analytics) |
 | AI planning | `claude-api` skill | After the MVP (AI assistance) |
 

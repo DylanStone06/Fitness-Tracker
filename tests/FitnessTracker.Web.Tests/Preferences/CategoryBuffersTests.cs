@@ -66,6 +66,29 @@ public sealed class CategoryBuffersTests(TestAppFactory factory) : IClassFixture
         Assert.Equal(20, (await StoredData.CategoryBuffersOfAsync(factory, email))[ActivityCategory.Run].ChangingMinutes);
     }
 
+    // ... but a save that fails for any other reason isn't blamed on another tab (found in the Phase 7 review), which
+    // would only have the user try again, and again. It is a fault, for the error page, and nothing is saved: on a first
+    // save, or a later one. (47 minutes is just how the test makes the database refuse it.)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Saving_WhenTheDatabaseFailsForAnotherReason_IsAFault_NotAnotherTabs(bool savedBefore)
+    {
+        var (browser, email) = await SignedInAsync("alex");
+        if (savedBefore)
+        {
+            Assert.Equal(HttpStatusCode.Redirect, (await browser.SubmitFormAsync(Page, Page, Form([]))).StatusCode);
+        }
+
+        await StoredData.RefuseSavesWhereAsync(factory, "CategoryBuffers", "PreparationMinutes", 47);
+
+        var response = await browser.SubmitFormAsync(Page, Page, Form(new() { ["Rows[3].PreparationMinutes"] = "47" }));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.DoesNotContain("another tab", await response.Content.ReadAsStringAsync());
+        Assert.DoesNotContain((await StoredData.CategoryBuffersOfAsync(factory, email)).Values, buffers => buffers.PreparationMinutes == 47);
+    }
+
     // T19: the page has no id in its address; it only ever shows and changes the signed-in user's own defaults.
     [Fact]
     public async Task AnotherUsersDefaults_AreLeftAlone_AndNotShown()

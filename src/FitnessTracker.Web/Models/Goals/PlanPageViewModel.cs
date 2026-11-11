@@ -2,6 +2,7 @@ using System.Globalization;
 using FitnessTracker.Domain.Recurrence;
 using FitnessTracker.Domain.Scheduling;
 using FitnessTracker.Domain.Time;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Models.Activities;
 using FitnessTracker.Web.Models.Routines;
@@ -33,28 +34,26 @@ public sealed record SuggestionView(
 {
     /// <summary>CAL-9: the "every week" button's words: "Every week", or "Every week B" for that week of A/B weeks.</summary>
     public string EveryWeekLabel { get; init; } = "Every week";
+
+    /// <summary>
+    /// Q38: "Just this week" is the main button, as the session is in place of a skipped one: every session its goal
+    /// still needs that week is. Added every week, it would be one more than the goal asks for in the weeks after.
+    /// </summary>
+    public bool JustThisWeekFirst { get; init; }
 }
 
 /// <summary>SCH-5: sessions of a goal that don't fit, each day's reason, and what would.</summary>
 public sealed record ShortfallView(string Title, string Summary, IReadOnlyList<string> Days, string? Shorter, string? Blocked);
-
-/// <summary>How far a goal is planned already this week: "1 of 3 already planned".</summary>
-public sealed record GoalProgress(string Title, string Planned);
 
 /// <summary>The "Plan my week" page (SCH-3 to SCH-5).</summary>
 public sealed class PlanPageViewModel
 {
     private static readonly LocalDatePattern DayPattern = LocalDatePattern.CreateWithInvariantCulture("ddd d MMM");
 
-    private static readonly LocalDatePattern FullDate = LocalDatePattern.CreateWithInvariantCulture("d MMM uuuu");
-
-    private static readonly LocalDatePattern DayAndMonth = LocalDatePattern.CreateWithInvariantCulture("d MMM");
-
     private static readonly LocalDatePattern SkipDate = LocalDatePattern.CreateWithInvariantCulture("uuuuMMdd");
 
-    public required string WeekFrom { get; init; }
-
-    public required string WeekTo { get; init; }
+    /// <summary>"2 – 8 Nov 2026".</summary>
+    public required string WeekDates { get; init; }
 
     /// <summary>The week's first day ("2026-11-02"), and those of the weeks either side, for links.</summary>
     public required string Date { get; init; }
@@ -67,7 +66,8 @@ public sealed class PlanPageViewModel
 
     public required bool HasGoals { get; init; }
 
-    public required IReadOnlyList<GoalProgress> Progress { get; init; }
+    /// <summary>FIT-5, Q37: each goal's progress in the week, in the order the planner fits them in.</summary>
+    public required IReadOnlyList<GoalWeekView> Progress { get; init; }
 
     public required IReadOnlyList<SuggestionView> Suggestions { get; init; }
 
@@ -125,15 +125,21 @@ public sealed class PlanPageViewModel
 
             // CAL-9: "every week" is that week of the routine in use then, so planning week B builds week B.
             var (weeks, everyWeekLabel) = RoutineDisplay.EveryWeekFor(start.Date, planned.Routines.Calendar, planned.Routines.All);
+            var inPlaceOfSkipped = InPlaceOfSkipped(planned.Progress[goal.Id]);
             var change = new QueryBuilder
             {
                 { "goal", goal.Id.ToString() },
                 { "date", FormInput.Date.Format(start.Date) },
                 { "time", FormInput.Time.Format(start.TimeOfDay) },
-                { "everyWeek", "true" },
-                { "returnToPlan", "true" },
             };
-            if (weeks.Length > 0)
+            // Q38: "Change" opens the form as the main button adds it: just this week in place of a skipped session.
+            if (!inPlaceOfSkipped)
+            {
+                change.Add("everyWeek", "true");
+            }
+
+            change.Add("returnToPlan", "true");
+            if (!inPlaceOfSkipped && weeks.Length > 0)
             {
                 change.Add("weeks", weeks);
             }
@@ -146,34 +152,27 @@ public sealed class PlanPageViewModel
                 $"{Agenda.Starts(item, clock)} – {Agenda.Ends(item, clock)}",
                 goal.LocationId is { } at && places.TryGetValue(at, out var place) ? place : null,
                 Agenda.Trip(item, clock),
-                suggestion.Reasons,
+                inPlaceOfSkipped ? ["In place of a skipped session", .. suggestion.Reasons] : suggestion.Reasons,
                 FormFields(goal, start.LocalDateTime, everyWeek: true, weeks),
                 FormFields(goal, start.LocalDateTime, everyWeek: false, weeks: ""),
                 change.ToString(),
                 no.ToString())
             {
                 EveryWeekLabel = everyWeekLabel,
+                JustThisWeekFirst = inPlaceOfSkipped,
             };
         }
 
-        var sameMonth = week.Start.Month == week.End.Month && week.Start.Year == week.End.Year;
-        var sameYear = week.Start.Year == week.End.Year;
         return new PlanPageViewModel
         {
-            WeekFrom = sameMonth ? week.Start.Day.ToString(CultureInfo.InvariantCulture)
-                : sameYear ? DayAndMonth.Format(week.Start)
-                : FullDate.Format(week.Start),
-            WeekTo = FullDate.Format(week.End),
+            WeekDates = Week.Range(week),
             Date = date,
             PreviousWeek = FormInput.Date.Format(week.Start.PlusWeeks(-1)),
             NextWeek = FormInput.Date.Format(week.Start.PlusWeeks(1)),
             IsThisWeek = week.Contains(planned.User.Now.Date),
             HasGoals = planned.Goals.Count > 0,
-            Progress = planned.Goals.Values
-                .Where(goal => planned.Plan.AlreadyPlanned.GetValueOrDefault(goal.Id) > 0)
-                .OrderByDescending(goal => goal.Priority)
-                .ThenBy(goal => goal.Title, StringComparer.InvariantCultureIgnoreCase)
-                .Select(goal => new GoalProgress(goal.Title, $"{Math.Min(planned.Plan.AlreadyPlanned[goal.Id], goal.SessionsPerWeek)} of {goal.SessionsPerWeek} already planned"))
+            Progress = PlanningData.InOrder(planned.Goals.Values)
+                .Select(goal => GoalDisplay.WeekOf(goal, planned.Progress[goal.Id]))
                 .ToList(),
             Suggestions = planned.Plan.Suggestions.Select(View).ToList(),
             Shortfalls = planned.Plan.Shortfalls.Select(shortfall => new ShortfallView(
@@ -194,6 +193,10 @@ public sealed class PlanPageViewModel
             Routine = RoutineDisplay.InUse(planned.Routines.Calendar.Across(week), planned.Routines.All),
         };
     }
+
+    // Q38: every session the goal still needs this week is in place of a skipped one, as the skipped ones would have
+    // been enough. When it is short of others as well, adding them every week is what builds the routine, so no.
+    private static bool InPlaceOfSkipped(GoalProgress progress) => progress.Skipped > 0 && progress.NotPlanned <= progress.Skipped;
 
     // The activity form's fields for a session of the goal starting then: movable, as the planner chose its time, and
     // weekly on that day, from then on, in the weeks given (CAL-9), or just once (Q12). Getting ready and changing are

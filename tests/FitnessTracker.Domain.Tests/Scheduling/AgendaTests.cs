@@ -219,6 +219,23 @@ public class AgendaTests
         Assert.False(next?.UnderWay);
     }
 
+    // FIT-1, Q38: a session marked skipped isn't "the next activity", as you've said you won't do it, even once its time
+    // has come. It stays in the agenda (marked skipped there); the one after it is next. Known by its rule date (CAL-4).
+    [Theory]
+    [InlineData(13, 0)]
+    [InlineData(15, 10)]
+    public void ASkippedSession_IsntNext(int hour, int minute)
+    {
+        var run = OneOff("Run", Monday, new LocalTime(15, 0), minutes: 30, at: null);
+        var gym = OneOff("Gym", Monday, new LocalTime(18, 0), minutes: 50, at: Gym);
+        var agenda = Agenda.Between([run, gym], Context(), Monday, Monday);
+
+        var next = Agenda.Next(agenda, Instant.FromUtc(2026, 11, 2, hour, minute), skipped: new HashSet<SkippedSession> { new(run.Id, Monday) });
+
+        Assert.Equal("Gym", next?.Item.Activity.Title);
+        Assert.Equal(2, agenda.Count);
+    }
+
     // Walking home from the gym (it ended at 18:50; back at 19:45) still counts: the session is under way until you're
     // back. At 19:45 it's over (half-open, §8), and nothing else is left.
     [Theory]

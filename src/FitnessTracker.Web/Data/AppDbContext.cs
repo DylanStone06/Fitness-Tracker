@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Services;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
     public DbSet<Routine> Routines => Set<Routine>();
 
     public DbSet<RoutineDateRange> RoutineDateRanges => Set<RoutineDateRange>();
+
+    public DbSet<SessionLog> SessionLogs => Set<SessionLog>();
+
+    public DbSet<Exercise> Exercises => Set<Exercise>();
+
+    public DbSet<SessionSet> SessionSets => Set<SessionSet>();
 
     // Read by the query filter each time a query runs, so every context filters by its own signed-in user.
     // Null when nobody is signed in: the filter then matches no rows.
@@ -144,6 +151,38 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser c
             // says so).
             dates.HasOne<Routine>().WithMany().HasForeignKey(d => d.RoutineId).OnDelete(DeleteBehavior.Cascade);
             dates.HasOne<AppUser>().WithMany().HasForeignKey(d => d.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SessionLog>(log =>
+        {
+            // One mark per session, even if two tabs mark it at the same moment.
+            log.HasIndex(l => new { l.ActivityId, l.OccurrenceDate }).IsUnique();
+            log.Property(l => l.CustomRunType).HasMaxLength(SessionLog.CustomRunTypeMaxLength);
+            log.Property(l => l.CustomOtherType).HasMaxLength(SessionLog.CustomRunTypeMaxLength);
+            log.Property(l => l.Notes).HasMaxLength(SessionLog.NotesMaxLength);
+            // Deleting an activity deletes what its sessions were marked as.
+            log.HasOne<Activity>().WithMany().HasForeignKey(l => l.ActivityId).OnDelete(DeleteBehavior.Cascade);
+            log.HasOne<AppUser>().WithMany().HasForeignKey(l => l.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Exercise>(exercise =>
+        {
+            exercise.Property(e => e.Name).HasMaxLength(ExerciseNames.MaxLength);
+            exercise.Property(e => e.NameKey).HasMaxLength(ExerciseNames.MaxLength);
+            // Q30: one exercise per name per person, ignoring capitals, even if two tabs add it at once.
+            exercise.HasIndex(e => new { e.OwnerId, e.NameKey }).IsUnique();
+            exercise.HasOne<AppUser>().WithMany().HasForeignKey(e => e.OwnerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SessionSet>(set =>
+        {
+            // A session's sets go with its log (marked skipped or back to planned, or its activity deleted).
+            set.HasOne<SessionLog>().WithMany(log => log.Sets).HasForeignKey(s => s.SessionLogId).OnDelete(DeleteBehavior.Cascade);
+            set.HasIndex(s => new { s.SessionLogId, s.Position }).IsUnique();
+            // An exercise in use isn't deleted. NO ACTION rather than RESTRICT, as SQLite checks it once the whole delete
+            // is done, so deleting an account still deletes both (ACC-9).
+            set.HasOne<Exercise>().WithMany().HasForeignKey(s => s.ExerciseId).OnDelete(DeleteBehavior.NoAction);
+            set.HasOne<AppUser>().WithMany().HasForeignKey(s => s.OwnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every owned entity type gets the same protection, so a new one can't be forgotten.

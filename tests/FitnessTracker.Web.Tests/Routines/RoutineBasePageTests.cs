@@ -81,8 +81,9 @@ public sealed class RoutineBasePageTests(TestAppFactory factory) : IClassFixture
 
         Assert.Contains($"Sat 7 Nov: Your base then is {setup.Flat.Name}, and there's no travel time from {setup.Flat.Name} to {setup.Gym.Name}", html);
         Assert.Contains($"Sun 8 Nov: Your base then is {setup.Flat.Name}", html);
-        Assert.Equal(5, html.Split($"<span class=\"fw-semibold text-break\" dir=\"auto\">{gym}</span>").Length - 1);
-        Assert.Equal(7, html.Split($"<span class=\"fw-semibold text-break\" dir=\"auto\">{run}</span>").Length - 1);
+        // Each suggestion's "Just this week" button names it for a screen reader.
+        Assert.Equal(5, html.Split($"Just this week<span class=\"visually-hidden\">: {gym}, ").Length - 1);
+        Assert.Equal(7, html.Split($"Just this week<span class=\"visually-hidden\">: {run}, ").Length - 1);
     }
 
     // The times suggested for the Brighton weekend say they leave from the flat, the weekdays from home (scheduling

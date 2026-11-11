@@ -57,14 +57,22 @@ public class CategoryBuffersController(AppDbContext db) : Controller
         catch (DbUpdateException)
         {
             // Another tab saved since this form was opened: a version that no longer matches, or a first save of the
-            // same category at once (refused by the one-row-per-category index). Keep what was typed, give the form the
-            // latest versions, and ask: saving again is then a deliberate choice.
+            // same category at once (refused by the one-row-per-category index). Either way some row's version is no
+            // longer the one the form was opened with. If none has changed, nothing else saved them, so this is a real
+            // fault, for the error page: saying another tab did would only have the user try again, and again.
             db.ChangeTracker.Clear();
             var current = await db.CategoryBuffers.AsNoTracking().ToListAsync();
+            Guid VersionNow(ActivityCategory category) => current.FirstOrDefault(saved => saved.Category == category)?.Version ?? Guid.Empty;
+            if (model.Rows.All(row => VersionNow(row.Category) == row.Version))
+            {
+                throw;
+            }
+
+            // Keep what was typed, give the form the latest versions, and ask: saving again is then a deliberate choice.
             for (var i = 0; i < model.Rows.Count; i++)
             {
                 ModelState.Remove($"Rows[{i}].Version");
-                model.Rows[i].Version = current.FirstOrDefault(saved => saved.Category == model.Rows[i].Category)?.Version ?? Guid.Empty;
+                model.Rows[i].Version = VersionNow(model.Rows[i].Category);
             }
 
             ModelState.AddModelError(string.Empty,

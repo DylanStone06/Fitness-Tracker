@@ -32,12 +32,117 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
 
         var html = await PageAsync(browser, Week);
 
-        Assert.Contains("2 – 8 Nov 2026", html);
+        Assert.Contains("2 – 8 Nov 2026", WebUtility.HtmlDecode(html));
         Assert.Equal(3, AddForms(html).Count(form => form.Contains("value=\"Weekly\"")));
         Assert.Equal(3, AddForms(html).Count(form => form.Contains("name=\"Repeats\" value=\"Never\"")));
         Assert.All(AddForms(html), form => Assert.Contains("name=\"ReturnToPlan\" value=\"true\"", form));
         Assert.Equal(3, Regex.Matches(html, """href="/Activities/Create\?goal=""").Count);
         Assert.Equal(3, Regex.Matches(html, """href="/Plan\?date=2026-11-02&amp;skip=""").Count);
+        // Building the routine: "Every week" is the main button.
+        Assert.Equal(3, Regex.Matches(html, """class="btn btn-sm btn-primary">Every week""").Count);
+    }
+
+    // FIT-5, Q37: each goal's week, even with nothing planned for it yet.
+    [Fact]
+    public async Task EachGoalsWeek_IsShown_EvenWithNothingPlanned()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddGoalAsync(title);
+
+        var html = WebUtility.HtmlDecode(await PageAsync(browser, Week));
+
+        Assert.Matches($"""<progress[^>]*max="3"[^>]*value="0"[^>]*aria-label="{title}: 0 of 3 done"[^>]*>""", html);
+        Assert.Contains("3 not planned yet", html);
+    }
+
+    // Q38: a session marked skipped doesn't count towards its goal, so another time is found that week, not at its own
+    // time (still busy). The new one is in its place, so "Just this week" is the main button.
+    [Fact]
+    public async Task ASkippedSession_GetsAnotherTimeThatWeek_JustThisWeekFirst()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddGoalAsync(title, new() { ["SessionsPerWeek"] = "1" });
+        var goal = (await StoredData.GoalTitledAsync(factory, title))!.Id;
+        var session = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(session, new() { ["StartDate"] = "2026-11-04", ["StartTime"] = "07:00", ["GoalId"] = goal.ToString() });
+        var id = (await StoredData.ActivityTitledAsync(factory, session))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.MarkSessionAsync(id, "2026-11-04", "Skipped")).StatusCode);
+
+        var html = await PageAsync(browser, Week);
+
+        var form = Assert.Single(AddForms(html), form => form.Contains("name=\"Repeats\" value=\"Never\""));
+        Assert.NotEqual(("2026-11-04", "07:00"), (InputValue(form, "StartDate"), InputValue(form, "StartTime")));
+        var text = WebUtility.HtmlDecode(html);
+        Assert.Contains($"aria-label=\"{title}: 0 of 1 done\"", text);
+        Assert.Contains("1 skipped · 1 not planned yet", text);
+        Assert.Contains("In place of a skipped session", text);
+        Assert.Matches("""class="btn btn-sm btn-primary">Just this week""", html);
+        Assert.Matches("""class="btn btn-sm btn-outline-primary">Every week""", html);
+        // "Change" opens the form for just this week too (scheduling review of FIT-5, L2).
+        var change = Assert.Single(ChangeLinks(html));
+        Assert.DoesNotContain("everyWeek", change);
+        Assert.Contains("returnToPlan=true", change);
+    }
+
+    // Q38, CAL-4 (scheduling review of FIT-5, G1): a moved session's mark is kept by the date its rule puts it on.
+    // Thursday 29 October's gym, moved to Tuesday 3 November at 18:00, is marked skipped: in the week of 2 November it
+    // doesn't count (its time still busy), and Thursday 5 November's does.
+    [Fact]
+    public async Task AMovedSessionMarkedSkipped_IsKnownByItsRuleDate()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddGoalAsync(title, new() { ["SessionsPerWeek"] = "2" });
+        var goal = (await StoredData.GoalTitledAsync(factory, title))!.Id;
+        var session = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(session, new()
+        {
+            ["StartDate"] = "2026-10-29",
+            ["StartTime"] = "18:00",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[3]"] = "true",
+            ["GoalId"] = goal.ToString(),
+        });
+        var id = (await StoredData.ActivityTitledAsync(factory, session))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date=2026-10-29", $"/Activities/Occurrence/{id}", new()
+        {
+            ["Date"] = "2026-10-29",
+            ["Change"] = "Move",
+            ["NewDate"] = "2026-11-03",
+            ["NewStartTime"] = "18:00",
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.MarkSessionAsync(id, "2026-10-29", "Skipped")).StatusCode);
+
+        var html = await PageAsync(browser, Week);
+
+        Assert.Contains("1 skipped · 1 to come · 1 not planned yet", WebUtility.HtmlDecode(html));
+        var form = Assert.Single(AddForms(html), form => form.Contains("name=\"Repeats\" value=\"Never\""));
+        Assert.NotEqual(("2026-11-03", "18:00"), (InputValue(form, "StartDate"), InputValue(form, "StartTime")));
+    }
+
+    // Q38: only when every session still needed is in place of a skipped one. Here the goal asks for 2, one is planned
+    // and skipped, and one was never planned: adding them every week is what builds the routine.
+    [Fact]
+    public async Task AGoalShortOfSessionsAsWell_KeepsEveryWeekFirst()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        await browser.AddGoalAsync(title, new() { ["SessionsPerWeek"] = "2" });
+        var goal = (await StoredData.GoalTitledAsync(factory, title))!.Id;
+        var session = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(session, new() { ["StartDate"] = "2026-11-04", ["StartTime"] = "07:00", ["GoalId"] = goal.ToString() });
+        var id = (await StoredData.ActivityTitledAsync(factory, session))!.Id;
+        await browser.MarkSessionAsync(id, "2026-11-04", "Skipped");
+
+        var html = await PageAsync(browser, Week);
+
+        Assert.Equal(2, Regex.Matches(html, """class="btn btn-sm btn-primary">Every week""").Count);
+        Assert.DoesNotContain("In place of a skipped session", html);
+        Assert.All(ChangeLinks(html), change => Assert.Contains("everyWeek=true", change));
     }
 
     // SCH-4, Q12: "Every week" adds the session every week on that day, for the goal, through the check on save, and
@@ -61,7 +166,7 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.StartsWith("FREQ=WEEKLY", saved.RepeatRule);
         Assert.False(saved.IsFixed);
         var after = await PageAsync(browser, Week);
-        Assert.Contains("1 of 3 already planned", after);
+        Assert.Contains("1 to come · 2 not planned yet", WebUtility.HtmlDecode(after));
         Assert.Equal(2, AddForms(after).Count(form => form.Contains("value=\"Weekly\"")));
     }
 
@@ -161,6 +266,10 @@ public sealed partial class PlanPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
     }
+
+    // Each suggestion's "Change" link, decoded.
+    private static List<string> ChangeLinks(string html) =>
+        Regex.Matches(html, """href="(/Activities/Create\?goal=[^"]+)" """.TrimEnd()).Select(match => WebUtility.HtmlDecode(match.Groups[1].Value)).ToList();
 
     // Every form on the page that adds a session through the activity form.
     private static List<string> AddForms(string html) =>

@@ -60,10 +60,22 @@ public sealed record PlanRequest(
 {
     /// <summary>SCH-4: days the user said no to for a goal, which get none of its sessions.</summary>
     public IReadOnlyCollection<RejectedDay> Rejected { get; init; } = [];
+
+    /// <summary>
+    /// Q38, FIT-5: sessions marked skipped. One doesn't count towards its goal (the number planned, one a day, the
+    /// spread), so the goal can be given another time that week; it is still busy time, so its own time isn't offered,
+    /// and a demanding one still counts for the rest rules (H5, H6), as the check on save still sees it. Each is known by
+    /// the date its rule puts it on (CAL-4), wherever it was moved, so a caller passes the mark of every occurrence of
+    /// <see cref="Activities"/> it loads, by that date, not by the date it now starts.
+    /// </summary>
+    public IReadOnlyCollection<SkippedSession> Skipped { get; init; } = [];
 }
 
 /// <summary>SCH-4: a day the user said no to for one goal's session (another time that day: change the suggestion).</summary>
 public readonly record struct RejectedDay(Guid Goal, LocalDate Date);
+
+/// <summary>FIT-1, Q38: a session marked skipped: its activity, and the date its rule puts it on (CAL-4).</summary>
+public readonly record struct SkippedSession(Guid Activity, LocalDate Date);
 
 /// <summary>SCH-3: a time for one session of a goal, with what it takes up and why it was chosen (§7.3).</summary>
 public sealed record Suggestion(PlanGoal Goal, Interval Time, Footprint Footprint, IReadOnlyList<string> Reasons);
@@ -191,9 +203,9 @@ public static class Planner
     /// offered instead. When none fits, <see cref="SessionAlternatives.None"/> says why. For a stored activity's
     /// occurrence use <see cref="OptionsFor"/>, which does all that.
     /// </summary>
-    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null)
+    public static SessionAlternatives Options(PlanRequest request, PlanGoal session, int most, Instant? notAt = null, IReadOnlySet<LocalDate>? notOn = null)
     {
-        var week = new WeekState(request) { NotAt = notAt };
+        var week = new WeekState(request) { NotAt = notAt, NotOn = notOn ?? new HashSet<LocalDate>() };
         if (week.Blocked(session, tooLong: $"Counting getting ready, travel and changing, {session.Title} would take up more than a day") is { } blocked)
         {
             return new SessionAlternatives([], new Shortfall(session, 1, [], Blocked: blocked));
@@ -229,6 +241,10 @@ public static class Planner
             .Append(activity with { Series = activity.Series.CancelOccurrence(date), GoalId = goalId })
             .ToList();
         var start = occurrence.Time.Start.InZone(request.Zone).TimeOfDay;
+
+        // Q17: kept though its own date isn't in use (moved out of a week later given to a holiday), it can only go to a day
+        // it happens on; anywhere else it would disappear (scheduling review of Q17, M1). None for any other occurrence.
+        var notOn = activity.Series.Allows(date) ? [] : request.Week.Where(day => !activity.Series.Allows(day)).ToHashSet();
         var session = new PlanGoal(
             goalId,
             activity.Title,
@@ -241,7 +257,7 @@ public static class Planner
             new HashSet<IsoDayOfWeek>(),
             new[] { TimeOfDay.Morning, TimeOfDay.Midday, TimeOfDay.Afternoon, TimeOfDay.Evening }
                 .FirstOrDefault(part => HoursOf(part) is { } hours && start >= hours.From && start < hours.To));
-        return Options(request with { Activities = activities, Goals = [session] }, session, most, notAt: occurrence.Time.Start);
+        return Options(request with { Activities = activities, Goals = [session] }, session, most, notAt: occurrence.Time.Start, notOn);
     }
 
     /// <summary>
@@ -290,6 +306,7 @@ public static class Planner
         None,
         Past,
         GoalAlreadyThatDay,
+        WouldDisappear,
         SaidNo,
         RecoveryDay,
         MostDemanding,
@@ -318,6 +335,7 @@ public static class Planner
             _zone = request.Zone;
             // Wide enough for clashes and for the rest between demanding sessions (H5, scheduling review H-1).
             var loaded = DatesToLoadFor(request.Week, request.Rest.BetweenDemanding);
+            var skipped = request.Skipped.ToHashSet();
             foreach (var activity in request.Activities)
             {
                 var unknownTravel = new HashSet<string>();
@@ -344,7 +362,8 @@ public static class Planner
                         _demanding.Add(occurrence.Time.Start);
                     }
 
-                    if (activity.GoalId is { } goal)
+                    // Q38: a session marked skipped doesn't count towards its goal, though its time stays busy above.
+                    if (activity.GoalId is { } goal && !skipped.Contains(new SkippedSession(activity.Id, occurrence.Date)))
                     {
                         SessionsOf(goal).Add(occurrence.Time.Start.InZone(_zone).Date);
                     }
@@ -364,6 +383,9 @@ public static class Planner
 
         /// <summary>SCH-6: a start not to offer, the time the session has now.</summary>
         public Instant? NotAt { get; init; }
+
+        /// <summary>SCH-6, Q17: days the session would disappear on, moved there (its activity doesn't happen then).</summary>
+        public IReadOnlySet<LocalDate> NotOn { get; init; } = new HashSet<LocalDate>();
 
         /// <summary>What couldn't be counted, in a fixed order (SCH-7).</summary>
         public IReadOnlyList<string> Notes => _notes.ToList();
@@ -588,6 +610,11 @@ public static class Planner
                 return new Verdict(Broken.GoalAlreadyThatDay, footprint);
             }
 
+            if (NotOn.Contains(date))
+            {
+                return new Verdict(Broken.WouldDisappear, footprint);
+            }
+
             if (_request.Rejected.Contains(new RejectedDay(goal.Id, date)))
             {
                 return new Verdict(Broken.SaidNo, footprint);
@@ -688,6 +715,8 @@ public static class Planner
             var first = verdicts[0];
             switch (first.Broken)
             {
+                case Broken.WouldDisappear:
+                    return $"Moved here, {goal.Title} would disappear: it doesn't happen on this day now";
                 case Broken.SaidNo:
                     return "You said no to this day";
                 case Broken.RecoveryDay:

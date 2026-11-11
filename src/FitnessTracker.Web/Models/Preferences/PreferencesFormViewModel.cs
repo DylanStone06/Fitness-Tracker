@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using FitnessTracker.Domain.Workouts;
 using FitnessTracker.Web.Data;
 using NodaTime;
 using NodaTime.Text;

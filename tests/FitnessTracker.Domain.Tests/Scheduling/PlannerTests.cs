@@ -551,6 +551,144 @@ public class PlannerTests
         Assert.DoesNotContain(options.Options, option => option.Time.Start.InZone(London).Date == Week.Start.PlusDays(2));
     }
 
+    // Q38, FIT-5: a goal's session marked skipped (Tuesday 3 November's gym, 18:00 to 19:00) no longer counts towards it,
+    // so another time is suggested that week; the skipped session's own time is still busy, so it isn't offered.
+    [Fact]
+    public void ASkippedSession_DoesntCountTowardsItsGoal_AndItsTimeIsntOffered()
+    {
+        var goal = Goal("Gym", sessions: 1);
+        var tuesday = OneOff("Gym", new LocalDate(2026, 11, 3), new LocalTime(18, 0), 60) with { GoalId = goal.Id };
+        var request = Request([goal], [tuesday]) with { Skipped = [new SkippedSession(tuesday.Id, new LocalDate(2026, 11, 3))] };
+
+        var plan = Planner.Plan(request);
+
+        Assert.Equal(0, plan.AlreadyPlanned[goal.Id]);
+        var replacement = Assert.Single(plan.Suggestions);
+        var (busyFrom, busyTo) = (Instant.FromUtc(2026, 11, 3, 18, 0), Instant.FromUtc(2026, 11, 3, 19, 0)); // GMT
+        Assert.False(replacement.Time.Start < busyTo && busyFrom < replacement.Time.End);
+    }
+
+    // ... while one not skipped still counts: nothing more to suggest.
+    [Fact]
+    public void ASessionNotSkipped_StillCounts()
+    {
+        var goal = Goal("Gym", sessions: 1);
+        var tuesday = OneOff("Gym", new LocalDate(2026, 11, 3), new LocalTime(18, 0), 60) with { GoalId = goal.Id };
+        var request = Request([goal], [tuesday]) with { Skipped = [new SkippedSession(tuesday.Id, new LocalDate(2026, 11, 4))] };
+
+        var plan = Planner.Plan(request);
+
+        Assert.Equal(1, plan.AlreadyPlanned[goal.Id]);
+        Assert.Empty(plan.Suggestions);
+    }
+
+    // Q38 (scheduling review of Q38, M2): the skipped session's own time stays busy even where it would be best. Tuesday 3
+    // November's gym, 17:00 to 18:00, is skipped; the goal prefers Tuesday evenings. Free, the best would be Tuesday at
+    // 17:00. Busy, it is Tuesday at 19:00: 18:00 to 18:45 have less free time before them.
+    [Fact]
+    public void ASkippedSessionsOwnTime_StaysBusy_EvenWhereItWouldBeBest()
+    {
+        var goal = Goal("Gym", sessions: 1, days: [IsoDayOfWeek.Tuesday], time: TimeOfDay.Evening);
+        var tuesday = OneOff("Gym", new LocalDate(2026, 11, 3), new LocalTime(17, 0), 60) with { GoalId = goal.Id };
+        var request = Request([goal], [tuesday]) with { Skipped = [new SkippedSession(tuesday.Id, new LocalDate(2026, 11, 3))] };
+
+        var replacement = Assert.Single(Planner.Plan(request).Suggestions);
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 3, 19, 0), replacement.Time.Start); // GMT
+    }
+
+    // Q38, SCH-1, H5-H6 (scheduling review of Q38, M2): a skipped demanding session still counts for the rest rules, as the
+    // check on save sees it. Tuesday 3 November's intervals, 18:00 to 19:00, demanding, skipped; the goal prefers Tuesday
+    // evenings; 24 hours apart, one a day. Tuesday is full (H6) and Wednesday can't start before 18:00 (H5), so Monday at
+    // 17:00, 25 hours before it. Without the rule it would be Tuesday at 19:00, which the check on save refuses.
+    [Fact]
+    public void ASkippedDemandingSession_StillKeepsTheRestRules()
+    {
+        var goal = Goal("Intervals", sessions: 1, demanding: true, days: [IsoDayOfWeek.Tuesday], time: TimeOfDay.Evening);
+        var tuesday = OneOff("Intervals", new LocalDate(2026, 11, 3), new LocalTime(18, 0), 60) with { GoalId = goal.Id, IsDemanding = true };
+        var request = Request([goal], [tuesday]) with { Skipped = [new SkippedSession(tuesday.Id, new LocalDate(2026, 11, 3))] };
+
+        var replacement = Assert.Single(Planner.Plan(request).Suggestions);
+
+        Assert.Equal(Instant.FromUtc(2026, 11, 2, 17, 0), replacement.Time.Start); // GMT
+        Assert.Empty(ActivityCheck.Check(OneOffFor(replacement), [tuesday], Context() with { Rest = request.Rest }).Problems);
+    }
+
+    // Q38, CAL-4 (scheduling review of Q38, L1): a skipped session is known by the date its rule puts it on, wherever it
+    // was moved: Thursday 29 October's gym, moved into the week (Tuesday 3 November at 18:00) and skipped, is (gym, 29
+    // October). Its time stays busy.
+    [Fact]
+    public void ASkippedSessionMovedIntoTheWeek_IsKnownByItsRuleDate()
+    {
+        var goal = Goal("Gym", sessions: 2);
+        var series = new Series(new LocalDate(2026, 10, 1), new LocalTime(18, 0), Duration.FromMinutes(60), London, RecurrenceRule.Weekly([IsoDayOfWeek.Thursday]))
+            .MoveOccurrence(new LocalDate(2026, 10, 29), new LocalDateTime(2026, 11, 3, 18, 0), Duration.FromMinutes(60));
+        var gym = new PlannedActivity(Guid.NewGuid(), "Gym", series, Buffers.None, null) { GoalId = goal.Id };
+
+        var byRuleDate = Planner.Plan(Request([goal], [gym]) with { Skipped = [new SkippedSession(gym.Id, new LocalDate(2026, 10, 29))] });
+        var byWhereItIs = Planner.Plan(Request([goal], [gym]) with { Skipped = [new SkippedSession(gym.Id, new LocalDate(2026, 11, 3))] });
+
+        Assert.Equal(1, byRuleDate.AlreadyPlanned[goal.Id]); // Thursday 5 November's only
+        Assert.Equal(2, byWhereItIs.AlreadyPlanned[goal.Id]);
+        var (busyFrom, busyTo) = (Instant.FromUtc(2026, 11, 3, 18, 0), Instant.FromUtc(2026, 11, 3, 19, 0));
+        Assert.DoesNotContain(byRuleDate.Suggestions, suggestion => suggestion.Time.Start < busyTo && busyFrom < suggestion.Time.End);
+    }
+
+    // Q38, SCH-6 (scheduling review of Q38, L2): other times for Monday 2 November's daily 18:00 gym. Tuesday's is
+    // skipped, so Tuesday no longer has one of its sessions and can be offered, though not over its still-busy 18:00 to
+    // 18:50.
+    [Fact]
+    public void OptionsFor_ADayWhoseOnlySessionIsSkipped_CanBeOffered()
+    {
+        var daily = new PlannedActivity(Guid.NewGuid(), "Gym",
+            new Series(Week.Start, new LocalTime(18, 0), Duration.FromMinutes(50), London, RecurrenceRule.Daily()), Buffers.None, null);
+        var request = Request([], [daily]) with { Skipped = [new SkippedSession(daily.Id, new LocalDate(2026, 11, 3))] };
+
+        var options = Planner.OptionsFor(request, daily, Week.Start, priority: 1, most: 7)!;
+
+        Assert.Equal([new LocalDate(2026, 11, 2), new LocalDate(2026, 11, 3)], options.Options.Select(option => option.Time.Start.InZone(London).Date).Order());
+        var tuesday = options.Options.Single(option => option.Time.Start.InZone(London).Date == new LocalDate(2026, 11, 3));
+        Assert.False(tuesday.Time.Start < Instant.FromUtc(2026, 11, 3, 18, 50) && Instant.FromUtc(2026, 11, 3, 18, 0) < tuesday.Time.End);
+    }
+
+    // Q17, SCH-6 (scheduling review of Q17, M1): Thursday 5 November's gym moved to Tuesday 3 November at 18:00, then 4-8
+    // November given to a holiday, so it is kept on the Tuesday. Only days it still happens on are offered (Monday has its
+    // own session): moved to 4-8 November it would disappear.
+    [Fact]
+    public void OptionsFor_AKeptMove_AreOnlyOnDaysItStillHappens()
+    {
+        var gym = KeptMove(RecurrenceRule.Weekly([IsoDayOfWeek.Monday, IsoDayOfWeek.Thursday]), new LocalDateTime(2026, 11, 3, 18, 0), holidayFrom: new LocalDate(2026, 11, 4));
+
+        var options = Planner.OptionsFor(Request([], [gym]), gym, new LocalDate(2026, 11, 5), priority: 1, most: 7)!;
+
+        Assert.NotEmpty(options.Options);
+        Assert.All(options.Options, option => Assert.True(option.Time.Start < Instant.FromUtc(2026, 11, 4, 0, 0)));
+    }
+
+    // ... and when no day of the week is one it happens on (moved to Sunday 1 November, then the whole week of 2-8 November
+    // given to the holiday), each day says why.
+    [Fact]
+    public void OptionsFor_AKeptMove_WithNoDayItHappensOn_SaysWhy()
+    {
+        var gym = KeptMove(RecurrenceRule.Weekly([IsoDayOfWeek.Thursday]), new LocalDateTime(2026, 11, 1, 18, 0), holidayFrom: new LocalDate(2026, 11, 2));
+
+        var options = Planner.OptionsFor(Request([], [gym]), gym, new LocalDate(2026, 11, 5), priority: 1, most: 7)!;
+
+        Assert.Empty(options.Options);
+        Assert.Equal(7, options.None!.Days.Count);
+        Assert.All(options.None.Days, day => Assert.Equal("Moved here, Gym would disappear: it doesn't happen on this day now", day.Reason));
+    }
+
+    // A gym series at 07:00 for 50 minutes from 5 October 2026 with Thursday 5 November's moved to movedTo, then
+    // holidayFrom to 8 November given to a holiday.
+    private static PlannedActivity KeptMove(RecurrenceRule rule, LocalDateTime movedTo, LocalDate holidayFrom)
+    {
+        var series = new Series(new LocalDate(2026, 10, 5), new LocalTime(7, 0), Duration.FromMinutes(50), London, rule)
+            .MoveOccurrence(new LocalDate(2026, 11, 5), movedTo, Duration.FromMinutes(50))
+            .OnlyOn(date => date < holidayFrom || date > new LocalDate(2026, 11, 8));
+        return new PlannedActivity(Guid.NewGuid(), "Gym", series, Buffers.None, null);
+    }
+
     // A date it doesn't happen on has no other times.
     [Fact]
     public void OptionsFor_ADateItDoesntHappenOn_IsNull()

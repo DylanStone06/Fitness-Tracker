@@ -1,0 +1,62 @@
+@model FitnessTracker.Web.Models.Workouts.SessionLogViewModel
+@using FitnessTracker.Domain.Workouts
+@using FitnessTracker.Web.Models.Workouts
+@* FIT-2, Q30-Q33: a gym session's sets, one row each: exercise (typed, with suggestions), reps, weight and rest. Blank
+   rows are ignored. Each row is a fieldset ("Row 1", as its problems name it) whose boxes have their own labels: shown
+   above the boxes on a phone, read out only on a wider screen, where one row of headings stands for them. Checked on
+   the server only. *@
+@{
+    var unit = Model.WeightUnit == WeightUnit.Kilograms ? "kg" : "lb";
+}
+<datalist id="exercise-names">
+    @foreach (var name in Model.ExerciseSuggestions)
+    {
+        <option value="@name"></option>
+    }
+</datalist>
+<input type="hidden" asp-for="Rows" />
+
+<div class="ft-set-head" aria-hidden="true">
+    <span>Exercise</span>
+    <span>Reps</span>
+    <span>Weight (@unit)</span>
+    <span>Rest (s)</span>
+</div>
+@for (var i = 0; i < Model.Sets.Count; i++)
+{
+    var row = $"set-{i}";
+    <fieldset class="ft-set">
+        <legend class="visually-hidden">Row @(i + 1)</legend>
+        <span asp-validation-for="Sets[i].Exercise" class="d-block text-danger" id="@row-exercise-error"></span>
+        <span asp-validation-for="Sets[i].Reps" class="d-block text-danger" id="@row-reps-error"></span>
+        <span asp-validation-for="Sets[i].Weight" class="d-block text-danger" id="@row-weight-error"></span>
+        <span asp-validation-for="Sets[i].Rest" class="d-block text-danger" id="@row-rest-error"></span>
+        <div class="ft-set-grid">
+            <div class="ft-set-exercise">
+                <label asp-for="Sets[i].Exercise" class="ft-set-label">Exercise</label>
+                <input asp-for="Sets[i].Exercise" class="form-control" list="exercise-names" autocomplete="off" dir="auto"
+                       aria-describedby="@row-exercise-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"Sets[{i}].Exercise")" />
+            </div>
+            <div>
+                <label asp-for="Sets[i].Reps" class="ft-set-label">Reps</label>
+                <input asp-for="Sets[i].Reps" type="number" step="1" class="form-control" inputmode="numeric"
+                       aria-describedby="@row-reps-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"Sets[{i}].Reps")" />
+            </div>
+            <div>
+                <label asp-for="Sets[i].Weight" class="ft-set-label">Weight (@unit)</label>
+                <input asp-for="Sets[i].Weight" class="form-control" inputmode="decimal" autocomplete="off"
+                       aria-describedby="@row-weight-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"Sets[{i}].Weight")" />
+            </div>
+            <div>
+                <label asp-for="Sets[i].Rest" class="ft-set-label">Rest (s)</label>
+                <input asp-for="Sets[i].Rest" type="number" step="1" class="form-control" inputmode="numeric"
+                       aria-describedby="@row-rest-error" aria-invalid="@ViewData.ModelState.AriaInvalid($"Sets[{i}].Rest")" />
+            </div>
+        </div>
+    </fieldset>
+}
+@if (!Model.CanAddRows)
+{
+    @* Q31: why "Add more rows" has gone. *@
+    <p class="form-text mt-2 mb-0">Up to @SessionLogViewModel.MaxSets sets can be saved for one session.</p>
+}

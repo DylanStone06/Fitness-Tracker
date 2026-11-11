@@ -240,6 +240,26 @@ public sealed class HomeTests(TestAppFactory factory) : IClassFixture<TestAppFac
         Assert.DoesNotContain("next-up-heading", await HomePageAsync(browser));
     }
 
+    // FIT-1, Q38: a session marked skipped isn't next up; the one after it is. It is still listed today, marked skipped.
+    [Fact]
+    public async Task ASkippedSession_IsntNextUp()
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var swim = TestBrowser.NewName("Swim");
+        var gym = TestBrowser.NewName("Gym");
+        await browser.AddActivityAsync(swim, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "15:00" });
+        await browser.AddActivityAsync(gym, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = "18:00" });
+        var skipped = (await StoredData.ActivityTitledAsync(factory, swim))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.MarkSessionAsync(skipped, "2026-10-19", "Skipped")).StatusCode);
+
+        var html = await HomePageAsync(browser);
+
+        var nextUp = Section(html, "next-up-heading");
+        Assert.Contains(gym, nextUp);
+        Assert.DoesNotContain(swim, nextUp);
+        Assert.Contains(swim, html);
+    }
+
     // CAL-2: each activity shows its category by name (its colour is never the only signal), and opens its edit page.
     [Fact]
     public async Task EachActivity_ShowsItsCategory_AndOpensItsEditPage()

@@ -239,6 +239,11 @@ public sealed partial class TestBrowser
         return form;
     }
 
+    /// <summary>FIT-1: marks the session of <paramref name="activity"/> on <paramref name="date"/> "Done", "Skipped" or
+    /// "Planned" (undone), from its page (on <paramref name="pageDate"/>, if not the same).</summary>
+    public Task<HttpResponseMessage> MarkSessionAsync(Guid activity, string date, string mark, string? pageDate = null) =>
+        SubmitFormAsync($"/Sessions/Log/{activity}?date={pageDate ?? date}", $"/Sessions/Log/{activity}", new() { ["Date"] = date, ["Mark"] = mark });
+
     /// <summary>CAL-9: chooses <paramref name="routine"/> for the dates from <paramref name="from"/> to <paramref name="to"/>.</summary>
     public Task<HttpResponseMessage> ChooseRoutineDatesAsync(Guid routine, string from, string to) =>
         SubmitFormAsync("/RoutineDates/Create", "/RoutineDates/Create", RoutineDatesForm(routine, from, to));

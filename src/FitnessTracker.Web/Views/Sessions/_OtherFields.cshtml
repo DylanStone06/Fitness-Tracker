@@ -1,0 +1,27 @@
+@model FitnessTracker.Web.Models.Workouts.SessionLogViewModel
+@using FitnessTracker.Web.Data
+@using FitnessTracker.Web.Models.Workouts
+@* FIT-4, Q34-Q36: an other activity's details, each optional: its type, then the time, distance and effort every run
+   and other activity has (_DetailFields). Checked on the server only, and only when saved as done. *@
+@{
+    var types = Enum.GetValues<OtherType>().Select(type => new SelectListItem(OtherDisplay.TypeName(type), type.ToString())).ToList();
+}
+<div class="ft-type">
+    <div class="mb-3">
+        <label asp-for="OtherType" class="form-label"></label>
+        <span asp-validation-for="OtherType" class="d-block text-danger" id="other-type-error"></span>
+        <select asp-for="OtherType" class="form-select ft-field" asp-items="types"
+                aria-describedby="other-type-error" aria-invalid="@ViewData.ModelState.AriaInvalid("OtherType")">
+            <option value="">Not given</option>
+        </select>
+    </div>
+    @* Shown once "Custom" is chosen (site.css). A name typed with another type chosen isn't kept. *@
+    <div class="mb-3 ft-custom-type">
+        <label asp-for="CustomOtherType" class="form-label"></label>
+        <span asp-validation-for="CustomOtherType" class="d-block text-danger" id="custom-other-type-error"></span>
+        <input asp-for="CustomOtherType" class="form-control ft-field" dir="auto" autocomplete="off"
+               aria-describedby="custom-other-type-error" aria-invalid="@ViewData.ModelState.AriaInvalid("CustomOtherType")" />
+    </div>
+</div>
+
+<partial name="_DetailFields" />

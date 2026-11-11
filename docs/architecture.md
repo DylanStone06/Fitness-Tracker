@@ -7,7 +7,7 @@ are in [ADR 0001](decisions/0001-stack.md); what's still missing is in [known li
 
 | Project | Holds | Rule |
 |---|---|---|
-| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, RRULE text, one-off changes), `Templates` (A/B week cycles, and which routine and week each date is in), `Footprints` (footprints, travel times), `Locations` (opening hours), `Scheduling` (clashes, daily load, the check on save, the home page's agenda); later the planner, sleep and workouts. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
+| `FitnessTracker.Domain` | `Time` (clock changes, crossing midnight, weeks), `Recurrence` (series, rules, RRULE text, one-off changes), `Templates` (A/B week cycles, and which routine and week each date is in), `Footprints` (footprints, travel times), `Locations` (opening hours), `Scheduling` (clashes, daily load, the check on save, the home page's agenda, the planner), `Workouts` (session statuses, distances in metres shown in km or miles, pace); later sleep. The rules as built are in the `scheduling-rules` skill. | References nothing from ASP.NET Core or EF Core. `ArchitectureTests` allows only the base library plus NodaTime. |
 | `FitnessTracker.Web` | MVC controllers and views, `Data/` (database, migrations, Identity), `Services/` | No scheduling rules in controllers or views. |
 | `FitnessTracker.*.Tests` | xUnit v2 tests | Integration tests run the real app in memory (`TestAppFactory`). |
 

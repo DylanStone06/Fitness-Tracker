@@ -10,6 +10,28 @@ namespace FitnessTracker.Web.Tests.Infrastructure;
 /// </summary>
 public static class StoredData
 {
+    /// <summary>
+    /// Makes the database refuse to add or change a row of <paramref name="table"/> whose <paramref name="column"/> is
+    /// <paramref name="value"/> (a SQLite trigger), as it would refuse a save after a real fault (a full disk, say): for
+    /// testing that a page doesn't blame that on another tab. Only that value is refused, so a test class's other
+    /// tests, which share its database, are untouched.
+    /// </summary>
+    public static async Task RefuseSavesWhereAsync(TestAppFactory factory, string table, string column, object value)
+    {
+        var literal = value is string text
+            ? "'" + text.Replace("'", "''", StringComparison.Ordinal) + "'"
+            : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        foreach (var change in (string[])["INSERT", "UPDATE"])
+        {
+            var trigger = "CREATE TRIGGER \"RefuseForATest_" + Guid.NewGuid().ToString("N") + "\" BEFORE " + change +
+                " ON \"" + table + "\" WHEN NEW.\"" + column + "\" = " + literal +
+                " BEGIN SELECT RAISE(ABORT, 'A fault made by a test'); END;";
+            await db.Database.ExecuteSqlRawAsync(trigger);
+        }
+    }
+
     public static Task<Location?> LocationNamedAsync(TestAppFactory factory, string name) =>
         ReadAsync(factory, db => db.Locations.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(location => location.Name == name));
 
@@ -58,6 +80,19 @@ public static class StoredData
             ?? await db.WeeklyGoals.IgnoreQueryFilters().Where(goal => goal.Id == id).Select(goal => (Guid?)goal.Version).SingleOrDefaultAsync()
             ?? await db.Routines.IgnoreQueryFilters().Where(routine => routine.Id == id).Select(routine => (Guid?)routine.Version).SingleOrDefaultAsync()
             ?? await db.RoutineDateRanges.IgnoreQueryFilters().Where(dates => dates.Id == id).Select(dates => (Guid?)dates.Version).SingleOrDefaultAsync());
+
+    /// <summary>FIT-1: what the session of <paramref name="activity"/> its rule puts on <paramref name="date"/> is marked
+    /// as, or null when it isn't.</summary>
+    public static Task<FitnessTracker.Domain.Workouts.SessionMark?> SessionMarkAsync(TestAppFactory factory, Guid activity, NodaTime.LocalDate date) =>
+        ReadAsync(factory, db => db.SessionLogs.IgnoreQueryFilters()
+            .Where(log => log.ActivityId == activity && log.OccurrenceDate == date)
+            .Select(log => (FitnessTracker.Domain.Workouts.SessionMark?)log.Mark)
+            .SingleOrDefaultAsync());
+
+    /// <summary>The whole log of one session (FIT-1, FIT-3), or null when it isn't marked.</summary>
+    public static Task<SessionLog?> SessionLogAsync(TestAppFactory factory, Guid activity, NodaTime.LocalDate date) =>
+        ReadAsync(factory, db => db.SessionLogs.IgnoreQueryFilters().AsNoTracking()
+            .SingleOrDefaultAsync(log => log.ActivityId == activity && log.OccurrenceDate == date));
 
     public static Task<List<LocationOpeningTime>> OpeningTimesOfAsync(TestAppFactory factory, Guid locationId) =>
         ReadAsync(factory, db => db.LocationOpeningTimes.IgnoreQueryFilters().AsNoTracking()

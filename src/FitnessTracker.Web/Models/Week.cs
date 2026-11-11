@@ -1,11 +1,30 @@
+using System.Globalization;
 using FitnessTracker.Web.Data;
 using NodaTime;
+using NodaTime.Text;
 
 namespace FitnessTracker.Web.Models;
 
-/// <summary>The days of the week as the forms list them, Monday first, and as a stored set of days.</summary>
+/// <summary>
+/// The days of the week as the forms list them, Monday first, and as a stored set of days; and a week's dates as the
+/// pages write them.
+/// </summary>
 public static class Week
 {
+    private static readonly LocalDatePattern FullDate = LocalDatePattern.CreateWithInvariantCulture("d MMM uuuu");
+
+    private static readonly LocalDatePattern DayAndMonth = LocalDatePattern.CreateWithInvariantCulture("d MMM");
+
+    /// <summary>"2 – 8 Nov 2026", "26 Oct – 1 Nov 2026" or "28 Dec 2026 – 3 Jan 2027": only what changes is repeated.</summary>
+    public static string Range(DateInterval dates)
+    {
+        var (start, end) = (dates.Start, dates.End);
+        var from = start.Year != end.Year ? FullDate.Format(start)
+            : start.Month != end.Month ? DayAndMonth.Format(start)
+            : start.Day.ToString(CultureInfo.InvariantCulture);
+        return $"{from} – {FullDate.Format(end)}";
+    }
+
     public static IReadOnlyList<IsoDayOfWeek> Days { get; } =
     [
         IsoDayOfWeek.Monday, IsoDayOfWeek.Tuesday, IsoDayOfWeek.Wednesday, IsoDayOfWeek.Thursday,

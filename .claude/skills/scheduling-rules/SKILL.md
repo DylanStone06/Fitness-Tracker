@@ -92,11 +92,26 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   `Activity.ToPlannedActivity(routines)` limits the series with `Series.OnlyOn`, so the calendar, home page, check on
   save, planner and Find another time all see it. The routine calendar is a **required** argument, so a new caller
   can't forget it. One-offs are never in a routine.
-- **`Series.OnlyOn`** replaces the dates allowed (null: all). Occurrences on other dates are left out, and so is a
-  move *from* such a date; a move by the user *into* a week the activity isn't usually in still happens. `FallsOn`
-  (public) is rule and filter; changes on dates left out are kept as data and refused as new changes. `Edit` keeps
-  the filter and counts a change on a date no longer allowed as removed (P5), so changing an activity from every week
-  to week A only removes its week B changes and says so. `RecurrenceRule` itself knows nothing of routines: "after N
+- **`Series.OnlyOn`** replaces the dates allowed (null: all). Occurrences on other dates are left out. A moved one
+  happens if **either end of the move** is allowed (Q17, decided by the owner 4 November 2026): moved *from* a date
+  left out *to* one allowed it still happens (Monday 2 November's moved to Friday 30 October, then 2-8 November given
+  to a holiday), moved within dates left out it goes with them, and moved by the user *into* a week the activity isn't
+  usually in it still happens (its own date is allowed). `FallsOn` (public) is rule and that same rule (private
+  `Happens`), so a kept move has its pages and can be moved again, cancelled or marked; other changes on dates left
+  out are kept as data and refused as new changes. The check on one occurrence (`CheckOccurrence`) refuses moving a kept
+  move to a date where neither end would be allowed (P1: it would vanish; aspect `Date`); the occurrence page says
+  beside its buttons that putting a kept move back removes it and that cancelling it can't be undone until its date is
+  in use again (its page can't be found then). Tests: `SeriesOnlyOnTests.Q17_*` (one on the night the clocks go
+  forward, moved to a skipped time), `AnOccurrenceMovedWithinALeftOutWeek_IsLeftOut`, `AKeptMove_CanBeChangedAgain`,
+  `ActivityCheckTests.Q17_AMoveOutOfALeftOutWeek_IsCheckedWhereItIs`, `CheckOccurrence_AKeptMove*`, web
+  `RoutineDatesTests.Q17_*`. Not covered (known limitations): removing a routine's dates re-checks from those dates,
+  so a moved session that comes back before them isn't re-checked. `Edit` keeps
+  the filter and removes (and counts, P5) each change the edit **stops happening**: it happened before (its date
+  allowed, or for a move either end: Q17) and doesn't after. So changing an activity from every week to week A only
+  removes its week B changes and says so, except a week B session moved into week A, which still happens there, the
+  same with or without a holiday over its date (scheduling review of Q17, M2); a change already out of use (a week
+  given to a holiday) is kept for when it is in use again. Its `HiddenChanges` are the ones kept that can't be seen (a
+  kept move to an allowed date is seen). Tests: `SeriesOnlyOnTests.AnEdit*`. `RecurrenceRule` itself knows nothing of routines: "after N
   times" counts the dates its rule falls on, so the form refuses a count for an activity in a routine.
 - `RoutineCalendar.Across(dates)`: the dates in runs of the same routine and week, for "Usual week, week B" on the
   calendar (`/Calendar/Weeks`) and Plan my week.
@@ -245,9 +260,10 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 - `Agenda.Trip`: "Leave home 17:35, back 19:45": leaving is when the journey out starts, after getting ready at home
   (§7.1). Times on another day say "the day before" or "the next day", or the date when further away; a time the
   clocks repeat says which one ("01:15 GMT"). `Agenda.Starts` does the same for the start.
-- `Agenda.Next(items, now)`: the home page's "next activity". Of the items not over, the one whose footprint starts
-  first (you set off for the 18:00 gym at 17:35 before a 17:40 call), ties in the agenda's order whatever order the
-  items come in (SCH-7). Over = back home, the footprint's end (the occurrence's own end with no footprint); under
+- `Agenda.Next(items, now, skipped)`: the home page's "next activity". Of the items not over, the one whose footprint
+  starts first (you set off for the 18:00 gym at 17:35 before a 17:40 call), ties in the agenda's order whatever order
+  the items come in (SCH-7). A session marked skipped (Q38, by activity and rule date) is never next, even once its
+  time has come; it stays in the agenda. Over = back home, the footprint's end (the occurrence's own end with no footprint); under
   way from the footprint's start, getting ready included. Half-open, and moments only: on 25 October 2026 a first-
   01:30 session is under way at the second 01:15. Only what `Between` listed counts, so yesterday's night shift
   isn't "next". Tests: `AgendaTests` (`Next_*`, `AnActivity_IsUnderWay_FromLeavingUntilBack`,
@@ -257,7 +273,19 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 
 - `Planner.Plan(PlanRequest)`: the sessions weekly goals (GOL-1, `PlanGoal`) still need in a week's dates, from
   `Now` on. A session counts towards a goal when its activity has that `PlannedActivity.GoalId`; `AlreadyPlanned`
-  says how many did. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
+  says how many did. A session marked skipped (`PlanRequest.Skipped`: activity and rule date) doesn't count (Q38,
+  FIT-5): not in the number planned, one a day or the spread, so a replacement is suggested that week; it is still busy
+  time and its demanding session still counts for H5-H7, as the check on save still sees it. It is known by its rule
+  date wherever it was moved (CAL-4), so the caller passes the mark of every occurrence it loads by that date. Find
+  another time takes them too: a day whose only session is skipped can be offered. Tests: `PlannerTests.ASkipped*`
+  (its time busy where it would be best, the rest rules kept, a session moved into the week),
+  `ASessionNotSkipped_StillCounts`, `OptionsFor_ADayWhoseOnlySessionIsSkipped_CanBeOffered`. Goals go highest `Priority` first, then by title and id (SCH-7), each goal's sessions in turn.
+- **A goal's week** (FIT-5, Q24): `GoalSessions.On(activities, dates, zone)` lists each goal's sessions the way the
+  planner counts them: occurrences of activities with a `GoalId` that start on those dates in the user's timezone (§8),
+  a moved one where it now is, never a cancelled one. `GoalProgress.Of` turns their states (`Sessions.StateOf`) into
+  done, skipped, not logged, to come and not planned yet; no state means not planned at all, and sessions without
+  statuses (Q20) are a count of their own. Change one rule and the planner's together:
+  `GoalSessionsTests.EachGoalsNumber_IsThePlannersAlreadyPlanned` compares them.
 - **Busy time** (§7.4): every occurrence's footprint over `Planner.DatesToLoadFor` (`Agenda.MarginDays` either side,
   or further when the rest between demanding sessions reaches further, so H5 sees a session 4 days before the week:
   scheduling review H-1; the Web loads the same dates), and each night's `SleepWindow`, from winding down before bed
@@ -308,7 +336,9 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
   the occurrence, plans it as its goal (`GoalId`, or the activity's own id when it has none) with the activity's
   other occurrences counted as that goal's, so one session a day and the spread apply to them (review M-2: a daily
   series was offered days that already had one), prefers the part of the day it was in and leaves out the time it
-  has now. Tests: `PlannerTests.OptionsFor_*`, `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`. None
+  has now. A kept move (Q17: its own date isn't in use) is only offered days its activity is in use on
+  (`Series.Allows`); the others say "Moved here, Gym would disappear: it doesn't happen on this day now" (scheduling
+  review of Q17, M1; `PlannerTests.OptionsFor_AKeptMove_*`). Tests: `PlannerTests.OptionsFor_*`, `ReschedulePageTests.OtherTimes_AreNotOnADayThatAlreadyHasTheSession`. None
   fitting gives the same day reasons as a shortfall.
 - Tests: `PlannerTests`, including every suggestion passing `ActivityCheck.Check` as a one-off (SCH-1), T2, T13, T14,
   T16, T22.
@@ -363,7 +393,7 @@ Routines (Phase 6b, A/B weeks first; `RoutineCalendar`, `Web/Data/Routine`):
 | T17 | Gym opens 06:00, travel 05:35: valid | **Covered** (domain and on save) | `OpeningHoursTests.AWorkoutStartingAtOpeningTime_*`, `ActivityCheckTests.AWorkoutStartingAtOpeningTime_*`, web `ActivityChecksTests.Add_AtAGymWithOpeningHours_MustBeInsideThem` |
 | T18 | A/B template: three weeks later is week B | **Covered** (domain and pages) | `WeekCycleTests.ATwoWeekCycle_IsInWeekB_ThreeWeeksAfterWeekA`, `RoutineCalendarTests.TheUsualRoutine_IsInUseOnEveryDate_*`, web `RoutinesTests.TheList_SaysWhichWeekThisIs`, `ActivitiesInRoutinesTests.TheCalendar_ShowsAWeekAActivity_InWeekAOnly` |
 | T19 | Another user's data is "not found" | **Covered for every page so far** (locations, travel times, activities, goals, routines, preferences, the calendar's feeds) | `FitnessTracker.Web.Tests` `Security/AccessControlTests`, `PreferencesTests`, `RoutineWeeksShownTests.TheCalendarsRoutineFeed_IsOnlyTheSignedInUsersOwn` |
-| T20 | Past planned session shows "Not logged" | Not built (Phase 7) | |
+| T20 | Past planned session shows "Not logged" | **Covered** (domain; pages next) | `SessionsTests.T20_APlannedSessionWhoseTimeHasPassed_IsNotLogged_AndStillPlanned` |
 | T21 | Calendar at 320 px | **Checked by hand** (a browser check, Phase 5) | |
 | T22 | Same week planned twice: identical | **Covered** (domain) | `PlannerTests.TheSameWeekPlannedTwice_GivesTheSameSuggestions` |
 | T23, T24 | Meal prep; AI output | After the MVP | |

@@ -203,6 +203,39 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.ToTable("CategoryBuffers");
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.Exercise", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "NameKey")
+                        .IsUnique();
+
+                    b.ToTable("Exercises");
+                });
+
             modelBuilder.Entity("FitnessTracker.Web.Data.Location", b =>
                 {
                     b.Property<Guid>("Id")
@@ -356,6 +389,113 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasIndex("RoutineId");
 
                     b.ToTable("RoutineDateRanges");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ActivityId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ActualSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomOtherType")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomRunType")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DistanceMetres")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Effort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Mark")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OccurrenceDate")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("OtherType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RunType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("ActivityId", "OccurrenceDate")
+                        .IsUnique();
+
+                    b.ToTable("SessionLogs");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionSet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ExerciseId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Reps")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RestSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("SessionLogId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("WeightGrams")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExerciseId");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("SessionLogId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("SessionSets");
                 });
 
             modelBuilder.Entity("FitnessTracker.Web.Data.TravelLeg", b =>
@@ -695,6 +835,15 @@ namespace FitnessTracker.Web.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FitnessTracker.Web.Data.Exercise", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FitnessTracker.Web.Data.Location", b =>
                 {
                     b.HasOne("FitnessTracker.Web.Data.AppUser", null)
@@ -744,6 +893,42 @@ namespace FitnessTracker.Web.Data.Migrations
                     b.HasOne("FitnessTracker.Web.Data.Routine", null)
                         .WithMany()
                         .HasForeignKey("RoutineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionLog", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Activity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionSet", b =>
+                {
+                    b.HasOne("FitnessTracker.Web.Data.Exercise", null)
+                        .WithMany()
+                        .HasForeignKey("ExerciseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FitnessTracker.Web.Data.SessionLog", null)
+                        .WithMany("Sets")
+                        .HasForeignKey("SessionLogId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -846,6 +1031,11 @@ namespace FitnessTracker.Web.Data.Migrations
             modelBuilder.Entity("FitnessTracker.Web.Data.Location", b =>
                 {
                     b.Navigation("OpeningTimes");
+                });
+
+            modelBuilder.Entity("FitnessTracker.Web.Data.SessionLog", b =>
+                {
+                    b.Navigation("Sets");
                 });
 #pragma warning restore 612, 618
         }
