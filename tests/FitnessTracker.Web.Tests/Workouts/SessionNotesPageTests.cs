@@ -130,6 +130,21 @@ public sealed class SessionNotesPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Equal("Knee sore", (await StoredData.SessionLogAsync(factory, id, Today))!.Notes);
     }
 
+    // T19 (code review of Phase 7): another user's session, asked for with its real date, is "not found", and its notes
+    // aren't on the page.
+    [Fact]
+    public async Task AnotherUsersSession_IsNotFound_AndItsNotesArentShown()
+    {
+        var (alex, id) = await SignedInWithASessionAsync("Gym");
+        await MarkAsync(alex, id, "Skipped", "Alex's own note");
+        var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
+
+        var response = await sam.GetAsync($"/Sessions/Log/{id}?date=2026-10-19");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.DoesNotContain("Alex's own note", WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync()));
+    }
+
     // Code review of Phase 7: a save that fails for any other reason isn't blamed on another tab, which would only have
     // the user try again, and again. It is a fault, for the error page, and nothing is saved. (The notes are just how
     // the test makes the database refuse it: a trigger made for these notes alone.)

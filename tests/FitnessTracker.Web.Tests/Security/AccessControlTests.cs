@@ -49,13 +49,28 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         { "POST", "/Sessions/Log/{id}" },
     };
 
+    /// <summary>The pages (GET actions) of <see cref="ActionsThatTakeAnId"/>.</summary>
+    public static TheoryData<string> PagesThatTakeAnId
+    {
+        get
+        {
+            var pages = new TheoryData<string>();
+            foreach (var row in ActionsThatTakeAnId.Where(row => (string)row[0] == "GET"))
+            {
+                pages.Add((string)row[1]);
+            }
+
+            return pages;
+        }
+    }
+
     // Each action is tried with Alex's record of the kind it handles (a travel leg for /TravelLegs/...): a location's
     // id sent to a travel-leg page would be "not found" anyway and prove nothing.
     [Theory]
     [MemberData(nameof(ActionsThatTakeAnId))]
     public async Task AnotherUsersRecord_IsNotFound_AndLeftAlone(string method, string path)
     {
-        var alexsRecord = await AlexAddsARecordForAsync(path);
+        var (_, alexsRecord) = await AlexAddsARecordForAsync(path);
         var versionBefore = await StoredData.VersionOfAsync(factory, alexsRecord);
         var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
 
@@ -70,7 +85,7 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
     [MemberData(nameof(ActionsThatTakeAnId))]
     public async Task AnotherUsersRecord_LooksTheSameAsOneThatDoesNotExist(string method, string path)
     {
-        var alexsRecord = await AlexAddsARecordForAsync(path);
+        var (_, alexsRecord) = await AlexAddsARecordForAsync(path);
         var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
 
         var forAlexsRecord = await SendAsync(sam, method, path.Replace("{id}", alexsRecord.ToString()));
@@ -80,10 +95,24 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         Assert.Equal(await TitleOfAsync(forNoSuchRecord), await TitleOfAsync(forAlexsRecord));
     }
 
+    // The same page asked for by the record's owner isn't "not found", so Sam's "not found" above comes from the check
+    // of whose record it is, not from something else the request lacks (code review of Phase 7: a session's page, and
+    // the reschedule page, need a date too, without which even the owner's was "not found").
+    [Theory]
+    [MemberData(nameof(PagesThatTakeAnId))]
+    public async Task TheOwnersOwnRecord_IsFound(string path)
+    {
+        var (alex, alexsRecord) = await AlexAddsARecordForAsync(path);
+
+        var response = await SendAsync(alex, "GET", path.Replace("{id}", alexsRecord.ToString()));
+
+        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public async Task TravelLegsList_ShowsOnlyTheSignedInUsersOwn()
     {
-        await AlexAddsARecordForAsync("/TravelLegs/Edit/{id}");
+        _ = await AlexAddsARecordForAsync("/TravelLegs/Edit/{id}");
         var sam = await TestBrowser.OpenSignedInAsync(factory, "sam");
 
         var html = await (await sam.GetAsync("/TravelLegs")).Content.ReadAsStringAsync();
@@ -176,26 +205,31 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         Assert.Equal(listed, actions);
     }
 
-    private async Task<(Guid Id, string Name)> AlexAddsALocationAsync()
+    private async Task<(Guid Id, string Name)> AlexAddsALocationAsync(TestBrowser? alex = null)
     {
-        var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        alex ??= await TestBrowser.OpenSignedInAsync(factory, "alex");
         var name = TestBrowser.NewName("Alex gym");
         var added = await alex.AddLocationAsync(name);
         Assert.Equal(HttpStatusCode.Redirect, added.StatusCode);
         return ((await StoredData.LocationNamedAsync(factory, name))!.Id, name);
     }
 
-    // Alex's record of the kind the action handles, found from the controller in its path.
-    private async Task<Guid> AlexAddsARecordForAsync(string path)
+    // A new user, Alex, and Alex's record of the kind the action handles, found from the controller in its path.
+    private async Task<(TestBrowser Alex, Guid Id)> AlexAddsARecordForAsync(string path)
+    {
+        var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        return (alex, await AddsARecordForAsync(alex, path));
+    }
+
+    private async Task<Guid> AddsARecordForAsync(TestBrowser alex, string path)
     {
         if (path.StartsWith("/Locations/", StringComparison.Ordinal))
         {
-            return (await AlexAddsALocationAsync()).Id;
+            return (await AlexAddsALocationAsync(alex)).Id;
         }
 
         if (path.StartsWith("/TravelLegs/", StringComparison.Ordinal))
         {
-            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
             var homeName = TestBrowser.NewName("Alex home");
             var gymName = TestBrowser.NewName("Alex gym");
             await alex.AddLocationAsync(homeName);
@@ -209,7 +243,6 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
         // A session is an occurrence of an activity, known by the activity's id (a gym session, so it has one: Q20).
         if (path.StartsWith("/Activities/", StringComparison.Ordinal) || path.StartsWith("/Sessions/", StringComparison.Ordinal))
         {
-            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
             var title = TestBrowser.NewName("Alex gym");
             Assert.Equal(HttpStatusCode.Redirect, (await alex.AddActivityAsync(title)).StatusCode);
             return (await StoredData.ActivityTitledAsync(factory, title))!.Id;
@@ -217,7 +250,6 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
 
         if (path.StartsWith("/Goals/", StringComparison.Ordinal))
         {
-            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
             var title = TestBrowser.NewName("Alex gym");
             Assert.Equal(HttpStatusCode.Redirect, (await alex.AddGoalAsync(title)).StatusCode);
             return (await StoredData.GoalTitledAsync(factory, title))!.Id;
@@ -225,7 +257,6 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
 
         if (path.StartsWith("/Routines/", StringComparison.Ordinal))
         {
-            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
             var name = TestBrowser.NewName("Alex rota");
             Assert.Equal(HttpStatusCode.Redirect, (await alex.AddRoutineAsync(name)).StatusCode);
             return (await StoredData.RoutineNamedAsync(factory, name))!.Id;
@@ -233,7 +264,6 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
 
         if (path.StartsWith("/RoutineDates/", StringComparison.Ordinal))
         {
-            var alex = await TestBrowser.OpenSignedInAsync(factory, "alex");
             var name = TestBrowser.NewName("Alex holiday");
             Assert.Equal(HttpStatusCode.Redirect, (await alex.AddRoutineAsync(name)).StatusCode);
             var routine = (await StoredData.RoutineNamedAsync(factory, name))!.Id;
@@ -246,10 +276,11 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
 
     // A POST carries Sam's own valid anti-forgery token (from a page Sam can open), so the request reaches the
     // ownership check instead of being turned away earlier as a forged form. It fills the fields of every form, so
-    // it would pass validation if it were ever allowed to reach it.
+    // it would pass validation if it were ever allowed to reach it. A page or form for one session of an activity
+    // (CAL-4, FIT-1) is given its date, that of Alex's activity's only one, so it isn't "not found" for lack of it.
     private static Task<HttpResponseMessage> SendAsync(TestBrowser browser, string method, string url) => method switch
     {
-        "GET" => browser.GetAsync(url),
+        "GET" => browser.GetAsync($"{url}?date={SessionDate}"),
         "POST" => browser.SubmitFormAsync("/Locations/Create", url, new(TestBrowser.ActivityForm("Changed by Sam")
             .Concat(TestBrowser.GoalForm("Changed by Sam"))
             .Concat(TestBrowser.RoutineForm("Changed by Sam"))
@@ -259,9 +290,14 @@ public sealed partial class AccessControlTests(TestAppFactory factory) : IClassF
             ["Name"] = "Changed by Sam",
             ["Minutes"] = "5",
             ["Mode"] = "Walk",
+            ["Date"] = SessionDate,
+            ["Mark"] = "Skipped",
         }),
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Only GET and POST are used."),
     };
+
+    // The date of Alex's activity's one session (TestBrowser.ActivityForm's start date).
+    private const string SessionDate = "2026-11-02";
 
     // An action with no [HttpGet]/[HttpPost] answers every method; reporting "ANY" makes this test fail until
     // the action says which method it takes.
