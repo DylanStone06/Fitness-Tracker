@@ -1,6 +1,9 @@
 using System.Net;
 using FitnessTracker.Domain.Workouts;
+using FitnessTracker.Web.Data;
 using FitnessTracker.Web.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 
 namespace FitnessTracker.Web.Tests.Workouts;
@@ -111,6 +114,43 @@ public sealed class SessionNotesPageTests(TestAppFactory factory) : IClassFixtur
             "What you typed is still below: check it, then make your change again.", page);
         Assert.Matches(">\\s*Felt fine</textarea>", page);
         Assert.Equal("Knee sore", (await StoredData.SessionLogAsync(factory, id, Today))!.Notes);
+    }
+
+    // Code review of Phase 7: a save that fails for any other reason isn't blamed on another tab, which would only have
+    // the user try again, and again. It is a fault, for the error page, and nothing is saved. (The notes are just how
+    // the test makes the database refuse it: a trigger made for these notes alone.)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ASaveThatFailsForAnotherReason_IsAFault_NotAnotherTabs(bool alreadyMarked)
+    {
+        var (browser, id) = await SignedInWithASessionAsync("Gym");
+        if (alreadyMarked)
+        {
+            await MarkAsync(browser, id, "Done", "Felt fine");
+        }
+
+        await RefuseFaultNotesAsync();
+
+        var response = await MarkAsync(browser, id, "Done", "A fault made by a test");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.DoesNotContain("another tab", WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync()));
+        Assert.Equal(alreadyMarked ? "Felt fine" : null, (await StoredData.SessionLogAsync(factory, id, Today))?.Notes);
+    }
+
+    // Makes the database refuse to add or change a log with the notes "A fault made by a test", as it would refuse any
+    // save after a fault (a full disk, say).
+    private async Task RefuseFaultNotesAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TRIGGER IF NOT EXISTS RefuseFaultNotesAdded BEFORE INSERT ON SessionLogs " +
+            "WHEN NEW.Notes = 'A fault made by a test' BEGIN SELECT RAISE(ABORT, 'A fault made by a test'); END;");
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TRIGGER IF NOT EXISTS RefuseFaultNotesChanged BEFORE UPDATE ON SessionLogs " +
+            "WHEN NEW.Notes = 'A fault made by a test' BEGIN SELECT RAISE(ABORT, 'A fault made by a test'); END;");
     }
 
     private async Task<(TestBrowser Browser, Guid Id)> SignedInWithASessionAsync(string category)

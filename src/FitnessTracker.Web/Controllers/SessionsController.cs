@@ -165,8 +165,18 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         catch (DbUpdateException)
         {
             // Another tab saved it at the same moment: its version changed (DbUpdateConcurrencyException), or it marked a
-            // session that had no mark, which can have only one (AppDbContext).
+            // session that had no mark, which can have only one (AppDbContext). Either way its version is no longer the
+            // one this page showed. If it still is, nothing else changed it, so this is a real fault, for the error page:
+            // saying another tab changed it would only have the user try again, and again.
             db.ChangeTracker.Clear();
+            var versionNow = await db.SessionLogs.Where(log => log.ActivityId == id && log.OccurrenceDate == session.Occurrence.Date)
+                .Select(log => (Guid?)log.Version)
+                .SingleOrDefaultAsync();
+            if ((versionNow ?? Guid.Empty) == model.Version)
+            {
+                throw;
+            }
+
             return await ChangedElsewhereAsync(session, user, model);
         }
 
