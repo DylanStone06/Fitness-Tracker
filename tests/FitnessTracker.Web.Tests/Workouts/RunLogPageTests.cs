@@ -280,6 +280,42 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         Assert.Equal(5200, (await StoredData.SessionLogAsync(factory, id, Today))!.DistanceMetres);
     }
 
+    // Q27, requirements §9 (code review of Phase 7): a page's boxes are read in the unit they were shown in. A run saved
+    // as 5.2 km, on a page opened before another tab changed Preferences to miles, saved again unchanged, is still 5.2 km
+    // (it used to become 5.2 miles).
+    [Fact]
+    public async Task APageOpenedBeforeTheUnitChanged_ReadsItsBoxesInTheUnitTheyWereIn()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
+        await LogRunAsync(browser, id, "2026-10-19", AnEasyRun);
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["DistanceUnit"] = "Miles" })).StatusCode);
+
+        var saved = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", RunForm("2026-10-19", new(AnEasyRun) { ["Notes"] = "Windy" }, "Done"));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        var log = await StoredData.SessionLogAsync(factory, id, Today);
+        Assert.Equal(("Windy", 5200), (log!.Notes, log.DistanceMetres));
+    }
+
+    // Q27, §9: shown again after a problem, that page's boxes still hold what was typed, so they stay labelled, and are
+    // read, in the unit it was typed in: fixing the problem and saving keeps 5.2 km.
+    [Fact]
+    public async Task ThatPageShownAgainAfterAProblem_KeepsTheUnitItsBoxesWereTypedIn()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["DistanceUnit"] = "Miles" })).StatusCode);
+
+        var problem = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", RunForm("2026-10-19", new(AnEasyRun) { ["Effort"] = "11" }, "Done"));
+        var html = await problem.Content.ReadAsStringAsync();
+        var saved = await browser.SubmitAsync(TestBrowser.FormIn(html), $"/Sessions/Log/{id}", RunForm("2026-10-19", AnEasyRun, "Done"));
+
+        Assert.Contains("Distance (km)", WebUtility.HtmlDecode(html));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal(5200, (await StoredData.SessionLogAsync(factory, id, Today))!.DistanceMetres);
+    }
+
     // T19: another user's run is "not found", and nothing is saved to it.
     [Fact]
     public async Task AnotherUsersRun_IsNotFound_AndNothingIsSaved()

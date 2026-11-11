@@ -54,11 +54,15 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
                 entry.ValidationState = ModelValidationState.Valid;
             }
 
-            ModelState.Remove(nameof(SessionLogViewModel.Rows));
-            var page = await PageAsync(session, user);
+            var page = await PageAgainAsync(session, user, model);
             page.ShowRows(model.Rows + SessionLogViewModel.RowsAtATime);
             return View(page);
         }
+
+        // Q27, Q33: what was typed is read in the units the page showed it in (§9: Preferences may have been changed in
+        // another tab since it was opened).
+        var distanceUnit = model.BoxDistanceUnit ?? user.Preferences.DistanceUnit;
+        var weightUnit = model.BoxWeightUnit ?? user.Preferences.WeightUnit;
 
         // Q21: done once it has started, never before; skipped at any time.
         var tooEarly = model.Mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant());
@@ -106,9 +110,9 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return View(await PageAgainAsync(session, user, model));
         }
 
-        IEnumerable<ValidationResult> problems = savesARun ? model.RunProblems(user.Preferences.DistanceUnit)
-            : savesAnOther ? model.OtherProblems(user.Preferences.DistanceUnit)
-            : savesAWorkout ? model.WorkoutProblems(user.Preferences.WeightUnit)
+        IEnumerable<ValidationResult> problems = savesARun ? model.RunProblems(distanceUnit)
+            : savesAnOther ? model.OtherProblems(distanceUnit)
+            : savesAWorkout ? model.WorkoutProblems(weightUnit)
             : [];
         foreach (var problem in problems)
         {
@@ -153,17 +157,17 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             }
             else if (savesARun)
             {
-                model.ApplyRunTo(stored, user.Preferences.DistanceUnit);
+                model.ApplyRunTo(stored, distanceUnit);
             }
             else if (savesAnOther)
             {
-                model.ApplyOtherTo(stored, user.Preferences.DistanceUnit);
+                model.ApplyOtherTo(stored, distanceUnit);
             }
             else if (savesAWorkout)
             {
                 // Added as new rows here: found only through the log, sets with ids of their own would be taken for
                 // stored ones.
-                db.SessionSets.AddRange(model.ApplyWorkoutTo(stored, user.Preferences.WeightUnit, await ExercisesByNameAsync()));
+                db.SessionSets.AddRange(model.ApplyWorkoutTo(stored, weightUnit, await ExercisesByNameAsync()));
             }
         }
 
@@ -191,12 +195,13 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         return View(nameof(Log), await PageAgainAsync(session, user, posted));
     }
 
-    // The page again after a problem, with what was typed still in its boxes (they show what was posted), and for a gym
-    // session every set row that was posted, however many "Add more rows" had shown (Q31): a row left off the page would
-    // be dropped by the next save without a word.
+    // The page again after a problem, with what was typed still in its boxes (they show what was posted), in the units it
+    // was typed in, and for a gym session every set row that was posted, however many "Add more rows" had shown (Q31): a
+    // row left off the page would be dropped by the next save without a word.
     private async Task<SessionLogViewModel> PageAgainAsync(FoundSession session, UserPlanning user, SessionLogViewModel posted)
     {
         var page = await PageAsync(session, user);
+        page.KeepTypedUnits(posted);
         if (session.Category == ActivityCategory.Gym)
         {
             ModelState.Remove(nameof(SessionLogViewModel.Rows));

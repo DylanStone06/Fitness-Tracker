@@ -42,8 +42,9 @@ public class SetRow
 
 /// <summary>
 /// FIT-1: one session's page: when it is, its status (Q22: where a rescheduled one was), "Not logged" once its time has
-/// passed unmarked (T20), and the choices for marking it. A run's page also logs what the run was like (FIT-3), and
-/// shows it once saved. Only <see cref="Date"/>, <see cref="Version"/>, <see cref="Mark"/> and a run's boxes are posted.
+/// passed unmarked (T20), and the choices for marking it. A run's, an other activity's and a gym session's page also log
+/// what it was like (FIT-3, FIT-4, FIT-2), and show it once saved. Only <see cref="Date"/>, <see cref="Version"/>, the
+/// boxes' units, <see cref="Mark"/>, the notes and the boxes of the session's kind are posted.
 /// </summary>
 public class SessionLogViewModel
 {
@@ -87,6 +88,15 @@ public class SessionLogViewModel
     /// from a page opened before another tab changed the session is refused.
     /// </summary>
     public Guid Version { get; set; }
+
+    /// <summary>
+    /// Q27, Q33, requirements §9: the unit the page's distance boxes were filled in and labelled with, posted back so
+    /// what was typed is read in it, even when Preferences changed in another tab after the page was opened.
+    /// </summary>
+    public DistanceUnit? BoxDistanceUnit { get; set; }
+
+    /// <summary>As <see cref="BoxDistanceUnit"/>, for the weight boxes of a gym session's sets.</summary>
+    public WeightUnit? BoxWeightUnit { get; set; }
 
     public SessionChoice Mark { get; set; }
 
@@ -160,7 +170,10 @@ public class SessionLogViewModel
     /// <summary>FIT-3: a run's session, whose page logs what the run was like.</summary>
     public bool IsRun { get; private set; }
 
-    /// <summary>Q25: what distances are typed and shown in, as chosen in Preferences.</summary>
+    /// <summary>
+    /// Q25: what distances are typed and shown in, as chosen in Preferences; on a page shown again after a problem, the
+    /// unit its boxes were typed in (<see cref="KeepTypedUnits"/>).
+    /// </summary>
     public DistanceUnit DistanceUnit { get; private set; }
 
     /// <summary>How long it is planned to take, written as everywhere else: "1 h".</summary>
@@ -175,7 +188,7 @@ public class SessionLogViewModel
     /// <summary>FIT-2: a gym session's, whose page logs its sets.</summary>
     public bool IsGym { get; private set; }
 
-    /// <summary>Q33 with Q25: what weights are typed and shown in, as chosen in Preferences.</summary>
+    /// <summary>Q33 with Q25: what weights are typed and shown in, as <see cref="DistanceUnit"/> is for distances.</summary>
     public WeightUnit WeightUnit { get; private set; }
 
     /// <summary>A gym session marked done, as saved, when it has sets.</summary>
@@ -217,6 +230,7 @@ public class SessionLogViewModel
             IsGym = category == ActivityCategory.Gym,
             IsOther = category == ActivityCategory.OtherExercise,
             DistanceUnit = unit,
+            BoxDistanceUnit = unit,
             PlannedLength = ActivityDisplay.Length((int)occurrence.Time.Duration.TotalMinutes),
             Notes = log?.Notes,
         };
@@ -314,6 +328,7 @@ public class SessionLogViewModel
     public void FillWorkout(IReadOnlyList<WorkoutSet> saved, WeightUnit unit, IReadOnlyList<string> suggestions)
     {
         WeightUnit = unit;
+        BoxWeightUnit = unit;
         ExerciseSuggestions = suggestions;
         Workout = StrengthDisplay.Summary(saved, unit);
         Sets = saved.Select(set => new SetRow
@@ -324,6 +339,25 @@ public class SessionLogViewModel
             Rest = set.RestSeconds,
         }).ToList();
         ShowRows((saved.Count / RowsAtATime * RowsAtATime) + RowsAtATime);
+    }
+
+    /// <summary>
+    /// The page shown again after a problem: its boxes still hold what was <paramref name="posted"/>, so they keep the
+    /// units it was typed in, for their labels and for the next save (<see cref="BoxDistanceUnit"/>).
+    /// </summary>
+    public void KeepTypedUnits(SessionLogViewModel posted)
+    {
+        if (posted.BoxDistanceUnit is { } distance)
+        {
+            DistanceUnit = distance;
+            BoxDistanceUnit = distance;
+        }
+
+        if (posted.BoxWeightUnit is { } weight)
+        {
+            WeightUnit = weight;
+            BoxWeightUnit = weight;
+        }
     }
 
     /// <summary>Q31: shows <paramref name="rows"/> set rows (at most <see cref="MaxSets"/>), the ones added empty.</summary>

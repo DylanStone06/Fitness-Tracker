@@ -232,6 +232,22 @@ public sealed partial class StrengthLogPageTests(TestAppFactory factory) : IClas
         Assert.Equal(["Deadlift"], (await StoredWorkoutAsync(id)).Sets.Select(set => set.Exercise));
     }
 
+    // Q33, requirements §9 (code review of Phase 7): a set saved at 100 kg, on a page opened before another tab changed
+    // Preferences to pounds, saved again unchanged, is still 100 kg (it used to become 100 lb).
+    [Fact]
+    public async Task APageOpenedBeforeTheUnitChanged_ReadsItsWeightsInTheUnitTheyWereIn()
+    {
+        var (browser, id) = await SignedInWithASessionAsync();
+        await LogWorkoutAsync(browser, id, Rows(("Back squat", "5", "100", "")));
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["WeightUnit"] = "Pounds" })).StatusCode);
+
+        var saved = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", WorkoutForm(Rows(("Back squat", "5", "100", ""))));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal([100_000], (await StoredWorkoutAsync(id)).Sets.Select(set => set.WeightGrams));
+    }
+
     // T19: another user's session is "not found", and no sets are saved to it.
     [Fact]
     public async Task AnotherUsersSession_IsNotFound_AndNothingIsSaved()

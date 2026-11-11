@@ -57,6 +57,9 @@
             <partial name="_ErrorSummary" />
             <input type="hidden" asp-for="Date" />
             <input type="hidden" asp-for="Version" />
+            @* Q27, Q33, §9: the units the boxes are in, so they are read in them even if Preferences change meanwhile. *@
+            <input type="hidden" asp-for="BoxDistanceUnit" />
+            <input type="hidden" asp-for="BoxWeightUnit" />
 
             @if ((Model.IsRun || Model.IsOther) && Model.CanMarkDone)
             {
