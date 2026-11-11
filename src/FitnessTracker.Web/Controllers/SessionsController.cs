@@ -20,9 +20,6 @@ namespace FitnessTracker.Web.Controllers;
 // rows, so another user's activity is simply not found (T19, ACC-2).
 public class SessionsController(AppDbContext db, PlanningData planning) : Controller
 {
-    private const string ChangedElsewhere =
-        "This session was changed in another tab or window after you opened this page. It's shown below as it is now: check it, then make your change again.";
-
     [HttpGet]
     public async Task<IActionResult> Log(Guid id, string? date)
     {
@@ -44,14 +41,12 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return NotFound();
         }
 
-        // Q31: "Add more rows" shows six more, keeping what was typed (the boxes show what was posted), and saves nothing,
-        // so nothing typed is checked yet.
+        // Q31: "Add more rows" shows six more, keeping what was typed, and saves nothing, so nothing typed is checked yet.
         if (model.MoreRows)
         {
             foreach (var entry in ModelState.Values)
             {
-                entry.Errors.Clear();
-                entry.ValidationState = ModelValidationState.Valid;
+                Ignore(entry);
             }
 
             var page = await PageAgainAsync(session, user, model);
@@ -69,30 +64,22 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
 
         // FIT-3, FIT-2: a run's boxes, and a gym session's set rows, are only read when it is saved as done. Anything
         // else ignores them, even what can't be read, as does a session still to come (its page has none) or one of
-        // another kind (Q20).
+        // another kind (Q20). Back to planned removes the session's log, notes and all, so it ignores the notes box too.
         var savesARun = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Run;
         var savesAWorkout = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Gym;
         var savesAnOther = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.OtherExercise;
         var ignored = (savesARun ? [] : SessionLogViewModel.RunTypeBoxes)
             .Concat(savesAnOther ? [] : SessionLogViewModel.OtherTypeBoxes)
-            .Concat(savesARun || savesAnOther ? [] : SessionLogViewModel.DetailBoxes);
-        foreach (var box in ignored)
+            .Concat(savesARun || savesAnOther ? [] : SessionLogViewModel.DetailBoxes)
+            .Concat(model.Mark == SessionChoice.Planned ? [nameof(SessionLogViewModel.Notes)] : [])
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var (box, entry) in ModelState)
         {
-            ModelState.Remove(box);
-        }
-
-        if (!savesAWorkout)
-        {
-            foreach (var box in ModelState.Keys.Where(key => key.StartsWith($"{nameof(SessionLogViewModel.Sets)}[", StringComparison.Ordinal)).ToList())
+            if (entry is not null &&
+                (ignored.Contains(box) || (!savesAWorkout && box.StartsWith($"{nameof(SessionLogViewModel.Sets)}[", StringComparison.Ordinal))))
             {
-                ModelState.Remove(box);
+                Ignore(entry);
             }
-        }
-
-        // Back to planned removes the session's log, notes and all, so what is in the notes box doesn't matter.
-        if (model.Mark == SessionChoice.Planned)
-        {
-            ModelState.Remove(nameof(SessionLogViewModel.Notes));
         }
 
         // Requirements §9: saved only from a page that showed the session as it is now. The database checks the version
@@ -186,29 +173,49 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         return RedirectToAction(nameof(Log), new { id, date = FormInput.Date.Format(session.Occurrence.Date) });
     }
 
-    // The page as the session is now, saying why nothing was saved. Its hidden version is the current one (not the one
+    // Requirements §9: the page again, saying what the session is now, with what was typed still in its boxes, as other
+    // pages say it when what they show was changed in another tab. Its hidden version is the current one (not the one
     // posted), so saving from it again works.
     private async Task<IActionResult> ChangedElsewhereAsync(FoundSession session, UserPlanning user, SessionLogViewModel posted)
     {
-        ModelState.AddModelError(string.Empty, ChangedElsewhere);
+        var page = await PageAgainAsync(session, user, posted);
+        // The page's own notes are the ones saved now (its box shows what was typed).
+        ModelState.AddModelError(string.Empty, ChangedElsewhere(page.Marked, page.Notes));
         ModelState.Remove(nameof(SessionLogViewModel.Version));
-        return View(nameof(Log), await PageAgainAsync(session, user, posted));
+        return View(nameof(Log), page);
     }
 
-    // The page again after a problem, with what was typed still in its boxes (they show what was posted), in the units it
-    // was typed in, and for a gym session every set row that was posted, however many "Add more rows" had shown (Q31): a
-    // row left off the page would be dropped by the next save without a word.
+    // What a session changed in another tab is now: its mark and notes. Its details and sets are shown on the page, as
+    // saved, above the boxes. With no mark it has no log, so it was marked when the page was opened (its version said so).
+    private static string ChangedElsewhere(SessionMark? mark, string? notes)
+    {
+        var notesNow = notes is null ? "with no notes" : $"with the notes \"{notes}\"";
+        var now = mark switch
+        {
+            SessionMark.Done => $"marked done, {notesNow}",
+            SessionMark.Skipped => $"marked skipped, {notesNow}",
+            _ => "back to planned",
+        };
+        return $"This session was changed in another tab or window after you opened this page. It's now {now}. " +
+            "What you typed is still below: check it, then make your change again.";
+    }
+
+    // The page again after a problem, with what was typed still in its boxes (SessionLogViewModel.KeepTyped).
     private async Task<SessionLogViewModel> PageAgainAsync(FoundSession session, UserPlanning user, SessionLogViewModel posted)
     {
         var page = await PageAsync(session, user);
-        page.KeepTypedUnits(posted);
-        if (session.Category == ActivityCategory.Gym)
-        {
-            ModelState.Remove(nameof(SessionLogViewModel.Rows));
-            page.ShowRows(Math.Max(posted.Rows, posted.Sets.Count));
-        }
-
+        page.KeepTyped(posted);
+        // The hidden field shows how many rows the page has now, not how many were posted.
+        ModelState.Remove(nameof(SessionLogViewModel.Rows));
         return page;
+    }
+
+    // A box this save doesn't read: nothing in it stops the save, even what can't be read, but it keeps what was typed
+    // in it (a box shows what was posted in it over the page's own value), so a page shown again after a problem has it.
+    private static void Ignore(ModelStateEntry entry)
+    {
+        entry.Errors.Clear();
+        entry.ValidationState = ModelValidationState.Valid;
     }
 
     // The session the activity's rule puts on date, where it is now: null when the activity isn't the user's, isn't

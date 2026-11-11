@@ -232,6 +232,38 @@ public sealed partial class StrengthLogPageTests(TestAppFactory factory) : IClas
         Assert.Equal(["Deadlift"], (await StoredWorkoutAsync(id)).Sets.Select(set => set.Exercise));
     }
 
+    // §9 (code review of Phase 7): the page shown after that refusal has the rows the old page had, as typed, and no
+    // more: sets saved since in the other tab aren't mixed in after them, to be saved again unseen.
+    [Fact]
+    public async Task ThatRefusal_ShowsJustTheRowsThePageHad()
+    {
+        var (browser, id) = await SignedInWithASessionAsync();
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        await LogWorkoutAsync(browser, id, [.. Enumerable.Repeat(("Deadlift", "3", "140", ""), 6), ("Plank", "1", "", ""), ("Pull-up", "8", "", "")]);
+
+        var refused = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", WorkoutForm([("Bench press", "5", "80", ""), .. Enumerable.Repeat(("", "", "", ""), 5)]));
+        var page = WebUtility.HtmlDecode(await refused.Content.ReadAsStringAsync());
+
+        Assert.Contains("This session was changed in another tab or window after you opened this page.", page);
+        Assert.Equal(["Bench press", "", "", "", "", ""], ExerciseValues(page));
+    }
+
+    // ... and a page that had no rows (opened before the session started) shows the sets as saved now, not empty rows
+    // that saving again would replace them with.
+    [Fact]
+    public async Task ThatRefusal_FromAPageWithNoRows_ShowsTheSetsAsSavedNow()
+    {
+        var (browser, id) = await SignedInWithASessionAsync();
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        await LogWorkoutAsync(browser, id, AWorkout);
+
+        var refused = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", new() { ["Date"] = "2026-10-19", ["Mark"] = "Skipped" });
+        var page = WebUtility.HtmlDecode(await refused.Content.ReadAsStringAsync());
+
+        Assert.Contains("This session was changed in another tab or window after you opened this page.", page);
+        Assert.Equal(["Back squat", "Back squat", "Pull-up", "", "", ""], ExerciseValues(page));
+    }
+
     // Q33, requirements §9 (code review of Phase 7): a set saved at 100 kg, on a page opened before another tab changed
     // Preferences to pounds, saved again unchanged, is still 100 kg (it used to become 100 lb).
     [Fact]
@@ -336,6 +368,10 @@ public sealed partial class StrengthLogPageTests(TestAppFactory factory) : IClas
         Assert.True(box.Success, $"No {name} box on the page.");
         return WebUtility.HtmlDecode(Regex.Match(box.Value, "\\bvalue=\"([^\"]*)\"").Groups[1].Value);
     }
+
+    // What each set row's exercise box is filled with, in order.
+    private static List<string> ExerciseValues(string html) =>
+        Enumerable.Range(0, ExerciseBoxes().Count(html)).Select(i => BoxValue(html, $"Sets[{i}].Exercise")).ToList();
 
     [GeneratedRegex("<[^>]+>")]
     private static partial Regex Tags();

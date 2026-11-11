@@ -316,6 +316,21 @@ public sealed partial class RunLogPageTests(TestAppFactory factory) : IClassFixt
         Assert.Equal(5200, (await StoredData.SessionLogAsync(factory, id, Today))!.DistanceMetres);
     }
 
+    // A page shown again after a problem keeps what was typed in every box, even ones the button pressed ignores (code
+    // review of Phase 7): a run typed in before "Mark as skipped" was pressed, with notes too long, is still there.
+    [Fact]
+    public async Task APageShownAgainAfterAProblem_KeepsWhatWasTypedInEveryBox()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("2026-10-19");
+
+        var problem = await LogRunAsync(browser, id, "2026-10-19", new(AnEasyRun) { ["Notes"] = new string('x', 2001) }, mark: "Skipped");
+        var html = await problem.Content.ReadAsStringAsync();
+
+        Assert.Contains("Notes must be 2000 characters or fewer.", WebUtility.HtmlDecode(html));
+        Assert.Equal(("5.2", "28"), (BoxValue(html, "Distance"), BoxValue(html, "TimeMinutes")));
+        Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
+    }
+
     // T19: another user's run is "not found", and nothing is saved to it.
     [Fact]
     public async Task AnotherUsersRun_IsNotFound_AndNothingIsSaved()

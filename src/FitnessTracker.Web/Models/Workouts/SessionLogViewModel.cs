@@ -172,7 +172,7 @@ public class SessionLogViewModel
 
     /// <summary>
     /// Q25: what distances are typed and shown in, as chosen in Preferences; on a page shown again after a problem, the
-    /// unit its boxes were typed in (<see cref="KeepTypedUnits"/>).
+    /// unit its boxes were typed in (<see cref="KeepTyped"/>).
     /// </summary>
     public DistanceUnit DistanceUnit { get; private set; }
 
@@ -342,10 +342,14 @@ public class SessionLogViewModel
     }
 
     /// <summary>
-    /// The page shown again after a problem: its boxes still hold what was <paramref name="posted"/>, so they keep the
-    /// units it was typed in, for their labels and for the next save (<see cref="BoxDistanceUnit"/>).
+    /// The page shown again after a problem, whose boxes still hold what was <paramref name="posted"/> (a box shows what
+    /// was posted in it over the page's own value). They keep the units it was typed in, for their labels and for the
+    /// next save (<see cref="BoxDistanceUnit"/>). A gym session's rows are the ones posted, every one, however many "Add
+    /// more rows" had shown (Q31), and no more: a row left off would be dropped by the next save without a word, and a
+    /// set saved since in another tab, shown after them, would be saved again unseen (requirements §9). A page posted
+    /// with no rows (opened before the session started) shows the sets as saved now.
     /// </summary>
-    public void KeepTypedUnits(SessionLogViewModel posted)
+    public void KeepTyped(SessionLogViewModel posted)
     {
         if (posted.BoxDistanceUnit is { } distance)
         {
@@ -357,6 +361,16 @@ public class SessionLogViewModel
         {
             WeightUnit = weight;
             BoxWeightUnit = weight;
+        }
+
+        if (IsGym)
+        {
+            if (posted.Sets.Count > 0)
+            {
+                Sets = posted.Sets;
+            }
+
+            ShowRows(Math.Max(posted.Rows, Sets.Count));
         }
     }
 

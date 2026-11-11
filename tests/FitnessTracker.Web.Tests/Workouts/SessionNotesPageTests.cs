@@ -92,6 +92,27 @@ public sealed class SessionNotesPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
     }
 
+    // Requirements §9 (code review of Phase 7): notes saved from a page opened before another tab changed them are
+    // refused, and the page says what they are now, so they aren't replaced unseen. What was typed is still in the box.
+    [Fact]
+    public async Task APageOpenedBeforeAnotherTabChangedTheNotes_SaysWhatTheyAreNow()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("Gym");
+        await MarkAsync(browser, id, "Done", "");
+        var oldTab = await browser.LoadFormAsync($"/Sessions/Log/{id}?date=2026-10-19");
+        await MarkAsync(browser, id, "Done", "Knee sore");
+
+        var refused = await browser.SubmitAsync(oldTab, $"/Sessions/Log/{id}", new() { ["Date"] = "2026-10-19", ["Mark"] = "Done", ["Notes"] = "Felt fine" });
+        var page = WebUtility.HtmlDecode(await refused.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains(
+            "This session was changed in another tab or window after you opened this page. It's now marked done, with the notes \"Knee sore\". " +
+            "What you typed is still below: check it, then make your change again.", page);
+        Assert.Matches(">\\s*Felt fine</textarea>", page);
+        Assert.Equal("Knee sore", (await StoredData.SessionLogAsync(factory, id, Today))!.Notes);
+    }
+
     private async Task<(TestBrowser Browser, Guid Id)> SignedInWithASessionAsync(string category)
     {
         var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
