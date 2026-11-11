@@ -162,6 +162,27 @@ public sealed partial class StrengthLogPageTests(TestAppFactory factory) : IClas
         Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
     }
 
+    // Q31 (code review of Phase 7): at 60 rows, the most one session can save, "Add more rows" goes (it would add none),
+    // and the page says why.
+    [Fact]
+    public async Task AtSixtyRows_AddMoreRowsGoes_AndThePageSaysWhy()
+    {
+        var (browser, id) = await SignedInWithASessionAsync();
+        var before = await PageAsync(browser, id);
+        var form = WorkoutForm(Rows(("Back squat", "5", "", "")));
+        form["Rows"] = "54";
+        form["MoreRows"] = "true";
+
+        var response = await browser.SubmitFormAsync($"/Sessions/Log/{id}?date=2026-10-19", $"/Sessions/Log/{id}", form);
+        var page = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("Add more rows", before);
+        Assert.DoesNotContain("Up to 60 sets can be saved for one session.", before);
+        Assert.Equal(60, ExerciseBoxes().Matches(page).Count);
+        Assert.DoesNotContain("Add more rows", page);
+        Assert.Contains("Up to 60 sets can be saved for one session.", page);
+    }
+
     // Q31 (silent-failure review of Phase 7): after a problem in one row, the page shows every row that was posted, as
     // many as "Add more rows" had shown, so fixing it and saving keeps rows 7 onwards. They used to be left off the page,
     // and the next save dropped them without a word.

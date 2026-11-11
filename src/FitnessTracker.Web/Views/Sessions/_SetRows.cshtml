@@ -1,5 +1,6 @@
 @model FitnessTracker.Web.Models.Workouts.SessionLogViewModel
 @using FitnessTracker.Domain.Workouts
+@using FitnessTracker.Web.Models.Workouts
 @* FIT-2, Q30-Q33: a gym session's sets, one row each: exercise (typed, with suggestions), reps, weight and rest. Blank
    rows are ignored. Each row is a fieldset ("Set 1") whose boxes have their own labels: shown above the boxes on a
    phone, read out only on a wider screen, where one row of headings stands for them. Checked on the server only. *@
@@ -52,4 +53,9 @@
             </div>
         </div>
     </fieldset>
+}
+@if (!Model.CanAddRows)
+{
+    @* Q31: why "Add more rows" has gone. *@
+    <p class="form-text mt-2 mb-0">Up to @SessionLogViewModel.MaxSets sets can be saved for one session.</p>
 }

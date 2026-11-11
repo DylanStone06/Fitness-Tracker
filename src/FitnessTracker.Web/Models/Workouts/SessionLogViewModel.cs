@@ -148,6 +148,9 @@ public class SessionLogViewModel
     /// <summary>"Add more rows" was pressed: the page again with more rows, nothing saved.</summary>
     public bool MoreRows { get; set; }
 
+    /// <summary>Q31: "Add more rows" would add some: the page has fewer than <see cref="MaxSets"/>.</summary>
+    public bool CanAddRows => Sets.Count < MaxSets;
+
     /// <summary>FIT-2: notes on any session, saved with its mark (kept when skipped); trimmed, and blank is none.</summary>
     [Display(Name = "Notes")]
     [StringLength(SessionLog.NotesMaxLength, ErrorMessage = "Notes must be {1} characters or fewer.")]
