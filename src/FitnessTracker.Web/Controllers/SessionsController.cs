@@ -130,9 +130,10 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
         }
         else
         {
+            var newMark = mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
             if (stored is null)
             {
-                stored = new SessionLog { ActivityId = id, OccurrenceDate = session.Occurrence.Date };
+                stored = new SessionLog { ActivityId = id, OccurrenceDate = session.Occurrence.Date, Mark = newMark };
                 db.SessionLogs.Add(stored);
             }
             else
@@ -140,9 +141,9 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
                 // §9: every save gives the log a new version, even one that only changes its sets (rows of their own),
                 // so a page opened before it can't replace them.
                 db.Entry(stored).State = EntityState.Modified;
+                stored.Mark = newMark;
             }
 
-            stored.Mark = mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
             stored.Notes = model.Notes;
             if (mark == SessionChoice.Skipped)
             {

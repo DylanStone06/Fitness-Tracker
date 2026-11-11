@@ -46,12 +46,15 @@ public class SessionLog : IOwnedByUser, IVersioned
 
     public Guid Version { get; set; }
 
-    public Guid ActivityId { get; set; }
+    // Which session it is, and its mark, must be given when a log is made (required): left out, each would quietly be
+    // its type's default (no activity, the year 1, and done: code review of Phase 7).
+
+    public required Guid ActivityId { get; set; }
 
     /// <summary>The date the activity's rule puts the session on (where it is now, if moved, is in the activity).</summary>
-    public LocalDate OccurrenceDate { get; set; }
+    public required LocalDate OccurrenceDate { get; set; }
 
-    public SessionMark Mark { get; set; }
+    public required SessionMark Mark { get; set; }
 
     /// <summary>FIT-3: how long it took, in seconds (requirements §8), or null when not given.</summary>
     public int? ActualSeconds { get; set; }
