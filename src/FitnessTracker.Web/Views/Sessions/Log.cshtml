@@ -162,6 +162,11 @@
             {
                 <p class="form-text">Marking it skipped or back to planned removes the workout's sets.</p>
             }
+            @if (Model.Marked is not null && Model.Notes is not null)
+            {
+                @* FIT-2: the notes go with the mark. The model's notes are the saved ones (the box shows what was typed). *@
+                <p class="form-text">Back to planned also removes the notes.</p>
+            }
             @if (!Model.CanMarkDone)
             {
                 <p class="form-text">It can be marked done once it has started.</p>

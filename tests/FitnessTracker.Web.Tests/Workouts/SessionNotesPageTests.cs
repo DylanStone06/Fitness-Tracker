@@ -54,6 +54,20 @@ public sealed class SessionNotesPageTests(TestAppFactory factory) : IClassFixtur
         Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
     }
 
+    // ... and says so before it is pressed, when there are notes to lose (code review of Phase 7).
+    [Fact]
+    public async Task AMarkedSessionWithNotes_SaysBackToPlannedRemovesThem()
+    {
+        var (browser, id) = await SignedInWithASessionAsync("Gym");
+        await MarkAsync(browser, id, "Skipped", "");
+        var withoutNotes = await PageAsync(browser, id);
+        await MarkAsync(browser, id, "Skipped", "Knee sore");
+        var withNotes = await PageAsync(browser, id);
+
+        Assert.DoesNotContain("Back to planned also removes the notes.", withoutNotes);
+        Assert.Contains("Back to planned also removes the notes.", withNotes);
+    }
+
     // Once marked, "Save notes" changes them and keeps the mark.
     [Theory]
     [InlineData("Done")]
