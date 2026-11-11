@@ -2,8 +2,9 @@
 @using FitnessTracker.Domain.Workouts
 @using FitnessTracker.Web.Models.Workouts
 @* FIT-2, Q30-Q33: a gym session's sets, one row each: exercise (typed, with suggestions), reps, weight and rest. Blank
-   rows are ignored. Each row is a fieldset ("Set 1") whose boxes have their own labels: shown above the boxes on a
-   phone, read out only on a wider screen, where one row of headings stands for them. Checked on the server only. *@
+   rows are ignored. Each row is a fieldset ("Row 1", as its problems name it) whose boxes have their own labels: shown
+   above the boxes on a phone, read out only on a wider screen, where one row of headings stands for them. Checked on
+   the server only. *@
 @{
     var unit = Model.WeightUnit == WeightUnit.Kilograms ? "kg" : "lb";
 }
@@ -25,7 +26,7 @@
 {
     var row = $"set-{i}";
     <fieldset class="ft-set">
-        <legend class="visually-hidden">Set @(i + 1)</legend>
+        <legend class="visually-hidden">Row @(i + 1)</legend>
         <span asp-validation-for="Sets[i].Exercise" class="d-block text-danger" id="@row-exercise-error"></span>
         <span asp-validation-for="Sets[i].Reps" class="d-block text-danger" id="@row-reps-error"></span>
         <span asp-validation-for="Sets[i].Weight" class="d-block text-danger" id="@row-weight-error"></span>

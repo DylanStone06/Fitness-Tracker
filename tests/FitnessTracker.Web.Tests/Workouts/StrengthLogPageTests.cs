@@ -162,6 +162,18 @@ public sealed partial class StrengthLogPageTests(TestAppFactory factory) : IClas
         Assert.Null(await StoredData.SessionLogAsync(factory, id, Today));
     }
 
+    // Accessibility review of Phase 7: a screen reader names each row as its problems do ("Row 2: enter the reps..."),
+    // so the row a problem is in can be found.
+    [Fact]
+    public async Task EachRow_IsReadOutAsItsProblemsNameIt()
+    {
+        var (browser, id) = await SignedInWithASessionAsync();
+
+        var page = await PageAsync(browser, id);
+
+        Assert.Contains("<legend class=\"visually-hidden\">Row 2</legend>", page);
+    }
+
     // Q31 (code review of Phase 7): at 60 rows, the most one session can save, "Add more rows" goes (it would add none),
     // and the page says why.
     [Fact]
