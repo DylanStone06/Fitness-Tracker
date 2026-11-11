@@ -177,6 +177,60 @@ public sealed class SessionPageTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Contains("Thu 29 Oct, 18:00", page);
     }
 
+    // Q21 (test review of Phase 7): whether a session today has started is judged at the moment it starts where it is.
+    // Now is 13:00 in London (12:00 UTC), which is 08:00 in New York.
+    [Theory]
+    [InlineData("Europe/London", "12:30", true)]
+    [InlineData("Europe/London", "13:30", false)]
+    [InlineData("America/New_York", "07:30", true)]
+    [InlineData("America/New_York", "08:30", false)]
+    public async Task ASessionToday_CanBeMarkedDone_OnceItHasStartedWhereItIs(string timeZone, string start, bool started)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SavePreferencesAsync(new() { ["TimeZoneId"] = timeZone })).StatusCode);
+        var title = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(title, new() { ["StartDate"] = "2026-10-19", ["StartTime"] = start })).StatusCode);
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+
+        var response = await browser.MarkSessionAsync(id, "2026-10-19", "Done");
+
+        Assert.Equal(started ? HttpStatusCode.Redirect : HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(started ? SessionMark.Done : null, await StoredData.SessionMarkAsync(factory, id, Today));
+    }
+
+    // Q21, Q22 (test review of Phase 7): a moved session has started by its new time, not its old one: tomorrow's,
+    // moved to midday today, has; this morning's, moved to this evening, hasn't.
+    [Theory]
+    [InlineData("2026-10-20", "2026-10-19", "12:00", true)]
+    [InlineData("2026-10-19", "2026-10-19", "18:00", false)]
+    public async Task AMovedSession_CanBeMarkedDone_OnceItHasStartedAtItsNewTime(string date, string newDate, string newStart, bool started)
+    {
+        var browser = await TestBrowser.OpenSignedInAsync(factory, "alex");
+        var title = TestBrowser.NewName("Gym");
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.AddActivityAsync(title, new()
+        {
+            ["StartDate"] = "2026-10-19",
+            ["Repeats"] = "Weekly",
+            ["RepeatDays[0]"] = "true",
+            ["RepeatDays[1]"] = "true",
+        })).StatusCode);
+        var id = (await StoredData.ActivityTitledAsync(factory, title))!.Id;
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.SubmitFormAsync($"/Activities/Occurrence/{id}?date={date}", $"/Activities/Occurrence/{id}", new()
+        {
+            ["Date"] = date,
+            ["Change"] = "Move",
+            ["NewDate"] = newDate,
+            ["NewStartTime"] = newStart,
+            ["DurationHours"] = "1",
+            ["DurationMinutes"] = "0",
+        })).StatusCode);
+
+        var response = await browser.MarkSessionAsync(id, date, "Done");
+
+        Assert.Equal(started ? HttpStatusCode.Redirect : HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(started ? SessionMark.Done : null, await StoredData.SessionMarkAsync(factory, id, LocalDate.FromDateTime(DateTime.Parse(date, System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
     // The home page shows each session's status (T20: "Not logged" for this morning's), linking to its page.
     [Fact]
     public async Task TheHomePage_ShowsEachSessionsStatus_AndLinksToItsPage()

@@ -78,4 +78,48 @@ public class SessionsTests
         Assert.False(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2026, 11, 3, 17, 59)));
         Assert.True(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2026, 11, 3, 18, 0)));
     }
+
+    // Test review of Phase 7: one that runs past midnight (23:30 to 00:30) has started at 23:30, and isn't "Not logged"
+    // until it ends the next day.
+    [Fact]
+    public void ASessionPastMidnight_StartsOnItsDay_AndIsNotLoggedOnceItEndsTheNextDay()
+    {
+        var late = new Series(Tuesday, new LocalTime(23, 30), Duration.FromHours(1), London, RecurrenceRule.Weekly([IsoDayOfWeek.Tuesday]));
+        var occurrence = ActivityCheck.OccurrenceOn(late, Tuesday)!.Value;
+
+        Assert.False(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2026, 11, 3, 23, 29)));
+        Assert.True(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2026, 11, 3, 23, 30)));
+        Assert.False(Sessions.StateOf(late, Tuesday, null, Instant.FromUtc(2026, 11, 4, 0, 29))!.NotLogged);
+        Assert.True(Sessions.StateOf(late, Tuesday, null, Instant.FromUtc(2026, 11, 4, 0, 30))!.NotLogged);
+    }
+
+    // Requirements §8 (test review of Phase 7): on the day the clocks go back, 01:30 happens twice, and the first is the
+    // one (01:30 BST, 00:30 UTC). A 30-minute session then has started at 00:30 UTC, and ends at 01:00 UTC.
+    [Fact]
+    public void OnTheDayTheClocksGoBack_ASessionIsJudgedFromTheFirstOfItsTwoTimes()
+    {
+        var sunday = new LocalDate(2026, 10, 25);
+        var early = new Series(sunday, new LocalTime(1, 30), Duration.FromMinutes(30), London, RecurrenceRule.Weekly([IsoDayOfWeek.Sunday]));
+        var occurrence = ActivityCheck.OccurrenceOn(early, sunday)!.Value;
+
+        Assert.False(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2026, 10, 25, 0, 29)));
+        Assert.True(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2026, 10, 25, 0, 30)));
+        Assert.False(Sessions.StateOf(early, sunday, null, Instant.FromUtc(2026, 10, 25, 0, 59))!.NotLogged);
+        Assert.True(Sessions.StateOf(early, sunday, null, Instant.FromUtc(2026, 10, 25, 1, 0))!.NotLogged);
+    }
+
+    // §8: on the day they go forward, 01:30 doesn't happen, and the session moves on by the hour skipped, to 02:30 BST
+    // (01:30 UTC).
+    [Fact]
+    public void OnTheDayTheClocksGoForward_ASessionInTheSkippedHourIsJudgedFromAnHourLater()
+    {
+        var sunday = new LocalDate(2027, 3, 28);
+        var early = new Series(sunday, new LocalTime(1, 30), Duration.FromMinutes(30), London, RecurrenceRule.Weekly([IsoDayOfWeek.Sunday]));
+        var occurrence = ActivityCheck.OccurrenceOn(early, sunday)!.Value;
+
+        Assert.False(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2027, 3, 28, 1, 29)));
+        Assert.True(Sessions.CanMarkDone(occurrence, Instant.FromUtc(2027, 3, 28, 1, 30)));
+        Assert.False(Sessions.StateOf(early, sunday, null, Instant.FromUtc(2027, 3, 28, 1, 59))!.NotLogged);
+        Assert.True(Sessions.StateOf(early, sunday, null, Instant.FromUtc(2027, 3, 28, 2, 0))!.NotLogged);
+    }
 }
