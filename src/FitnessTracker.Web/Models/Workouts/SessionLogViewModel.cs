@@ -98,7 +98,11 @@ public class SessionLogViewModel
     /// <summary>As <see cref="BoxDistanceUnit"/>, for the weight boxes of a gym session's sets.</summary>
     public WeightUnit? BoxWeightUnit { get; set; }
 
-    public SessionChoice Mark { get; set; }
+    /// <summary>
+    /// The button pressed, which every save posts ("Add more rows" posts none). Null when none was posted, or what was
+    /// can't be read: never taken for <see cref="SessionChoice.Planned"/>, which would remove the session's log.
+    /// </summary>
+    public SessionChoice? Mark { get; set; }
 
     // FIT-3, Q26: a run's details, each optional, in the order the form asks for them.
 

@@ -68,6 +68,28 @@ public sealed class SessionPageTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Contains("Status: Planned", await PageAsync(browser, id, "2026-10-19"));
     }
 
+    // Code review of Phase 7: a save that doesn't say which button was pressed (a browser always does; a broken or made-up
+    // request may not) is refused, and never taken for "back to planned", which would remove the session's log.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("Finished")]
+    public async Task ASaveWithNoMarkItCanRead_IsRefused_AndKeepsTheMark(string? mark)
+    {
+        var (browser, id) = await SignedInWithAGymSessionAsync("2026-10-19");
+        await browser.MarkSessionAsync(id, "2026-10-19", "Done");
+        var fields = new Dictionary<string, string> { ["Date"] = "2026-10-19", ["Notes"] = "" };
+        if (mark is not null)
+        {
+            fields["Mark"] = mark;
+        }
+
+        var response = await browser.SubmitFormAsync($"/Sessions/Log/{id}?date=2026-10-19", $"/Sessions/Log/{id}", fields);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(SessionMark.Done, await StoredData.SessionMarkAsync(factory, id, Today));
+    }
+
     // Requirements §9: a page opened before another tab marked the session can't overwrite that mark without saying so.
     // It says what the session is now, and saving from that page works.
     [Fact]

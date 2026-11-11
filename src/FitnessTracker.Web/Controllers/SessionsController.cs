@@ -54,24 +54,31 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return View(page);
         }
 
+        // Every save posts the button pressed. One that posts none, or one that can't be read (never a browser's), is
+        // refused: taken for back to planned, it would remove the session's log.
+        if (model.Mark is not { } mark)
+        {
+            return BadRequest();
+        }
+
         // Q27, Q33: what was typed is read in the units the page showed it in (§9: Preferences may have been changed in
         // another tab since it was opened).
         var distanceUnit = model.BoxDistanceUnit ?? user.Preferences.DistanceUnit;
         var weightUnit = model.BoxWeightUnit ?? user.Preferences.WeightUnit;
 
         // Q21: done once it has started, never before; skipped at any time.
-        var tooEarly = model.Mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant());
+        var tooEarly = mark == SessionChoice.Done && !Sessions.CanMarkDone(session.Occurrence, user.Now.ToInstant());
 
         // FIT-3, FIT-2: a run's boxes, and a gym session's set rows, are only read when it is saved as done. Anything
         // else ignores them, even what can't be read, as does a session still to come (its page has none) or one of
         // another kind (Q20). Back to planned removes the session's log, notes and all, so it ignores the notes box too.
-        var savesARun = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Run;
-        var savesAWorkout = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Gym;
-        var savesAnOther = model.Mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.OtherExercise;
+        var savesARun = mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Run;
+        var savesAWorkout = mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.Gym;
+        var savesAnOther = mark == SessionChoice.Done && !tooEarly && session.Category == ActivityCategory.OtherExercise;
         var ignored = (savesARun ? [] : SessionLogViewModel.RunTypeBoxes)
             .Concat(savesAnOther ? [] : SessionLogViewModel.OtherTypeBoxes)
             .Concat(savesARun || savesAnOther ? [] : SessionLogViewModel.DetailBoxes)
-            .Concat(model.Mark == SessionChoice.Planned ? [nameof(SessionLogViewModel.Notes)] : [])
+            .Concat(mark == SessionChoice.Planned ? [nameof(SessionLogViewModel.Notes)] : [])
             .ToHashSet(StringComparer.Ordinal);
         foreach (var (box, entry) in ModelState)
         {
@@ -114,7 +121,7 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
             return View(await PageAgainAsync(session, user, model));
         }
 
-        if (model.Mark == SessionChoice.Planned)
+        if (mark == SessionChoice.Planned)
         {
             if (stored is not null)
             {
@@ -135,9 +142,9 @@ public class SessionsController(AppDbContext db, PlanningData planning) : Contro
                 db.Entry(stored).State = EntityState.Modified;
             }
 
-            stored.Mark = model.Mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
+            stored.Mark = mark == SessionChoice.Done ? SessionMark.Done : SessionMark.Skipped;
             stored.Notes = model.Notes;
-            if (model.Mark == SessionChoice.Skipped)
+            if (mark == SessionChoice.Skipped)
             {
                 // Q28: a skipped session has no details.
                 stored.ForgetDetails();
